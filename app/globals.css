@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Brown-scale palette: cream, tan, camel, mocha, espresso */
+@layer base {
+  :root {
+    --background: 35 30% 97%;
+    --foreground: 25 25% 12%;
+    --card: 35 25% 99%;
+    --card-foreground: 25 25% 12%;
+    --popover: 35 25% 99%;
+    --popover-foreground: 25 25% 12%;
+    --primary: 25 40% 32%;
+    --primary-foreground: 35 30% 97%;
+    --secondary: 35 20% 92%;
+    --secondary-foreground: 25 25% 22%;
+    --muted: 35 18% 92%;
+    --muted-foreground: 25 18% 42%;
+    --accent: 35 22% 90%;
+    --accent-foreground: 25 25% 18%;
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 35 18% 86%;
+    --input: 35 18% 86%;
+    --ring: 25 40% 32%;
+    --radius: 0.5rem;
+    /* Chat-specific brown tokens */
+    --chat-user-bubble: 30 35% 42%;
+    --chat-assistant-bubble: 35 22% 94%;
+    --chat-assistant-border: 35 15% 88%;
+    --chat-typing-bg: 35 20% 91%;
+  }
+
+  .dark {
+    --background: 25 15% 10%;
+    --foreground: 30 20% 95%;
+    --card: 25 15% 12%;
+    --card-foreground: 30 20% 95%;
+    --popover: 25 15% 12%;
+    --popover-foreground: 30 20% 95%;
+    --primary: 30 25% 65%;
+    --primary-foreground: 25 15% 10%;
+    --secondary: 25 12% 18%;
+    --secondary-foreground: 30 20% 90%;
+    --muted: 25 12% 18%;
+    --muted-foreground: 30 15% 60%;
+    --accent: 25 15% 20%;
+    --accent-foreground: 30 20% 90%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 25 12% 22%;
+    --input: 25 12% 22%;
+    --ring: 30 25% 65%;
+    --chat-user-bubble: 30 25% 35%;
+    --chat-assistant-bubble: 25 15% 16%;
+    --chat-assistant-border: 25 12% 24%;
+    --chat-typing-bg: 25 12% 18%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
