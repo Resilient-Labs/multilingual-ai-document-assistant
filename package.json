@@ -12,6 +12,8 @@
     "cypress:open": "cypress open"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.9",
+    "@heroicons/react": "^2.2.0",
     "axios": "^1.13.6",
     "next": "16.1.6",
     "react": "19.2.3",
