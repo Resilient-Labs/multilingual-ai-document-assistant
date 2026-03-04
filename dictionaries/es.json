@@ -1,0 +1,11 @@
+{
+  "nav": {
+    "dashboard": "Panel"
+  },
+  "home": {
+    "tagline": "Rompiendo barreras lingüísticas."
+  },
+  "dashboard": {
+    "title": "Panel"
+  }
+}

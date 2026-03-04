@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import "./globals.css";
+import { type Locale, locales } from "@/lib/dictionaries";
+import "../globals.css";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -12,13 +13,20 @@ export const metadata: Metadata = {
   description: "AI-powered multilingual document assistant",
 };
 
-export default function RootLayout({
+export function generateStaticParams() {
+  return locales.map((lang) => ({ lang }));
+}
+
+export default async function RootLayout({
   children,
+  params,
 }: Readonly<{
   children: React.ReactNode;
+  params: Promise<{ lang: Locale }>;
 }>) {
+  const { lang } = await params;
   return (
-    <html lang="en">
+    <html lang={lang}>
       <body className={`${inter.variable} antialiased`}>
         {children}
       </body>
