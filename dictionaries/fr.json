@@ -1,0 +1,11 @@
+{
+  "nav": {
+    "dashboard": "Tableau de bord"
+  },
+  "home": {
+    "tagline": "Briser les barrières linguistiques."
+  },
+  "dashboard": {
+    "title": "Tableau de bord"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "nav": {
+    "dashboard": "Dashboard"
+  },
+  "home": {
+    "tagline": "Breaking language barriers."
+  },
+  "dashboard": {
+    "title": "Dashboard"
+  }
+}
