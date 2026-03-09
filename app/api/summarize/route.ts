@@ -1,43 +1,31 @@
 import { NextResponse } from "next/server";
-import { getWithParse } from "@/lib/redis";
-import { REDIS_KEYS } from "@/lib/constants";
 
 /**
  * POST /api/summarize
- * Team 2: Generate document summary from fullText.
- * Body: { docId: string }
+ * Team 2: Stateless. Client sends fullText. Backend returns summary.
+ * Server stores nothing.
+ *
+ * Body: { fullText: string }
  *
  * TODO: Integrate LLM for summarization.
  */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const docId = body?.docId as string | undefined;
+    const fullText = body?.fullText as string | undefined;
 
-    if (!docId) {
+    if (!fullText) {
       return NextResponse.json(
-        { error: "docId required" },
+        { error: "fullText required" },
         { status: 400 }
       );
     }
 
-    const doc = await getWithParse<{ ocr?: { fullText?: string } }>(
-      REDIS_KEYS.doc(docId)
-    );
-
-    if (!doc) {
-      return NextResponse.json(
-        { error: "Document not found or expired" },
-        { status: 404 }
-      );
-    }
-
-    const fullText = doc.ocr?.fullText ?? "";
-
     // TODO: Call LLM for summarization.
-    const summary = fullText
-      ? `[Summary placeholder for document. LLM integration pending.]`
-      : "No content to summarize.";
+    const summary =
+      fullText.trim().length > 0
+        ? `[Summary placeholder. LLM integration pending.]`
+        : "No content to summarize.";
 
     return NextResponse.json({ summary });
   } catch (err) {

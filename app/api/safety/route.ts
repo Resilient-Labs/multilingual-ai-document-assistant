@@ -1,37 +1,23 @@
 import { NextResponse } from "next/server";
-import { getWithParse } from "@/lib/redis";
-import { REDIS_KEYS } from "@/lib/constants";
 
 /**
  * POST /api/safety
- * Team 5: Detect red flags (scams, eviction notices, urgent financial docs).
- * Analyzes OCR JSON, fields, confidence scores.
- * Body: { docId: string }
+ * Team 5: Stateless. Client sends text/blocks. Backend returns risk flags.
+ * Server stores nothing.
  *
- * TODO: Implement safety detection logic.
+ * Body: { fullText?: string, blocks?: Array<{ text: string; confidence?: number }> }
+ *
+ * TODO: Implement risk classification (scams, eviction notices, urgent docs).
  */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const docId = body?.docId as string | undefined;
+    const fullText = body?.fullText as string | undefined;
+    const blocks = body?.blocks as Array<{ text: string; confidence?: number }> | undefined;
 
-    if (!docId) {
-      return NextResponse.json(
-        { error: "docId required" },
-        { status: 400 }
-      );
-    }
+    const textToAnalyze = fullText ?? blocks?.map((b) => b.text).join("\n") ?? "";
 
-    const doc = await getWithParse(REDIS_KEYS.doc(docId));
-
-    if (!doc) {
-      return NextResponse.json(
-        { error: "Document not found or expired" },
-        { status: 404 }
-      );
-    }
-
-    // TODO: Analyze OCR JSON for scams, eviction notices, urgent docs.
+    // TODO: Run classification on textToAnalyze.
     const flags = {
       hasUrgentContent: false,
       hasEvictionNotice: false,
