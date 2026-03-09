@@ -1,4 +1,4 @@
-# Test Repo
+# Multilingual AI Document Assistant
 
 Next.js application with Convex backend.
 
