@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { getWithParse } from "@/lib/redis";
 import { REDIS_KEYS } from "@/lib/constants";
+import type { RedisDocEntry } from "@/types";
 
 /**
- * POST /api/summarize
- * Team 2: Generate document summary from fullText.
+ * POST /api/documents/extract
+ * Team 1: Return structured OCR JSON for a document.
+ * Used for async OCR, reprocessing, or debugging.
  * Body: { docId: string }
- *
- * TODO: Integrate LLM for summarization.
  */
 export async function POST(request: Request) {
   try {
@@ -21,9 +21,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const doc = await getWithParse<{ ocr?: { fullText?: string } }>(
-      REDIS_KEYS.doc(docId)
-    );
+    const doc = await getWithParse<RedisDocEntry>(REDIS_KEYS.doc(docId));
 
     if (!doc) {
       return NextResponse.json(
@@ -32,18 +30,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const fullText = doc.ocr?.fullText ?? "";
-
-    // TODO: Call LLM for summarization.
-    const summary = fullText
-      ? `[Summary placeholder for document. LLM integration pending.]`
-      : "No content to summarize.";
-
-    return NextResponse.json({ summary });
+    return NextResponse.json(doc.ocr);
   } catch (err) {
-    console.error("Summarize error:", err);
+    console.error("Extract error:", err);
     return NextResponse.json(
-      { error: "Summarization failed" },
+      { error: "Extract failed" },
       { status: 500 }
     );
   }
