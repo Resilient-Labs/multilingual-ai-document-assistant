@@ -60,8 +60,7 @@ export async function POST(request: Request) {
       createdAt: Date.now(),
       ocr: ocrResult,
     });
-  } catch (err) {
-    console.error("Upload error:", err);
+  } catch {
     return NextResponse.json(
       { error: "Upload failed" },
       { status: 500 }

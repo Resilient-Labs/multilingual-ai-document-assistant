@@ -31,8 +31,7 @@ export async function POST(request: Request) {
       : "No relevant information found. Please provide context (fullText or chunks) in the request body.";
 
     return NextResponse.json({ answer });
-  } catch (err) {
-    console.error("Ask error:", err);
+  } catch {
     return NextResponse.json(
       { error: "Question answering failed" },
       { status: 500 }

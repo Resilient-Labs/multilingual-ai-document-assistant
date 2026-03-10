@@ -49,8 +49,7 @@ export async function POST(request: Request) {
     };
 
     return NextResponse.json(ocrResult);
-  } catch (err) {
-    console.error("Extract error:", err);
+  } catch {
     return NextResponse.json(
       { error: "Extract failed" },
       { status: 500 }

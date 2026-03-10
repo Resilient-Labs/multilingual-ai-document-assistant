@@ -14,7 +14,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     const fullText = body?.fullText as string | undefined;
     const blocks = body?.blocks as Array<{ text: string; confidence?: number }> | undefined;
-
     const textToAnalyze = fullText ?? blocks?.map((b) => b.text).join("\n") ?? "";
 
     // TODO: Run classification on textToAnalyze.
@@ -22,12 +21,11 @@ export async function POST(request: Request) {
       hasUrgentContent: false,
       hasEvictionNotice: false,
       hasScamIndicators: false,
-      details: [] as string[],
+      details: textToAnalyze ? [] : [],
     };
 
     return NextResponse.json({ flags });
-  } catch (err) {
-    console.error("Safety check error:", err);
+  } catch {
     return NextResponse.json(
       { error: "Safety check failed" },
       { status: 500 }
