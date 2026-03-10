@@ -44,7 +44,6 @@ Provide a short explanation of the intended functionality.
 
 - [ ] Local testing completed
 - [ ] API endpoints tested
-- [ ] Convex functions tested
 - [ ] UI manually tested
 - [ ] Edge cases considered
 
