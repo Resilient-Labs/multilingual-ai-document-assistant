@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { getEntityDB, insertChunk } from "@/lib/entitydb";
 import { generateDocumentId } from "@/lib/documentId";
-import { subBusinessDays } from "date-fns";
 
 export default function DBWidget() {
   const [items, setItems] = useState<any[]>([]);
@@ -43,7 +42,7 @@ export default function DBWidget() {
         //   body: JSON.stringify({ fullText: "Hello" }),
         // });
         // const data = await res.json();
-        // console.log("Safety Data: ", data);
+        // db.insert({flags: data.flags});
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? "Failed to load DB");
       }
