@@ -1,4 +1,12 @@
 import Image from "next/image";
+import dynamic from "next/dynamic";
+import {Alert} from "@/components/ui/alert";
+
+// Dynamic import for DBWidget to avoid SSR issues (Don't fully understand, but EntityDB doesn't work with SSR)
+const DBWidget = dynamic(() => import("@/components/db/DBWidget"), {
+  ssr: false,
+  loading: () => <Alert variant="destructive">Loading local vector DB...</Alert>,
+});
 
 export default async function Page() {
   return (
@@ -20,6 +28,7 @@ export default async function Page() {
       <div className="flex-1 flex items-start justify-center">
         <div className="w-full max-w-2xl rounded-[28px] border border-zinc-300 dark:border-zinc-700 p-4"></div>
       </div>
+      <DBWidget />
     </div>
   );
 }

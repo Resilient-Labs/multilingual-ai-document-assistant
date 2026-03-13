@@ -16,13 +16,22 @@ const openRouterApiToken = process.env.OPEN_ROUTER_API_TOKEN;
 export async function POST(request: Request) {
   const prompt = await fs.readFile(process.cwd() + '/app/api/safety/system-prompt.md','utf-8')
   try {
+    
     const body = await request.json();
+    console.log("Body: ", body);
     const fullText = body?.fullText as string | undefined;
     const blocks = body?.blocks as Array<{ text: string; confidence?: number }> | undefined;
     const textToAnalyze = fullText ?? blocks?.map((b) => b.text).join("\n") ?? "";
 
+    // TODO: Run classification on textToAnalyze.
+    // let flags = {
+    //   category: "medical",
+    //   severity: "low",
+    //   detectedAt: Date.now(),
+    //   explanation: "This is a medical document",
+    // };
 
-    await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${openRouterApiToken}`,
@@ -46,19 +55,16 @@ export async function POST(request: Request) {
             "exclude": true
         }
       }),
-    }).then(res => res.json())
-    .then(data => console.log("Summary: \n",data.choices[0].message.content))
-    .catch(error => console.error("Error: ", error));
-
-    // TODO: Run classification on textToAnalyze.
-    const flags = {
-      category: "medical",
-      severity: "low",
-      detectedAt: Date.now(),
-      explanation: "This is a medical document",
-    };
-
+    })
+    const data = await res.json();
+    console.log("Data: ", data);
+    let flags = JSON.parse(data.choices[0].message.content);
+    flags.detectedAt = Date.now();     
+    
+    
+    console.log("Flags: ", flags);
     return NextResponse.json({ flags });
+    
   } catch {
     return NextResponse.json(
       { error: "Safety check failed" },
