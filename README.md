@@ -9,6 +9,22 @@ Privacy-first document assistant with **zero-retention** architecture. Documents
 
 ---
 
+## __Important__: This is a test branch
+- Must have openrouter api token
+```
+OPEN_ROUTER_API_TOKEN = <Your api token here>
+```
+
+### Important files (edited by Godwin)
+-- `page.tsx` - main page
+-- `components/db/DBWidget` - for interacting with entity
+-- `app/api/test/route` - for testing frontend/backend communication
+-- `app/api/safety/route` - SCAM TEAM!(api token needed for this one) 
+
+### Important files overall
+-- `lib/entitydb.ts` - entityDB specific functions
+
+
 ## Local Setup / Onboarding
 
 Use this guide to get set up locally and ready to contribute.
