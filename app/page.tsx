@@ -2,11 +2,17 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import {Alert} from "@/components/ui/alert";
 
+
+
 // Dynamic import for DBWidget to avoid SSR issues (Don't fully understand, but EntityDB doesn't work with SSR)
+//====== Two -layer approach to avoid SSR issues
 const DBWidget = dynamic(() => import("@/components/db/DBWidget"), {
   ssr: false,
   loading: () => <Alert variant="destructive">Loading local vector DB...</Alert>,
 });
+const AddExampleChunk = dynamic(() => import("@/components/db/AddExampleChunk"), { ssr: false });
+const UpdateChunk = dynamic(() => import("@/components/db/UpdateChunk"), { ssr: false });
+const ScamTeam = dynamic(() => import("@/components/db/ScamTeam"), { ssr: false });
 
 export default async function Page() {
   return (
@@ -29,6 +35,9 @@ export default async function Page() {
         <div className="w-full max-w-2xl rounded-[28px] border border-zinc-300 dark:border-zinc-700 p-4"></div>
       </div>
       <DBWidget />
+      <AddExampleChunk />
+      <UpdateChunk />
+      <ScamTeam />
     </div>
   );
 }

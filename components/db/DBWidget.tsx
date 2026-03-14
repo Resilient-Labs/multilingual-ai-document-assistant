@@ -1,5 +1,7 @@
 'use client';
 
+//===========For displaying the data in the EntityDB===============//
+
 import { useEffect, useState } from "react";
 import { getEntityDB, insertChunk } from "@/lib/entitydb";
 import { generateDocumentId } from "@/lib/documentId";
@@ -14,9 +16,6 @@ export default function DBWidget() {
         // Initial EntityDB setup
         const db = getEntityDB();
 
-        // Insert test data into EntityDB (documentId, chunkId)
-        await insertChunk("Hello", { docId: generateDocumentId(), chunkId: "456" });
-
         // Get all data for display
         const idb = await (db as any).dbPromise;
         const tx = idb.transaction("vectors", "readonly");
@@ -25,15 +24,8 @@ export default function DBWidget() {
         const withoutVectors = all.map(({ vector, ...rest }: any) => rest);
         if (!cancelled) setItems(withoutVectors);
 
-        // Test backend communication
-        const res = await fetch("/api/test", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fullText: "Hello" }),
-        });
-        const data = await res.json();
         // Insert test data into EntityDB (straight up)
-        db.insert({text: data.message});
+        // db.insert({text: data.message});
 
         // SCAM TEAM!!(api token needed for this one)
         // const res = await fetch("/api/safety", {
