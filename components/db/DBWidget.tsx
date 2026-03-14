@@ -26,15 +26,6 @@ export default function DBWidget() {
 
         // Insert test data into EntityDB (straight up)
         // db.insert({text: data.message});
-
-        // SCAM TEAM!!(api token needed for this one)
-        // const res = await fetch("/api/safety", {
-        //   method: "POST",
-        //   headers: { "Content-Type": "application/json" },
-        //   body: JSON.stringify({ fullText: "Hello" }),
-        // });
-        // const data = await res.json();
-        // db.insert({flags: data.flags});
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? "Failed to load DB");
       }

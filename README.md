@@ -18,6 +18,9 @@ OPEN_ROUTER_API_TOKEN = <Your api token here>
 ### Important files (edited by Godwin)
 - `page.tsx` - main page
 - `components/db/DBWidget` - for interacting with entity
+- `components/db/AddExampleChunk` - for initializing chunk
+- `components/db/UpdateChunk` - for updating chunk in place
+- `components/db/ScamTeam` - for reaching our models and updating the DB
 - `app/api/test/route` - for testing frontend/backend communication
 - `app/api/safety/route` - SCAM TEAM!(api token needed for this one) 
 
