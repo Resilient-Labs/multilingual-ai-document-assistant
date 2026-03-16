@@ -18,7 +18,6 @@ export async function POST(request: Request) {
   try {
     
     const body = await request.json();
-    console.log("Body: ", body);
     const fullText = body?.fullText as string | undefined;
     // const blocks = body?.blocks as Array<{ text: string; confidence?: number }> | undefined;
     // const textToAnalyze = fullText ?? blocks?.map((b) => b.text).join("\n") ?? "";
@@ -49,12 +48,9 @@ export async function POST(request: Request) {
       }),
     })
     const data = await res.json();
-    console.log("Data: ", data);
-    let flags = JSON.parse(data.choices[0].message.content);
+    const flags = JSON.parse(data.choices[0].message.content);
     flags.detectedAt = Date.now();     
-    
-    
-    console.log("Flags: ", flags);
+
     return NextResponse.json({ flags });
     
   } catch {
