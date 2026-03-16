@@ -101,7 +101,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json(response);
   } catch (err) {
-    console.error("Extraction failed:", err);
     return internalError("Extraction failed");
   }
 }

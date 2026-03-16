@@ -95,7 +95,7 @@ export function ExtractedDataPanel({
     }
   }, [data]);
 
-  function handleTabChange(_value: string): void {
+  function handleTabChange(): void {
     setIsSubmitted(false);
     setValidationError(null);
   }
