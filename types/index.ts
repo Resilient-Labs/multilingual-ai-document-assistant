@@ -27,19 +27,43 @@ export interface Document {
 
 export interface OCRBlock {
   id: string;
+  documentId: string;
   text: string;
   confidence?: number;
   page?: number;
-  bbox?: unknown;
+  bbox?: NormalizedBoundingBox;
 }
 
 // --- FieldCandidate (Team 1) ---
 
 export interface FieldCandidate {
+  id: string;
+  documentId: string;
+  blockId?: string;
   key: string;
   value: string;
   confidence?: number;
 }
+
+// --- BoundingBox (Team 1) ---
+
+export interface BoundingBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+// --- NormalizedBoundingBox (Team 1) ---
+// Coordinates are normalized to 0-1 range relative to page dimensions
+
+export interface NormalizedBoundingBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 
 // --- Chunk (Team 3) ---
 
@@ -101,12 +125,45 @@ export interface RiskFlag {
 export interface OCRResult {
   documentId: string;
   fullText: string;
-  blocks: Array<{
-    id: string;
-    text: string;
-    confidence?: number;
-    page?: number;
-    bbox?: unknown;
-  }>;
+  blocks: OCRBlock[];
   language?: string;
 }
+
+// --- Team 1 Extraction Request/Response Contracts ---
+
+export interface ExtractedPage {
+  pageNumber: number;
+  width: number;
+  height: number;
+  blocks: OCRBlock[];
+}
+
+export interface ExtractedFile {
+  fileIndex: number;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  pages: ExtractedPage[];
+}
+
+export interface ExtractionResponse {
+  document: Document;
+  ocr: OCRResult;
+  files: ExtractedFile[];
+  fieldCandidates: FieldCandidate[];
+  extractedAt: number;
+}
+
+export interface ExtractionErrorResponse {
+  error: string;
+  code: ExtractionErrorCode;
+  details?: Record<string, unknown>;
+}
+
+export type ExtractionErrorCode =
+  | "NO_FILES"
+  | "INVALID_FILE_TYPE"
+  | "FILE_TOO_LARGE"
+  | "TOO_MANY_FILES"
+  | "OCR_FAILURE"
+  | "INTERNAL_ERROR";
