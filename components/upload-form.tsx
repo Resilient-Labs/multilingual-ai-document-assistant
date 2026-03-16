@@ -77,7 +77,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     setIsSubmitting(true);
     try {
       // TODO: replace this placeholder with the real upload + redirect logic above
-      console.log("Upload payload →", { file, sourceLang, targetLang });
+    
       alert(`[Placeholder] Would upload "${file.name}" and translate ${sourceLang} → ${targetLang}`);
     } finally {
       setIsSubmitting(false);
