@@ -77,7 +77,7 @@ export async function POST(request: Request) {
         const buffer = await validatedFile.file.arrayBuffer();
         const rawResult = await ocrProvider.extract(buffer, validatedFile.mimeType);
         rawResults.push(rawResult);
-      } catch {
+      } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown OCR error";
         return ocrFailureError(message, { filename: validatedFile.filename });
       }
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
     };
 
     return NextResponse.json(response);
-  } catch {
+  } catch (err) {
     return internalError("Extraction failed");
   }
 }
