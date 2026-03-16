@@ -45,6 +45,7 @@ export async function POST(request: Request) {
       blocks: [
         {
           id: "b1",
+          documentId: docId,
           text: `[OCR placeholder for ${file.name}]`,
           confidence: 0.9,
         },

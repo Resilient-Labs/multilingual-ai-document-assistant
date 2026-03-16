@@ -1,58 +1,107 @@
 import { NextResponse } from "next/server";
-import { MAX_FILE_SIZE_BYTES, ALLOWED_MIME_TYPES } from "@/lib/constants";
-import type { OCRResult } from "@/types";
+import { generateDocumentId } from "@/lib/documentId";
+import {
+  parseAndValidateFiles,
+  getOCRProvider,
+  normalizeOCRResult,
+  extractFieldCandidates,
+  errorResponse,
+  noFilesError,
+  invalidFileTypeError,
+  fileTooLargeError,
+  tooManyFilesError,
+  ocrFailureError,
+  internalError,
+} from "@/lib/documents";
+import { MAX_FILE_SIZE_BYTES, MAX_FILES_PER_REQUEST } from "@/lib/constants";
+import type { ExtractionResponse } from "@/types";
+import type { RawOCRResult } from "@/lib/documents/provider";
 
 /**
  * POST /api/documents/extract
- * Team 1: Stateless. Accept file, run OCR, return structured OCR JSON.
- * Used for async OCR, reprocessing, or debugging.
- * Client stores result in EntityDB. Server stores nothing.
+ *
+ * Team 1: Stateless OCR extraction endpoint.
+ * Accepts multipart form-data with `files[]` or `file` field.
+ * Returns normalized entity-ready JSON for frontend persistence in EntityDB.
+ *
+ * Request:
+ *   Content-Type: multipart/form-data
+ *   Body: files[] (multiple) or file (single)
+ *
+ * Response:
+ *   200: ExtractionResponse with Document, OCRResult, ExtractedFiles, FieldCandidates
+ *   400: ExtractionErrorResponse for validation errors
+ *   500: ExtractionErrorResponse for OCR or server errors
+ *
+ * Server stores nothing. All persistence happens in the client.
  */
 export async function POST(request: Request) {
   try {
-    const formData = await request.formData();
-    const file = formData.get("file") as File | null;
+    const validationResult = await parseAndValidateFiles(request);
 
-    if (!file) {
-      return NextResponse.json(
-        { error: "No file provided" },
-        { status: 400 }
-      );
+    if (!validationResult.success) {
+      const { error } = validationResult;
+
+      switch (error.type) {
+        case "NO_FILES":
+          return noFilesError();
+        case "INVALID_FILE_TYPE":
+          return invalidFileTypeError(
+            error.details.filename ?? "unknown",
+            error.details.mimeType ?? "unknown"
+          );
+        case "FILE_TOO_LARGE":
+          return fileTooLargeError(
+            error.details.filename ?? "unknown",
+            error.details.sizeBytes ?? 0,
+            error.details.maxBytes ?? MAX_FILE_SIZE_BYTES
+          );
+        case "TOO_MANY_FILES":
+          return tooManyFilesError(
+            error.details.count ?? 0,
+            error.details.maxFiles ?? MAX_FILES_PER_REQUEST
+          );
+        default:
+          return errorResponse(error.message, "INTERNAL_ERROR", 400);
+      }
     }
 
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      return NextResponse.json(
-        { error: "File too large. Max 4.5 MB." },
-        { status: 400 }
-      );
+    const { files: validatedFiles } = validationResult;
+    const documentId = generateDocumentId();
+    const ocrProvider = getOCRProvider();
+
+    const rawResults: RawOCRResult[] = [];
+
+    for (const validatedFile of validatedFiles) {
+      try {
+        const buffer = await validatedFile.file.arrayBuffer();
+        const rawResult = await ocrProvider.extract(buffer, validatedFile.mimeType);
+        rawResults.push(rawResult);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Unknown OCR error";
+        return ocrFailureError(message, { filename: validatedFile.filename });
+      }
     }
 
-    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-      return NextResponse.json(
-        { error: "Invalid file type. Allowed: PDF, JPEG, PNG, WebP." },
-        { status: 400 }
-      );
-    }
+    const { document, ocr, files } = normalizeOCRResult(
+      documentId,
+      validatedFiles,
+      rawResults
+    );
 
-    // TODO: Replace with real OCR.
-    const ocrResult: OCRResult = {
-      documentId: "",
-      fullText: `[OCR placeholder for ${file.name}]`,
-      blocks: [
-        {
-          id: "b1",
-          text: `[OCR placeholder for ${file.name}]`,
-          confidence: 0.9,
-        },
-      ],
-      language: "en",
+    const fieldCandidates = extractFieldCandidates(documentId, ocr.blocks);
+
+    const response: ExtractionResponse = {
+      document,
+      ocr,
+      files,
+      fieldCandidates,
+      extractedAt: Date.now(),
     };
 
-    return NextResponse.json(ocrResult);
-  } catch {
-    return NextResponse.json(
-      { error: "Extract failed" },
-      { status: 500 }
-    );
+    return NextResponse.json(response);
+  } catch (err) {
+    console.error("Extraction failed:", err);
+    return internalError("Extraction failed");
   }
 }

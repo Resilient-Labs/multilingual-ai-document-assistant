@@ -115,6 +115,8 @@ Before you start contributing, confirm:
 | `npm run lint` | Run ESLint |
 | `npm run format` | Check formatting with Prettier |
 | `npm run typecheck` | Run TypeScript type checking |
+| `npm run test` | Run tests with Vitest |
+| `npm run test:watch` | Run tests in watch mode |
 
 ### Linting & Formatting
 
@@ -217,13 +219,22 @@ See `types/index.ts` for full definitions.
 app/
   api/
     documents/upload   # Stateless: OCR, return JSON
-    documents/extract  # Stateless: OCR, return JSON
+    documents/extract  # Stateless: OCR, return normalized entity-ready JSON
     ask               # Stateless: RAG (client sends context)
     summarize         # Stateless: summary (client sends fullText)
     safety            # Stateless: risk flags (client sends text)
 components/           # Shared React components
-lib/                  # entitydb, constants, documentId
-types/                # Entity definitions
+lib/
+  documents/          # Team 1 OCR extraction pipeline
+    provider.ts       # OCR provider interface and mock implementation
+    normalize.ts      # Raw OCR to canonical entity normalization
+    fieldCandidates.ts # Key/value field extraction
+    validation.ts     # Upload validation and request guards
+    errors.ts         # Shared error response helpers
+  entitydb.ts         # EntityDB client for chunks and semantic search
+  constants.ts        # File limits, allowed MIME types
+  documentId.ts       # Document ID generation
+types/                # Entity definitions (Document, OCRBlock, FieldCandidate, etc.)
 ```
 
 ---
@@ -235,12 +246,13 @@ All endpoints are **stateless**. Client sends data; backend processes and return
 | Endpoint | Method | Body | Description |
 |----------|--------|------|-------------|
 | `/api/documents/upload` | POST | `FormData` (file) | OCR, return docId + OCR JSON |
-| `/api/documents/extract` | POST | `FormData` (file) | OCR, return OCR JSON |
+| `/api/documents/extract` | POST | `FormData` (files[] or file) | OCR, return normalized entity-ready JSON |
 | `/api/ask` | POST | `{ question, context? }` or `{ question, chunks? }` | RAG answer |
 | `/api/summarize` | POST | `{ fullText }` | Summary |
 | `/api/safety` | POST | `{ fullText?, blocks? }` | Risk flags |
 
 ---
+
 
 ## Storage limits
 
