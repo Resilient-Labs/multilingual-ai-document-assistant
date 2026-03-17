@@ -100,7 +100,7 @@ export async function POST(request: Request) {
     };
 
     return NextResponse.json(response);
-  } catch (err) {
+  } catch {
     return internalError("Extraction failed");
   }
 }
