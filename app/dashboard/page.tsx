@@ -14,6 +14,9 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
+import { DetectTab } from "@/components/features/detect/DetectTab"
+import { DocumentTabs } from "@/components/features/tabs-layout/DocumentTabs"
+import { AskTab } from "@/components/features/ask/AskTab"
 
 export default function Page() {
 
@@ -85,12 +88,15 @@ export default function Page() {
           </div>
         </div>
         <div className="flex-1">
-          Right
+          <DocumentTabs
+            detectContent={<DetectTab />}
+            askContent={<AskTab />}
+            className="w-[400px]"
+          />
         </div>
       </main>
     </section>
     }
   </>
-
   );
 }
