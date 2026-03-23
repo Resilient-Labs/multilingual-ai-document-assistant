@@ -120,6 +120,15 @@ export interface RiskFlag {
   detectedAt: number;
 }
 
+// --- Safety API (Team 5) ---
+// Extends RiskFlag; downstream consumers (e.g. Justin) may add confidence field.
+
+export interface SafetyFlags extends RiskFlag {}
+
+export interface SafetyAnalysisResponse {
+  flags: SafetyFlags;
+}
+
 // --- OCR API response (from stateless backend) ---
 
 export interface OCRResult {
