@@ -1,6 +1,6 @@
 # Team 5 Safety API Documentation
 
-### POST /api/safety (and POST /api/safety/analyze)
+### POST /api/safety
 
 Stateless safety/risk analysis endpoint. Accepts document text or OCR blocks, returns risk flags.
 
