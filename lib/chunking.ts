@@ -117,10 +117,11 @@ export function chunkOCRResult(ocr: OCRResult): string[] {
       buffer = overlap ? overlap + " " + text : text;
     }
 
-    // Page boundary: emit current buffer and start fresh for next page
+    // Page boundary: emit current buffer and seed next page with overlap
     if (buffer.trim()) {
       chunks.push(buffer.trim());
-      buffer = "";
+      const overlap = lastNCharsAtWordBoundary(buffer, CHUNK_OVERLAP);
+      buffer = overlap;
     }
   }
 
