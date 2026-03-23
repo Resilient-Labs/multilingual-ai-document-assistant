@@ -100,7 +100,9 @@ export async function POST(request: Request) {
     };
 
     return NextResponse.json(response);
-  } catch {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error(JSON.stringify({ level: "error", route: "/api/documents/extract", message }));
     return internalError("Extraction failed");
   }
 }
