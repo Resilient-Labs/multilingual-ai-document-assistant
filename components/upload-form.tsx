@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useDropzone } from "react-dropzone";
 import {
   ArrowRightLeftIcon,
@@ -19,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -51,35 +53,49 @@ interface UploadFormProps {
 }
 
 export function UploadForm({ mobile = false }: UploadFormProps) {
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [sourceLang, setSourceLang] = useState("auto");
   const [targetLang, setTargetLang] = useState("es");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
-  /**
-   * TODO (next team): implement document upload + translation flow
-   *
-   * Steps needed:
-   *  1. Upload `file` to the backend — see POST /api/documents/upload
-   *     - Send as multipart/form-data
-   *     - Receive back a `documentId`
-   *  2. Kick off translation job with `sourceLang` and `targetLang`
-   *     - POST /api/translate  { documentId, sourceLang, targetLang }
-   *  3. Redirect to the translation results page, e.g.:
-   *     - router.push(`/translate/${documentId}`)
-   *     - Or whichever route the translate tab maps to
-   *  4. Handle loading / error states (isSubmitting is wired up, just set it)
-   */
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
 
     setIsSubmitting(true);
+    setUploadError(null);
     try {
-      // TODO: replace this placeholder with the real upload + redirect logic above
-    
-      alert(`[Placeholder] Would upload "${file.name}" and translate ${sourceLang} → ${targetLang}`);
-    } finally {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/documents/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error ?? "Upload failed");
+      }
+
+      const { docId, ocr, filename: uploadedFilename } = data;
+
+      sessionStorage.setItem(
+        `translate-${docId}`,
+        JSON.stringify({
+          fullText: ocr.fullText,
+          filename: uploadedFilename,
+          sourceLang,
+          targetLang,
+        })
+      );
+
+      router.push(`/translate/${docId}`);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Something went wrong");
       setIsSubmitting(false);
     }
   }
@@ -226,6 +242,13 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
         {/* Translation direction — below dropzone on mobile */}
         {TranslationDirection}
 
+        {uploadError && (
+          <Alert variant="destructive">
+            <AlertTitle>Upload failed</AlertTitle>
+            <AlertDescription>{uploadError}</AlertDescription>
+          </Alert>
+        )}
+
         <Button type="submit" disabled={!file || isSubmitting} className="w-full rounded-xl h-10">
           {isSubmitting ? <Spinner className="size-4" /> : "Translate document"}
         </Button>
@@ -287,6 +310,13 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
           </>
         )}
       </div>
+
+      {uploadError && (
+        <Alert variant="destructive">
+          <AlertTitle>Upload failed</AlertTitle>
+          <AlertDescription>{uploadError}</AlertDescription>
+        </Alert>
+      )}
 
       <Button type="submit" disabled={!file || isSubmitting} size="lg" className="w-full text-base h-12">
         {isSubmitting ? <Spinner className="size-5" /> : "Translate document"}
