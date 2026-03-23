@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
+import { toast } from "sonner";
 import { getEntityDB, insertChunk } from "@/lib/entitydb";
 import { chunkOCRResult } from "@/lib/chunking";
 import { MAX_FILE_SIZE_BYTES } from "@/lib/constants";
@@ -81,7 +82,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
         const errBody = await res.json().catch(() => ({}));
         const message =
           (errBody as { error?: string }).error ?? `Extraction failed (${res.status})`;
-        alert(message);
+        toast.error(message);
         return;
       }
 
@@ -112,7 +113,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
       router.push(`/document/${document.id}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Upload failed";
-      alert(message);
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
