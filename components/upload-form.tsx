@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useDropzone } from "react-dropzone";
 import {
   ArrowRightLeftIcon,
@@ -21,6 +22,10 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
+import { getEntityDB, insertChunk } from "@/lib/entitydb";
+import { chunkOCRResult } from "@/lib/chunking";
+import type { ExtractionResponse } from "@/types";
+import type { CanonicalDocument } from "@/types/CanonicalDocument";
 
 const LANGUAGES = [
   { code: "auto", label: "Detect language" },
@@ -51,34 +56,62 @@ interface UploadFormProps {
 }
 
 export function UploadForm({ mobile = false }: UploadFormProps) {
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [sourceLang, setSourceLang] = useState("auto");
   const [targetLang, setTargetLang] = useState("es");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  /**
-   * TODO (next team): implement document upload + translation flow
-   *
-   * Steps needed:
-   *  1. Upload `file` to the backend — see POST /api/documents/upload
-   *     - Send as multipart/form-data
-   *     - Receive back a `documentId`
-   *  2. Kick off translation job with `sourceLang` and `targetLang`
-   *     - POST /api/translate  { documentId, sourceLang, targetLang }
-   *  3. Redirect to the translation results page, e.g.:
-   *     - router.push(`/translate/${documentId}`)
-   *     - Or whichever route the translate tab maps to
-   *  4. Handle loading / error states (isSubmitting is wired up, just set it)
-   */
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
 
     setIsSubmitting(true);
     try {
-      // TODO: replace this placeholder with the real upload + redirect logic above
-    
-      alert(`[Placeholder] Would upload "${file.name}" and translate ${sourceLang} → ${targetLang}`);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/documents/extract", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        const message =
+          (errBody as { error?: string }).error ?? `Extraction failed (${res.status})`;
+        alert(message);
+        return;
+      }
+
+      const response = (await res.json()) as ExtractionResponse;
+      const { document, ocr, files, fieldCandidates, extractedAt } = response;
+
+      const canonical: CanonicalDocument = {
+        document,
+        ocr,
+        files,
+        fieldCandidates,
+        extractedAt,
+        updatedAt: Date.now(),
+      };
+
+      const db = getEntityDB();
+      await db.insert({
+        entityKey: "extracted_document",
+        text: ocr.fullText,
+        ...canonical,
+      });
+
+      const chunks = chunkOCRResult(ocr);
+      for (const chunkText of chunks) {
+        await insertChunk(chunkText, { docId: document.id });
+      }
+
+      router.push(`/document/${document.id}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Upload failed";
+      alert(message);
     } finally {
       setIsSubmitting(false);
     }
