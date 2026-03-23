@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
+import { logDocumentSubmission } from "@/app/actions/logging";
 
 const LANGUAGES = [
   { code: "auto", label: "Detect language" },
@@ -72,6 +73,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
    */
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    logDocumentSubmission(sourceLang, targetLang).catch(() => {});
     if (!file) return;
 
     setIsSubmitting(true);
