@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 import { getEntityDB, insertChunk } from "@/lib/entitydb";
 import { chunkOCRResult } from "@/lib/chunking";
+import { MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 import type { ExtractionResponse } from "@/types";
 import type { CanonicalDocument } from "@/types/CanonicalDocument";
 
@@ -124,7 +125,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     maxFiles: 1,
-    maxSize: 10 * 1024 * 1024,
+    maxSize: MAX_FILE_SIZE_BYTES,
     accept: {
       "application/pdf": [".pdf"],
       "application/msword": [".doc"],
@@ -242,7 +243,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
                 <p className="text-base font-semibold text-foreground">
                   Take a photo or upload a file
                 </p>
-                <p className="text-sm text-muted-foreground">10MB max</p>
+                <p className="text-sm text-muted-foreground">4.5 MB max</p>
               </div>
               <Button
                 size="default"
@@ -311,7 +312,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
                 {isDragActive ? "Drop your file here" : "Drag & drop or choose a file"}
               </p>
               <p className="text-sm text-muted-foreground">
-                PDF, DOC, DOCX, TXT, or image — 10 MB max
+                PDF, DOC, DOCX, TXT, or image — 4.5 MB max
               </p>
             </div>
             <Button size="lg" variant="outline" type="button" className="px-8 text-base">
