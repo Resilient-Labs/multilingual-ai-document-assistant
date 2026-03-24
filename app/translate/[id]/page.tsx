@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
-  PlayIcon,
   Volume2Icon,
 } from "lucide-react";
 import {
@@ -32,6 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { TtsPlaybackVisual } from "@/components/features/tts/TtsPlaybackVisual";
 import { isDeepgramLanguage } from "@/lib/tts/deepgram-voices";
 import type { Gender, SpanishAccent } from "@/lib/tts/types";
 
@@ -156,7 +156,7 @@ export default function TranslatePage() {
       try {
         await audioRef.current?.play();
       } catch {
-        setTtsError("Audio is ready. Tap Play on the player to start playback.");
+        setTtsError("Audio is ready. Tap Play in AI Read Aloud to start playback.");
       }
     };
 
@@ -209,19 +209,6 @@ export default function TranslatePage() {
       setTtsError(err instanceof Error ? err.message : "Read Aloud failed");
     } finally {
       setTtsLoading(false);
-    }
-  }
-
-  async function handlePlayAudio() {
-    if (!audioRef.current || !ttsAudioUrl) {
-      setTtsError("Generate audio first using Read Aloud.");
-      return;
-    }
-
-    try {
-      await audioRef.current.play();
-    } catch {
-      setTtsError("Unable to start playback automatically. Try browser media controls.");
     }
   }
 
@@ -377,17 +364,6 @@ export default function TranslatePage() {
                         : "Read Aloud"}
                     </Button>
 
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={handlePlayAudio}
-                      disabled={!ttsAudioUrl}
-                    >
-                      <PlayIcon className="size-4" />
-                      Play Audio
-                    </Button>
                   </div>
 
                   {ttsLoading && !hasVoiceFilters && (
@@ -398,11 +374,20 @@ export default function TranslatePage() {
                   )}
 
                   <div className="grid gap-2">
+                    {ttsAudioUrl && translatedText && (
+                      <TtsPlaybackVisual
+                        audioRef={audioRef}
+                        audioUrl={ttsAudioUrl}
+                        text={translatedText}
+                      />
+                    )}
                     <audio
                       ref={audioRef}
-                      controls
                       src={ttsAudioUrl ?? undefined}
-                      className="w-full"
+                      className="sr-only"
+                      preload="metadata"
+                      aria-hidden="true"
+                      tabIndex={-1}
                     >
                       Your browser does not support audio playback.
                     </audio>
