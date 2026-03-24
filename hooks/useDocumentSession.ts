@@ -17,8 +17,10 @@ import type { EntityDB } from "@babycommando/entity-db";
 import { getEntityDB } from "@/lib/entitydb";
 import type { CanonicalDocument } from "@/types/CanonicalDocument";
 
+
 /** The metadata field used to identify the extracted-document record. */
 const EXTRACTED_DOCUMENT_KEY = "extracted_document" as const;
+
 
 /** Internal shape of the EntityDB instance to access the raw IDB promise. */
 interface EntityDBInternal {
@@ -82,7 +84,11 @@ export function useDocumentSession(
         if (!match) {
           setData(null);
         } else {
-          const { id: _id, vector: _vector, entityKey: _key, ...payload } = match;
+          const payload = { ...match };
+          delete payload.id;
+          delete payload.vector;
+          delete payload.entityKey;
+          delete payload.text;
           setData(payload as unknown as CanonicalDocument);
         }
       } catch (err: unknown) {
