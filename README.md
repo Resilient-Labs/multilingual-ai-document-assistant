@@ -53,7 +53,7 @@ npm install
 | `next`, `react`, `react-dom` | Next.js app framework | Standard install |
 | `@babycommando/entity-db` | In-browser vector DB (IndexedDB + Transformers.js under the hood) | May take 1–2 min; pulls WASM deps |
 | `uuid` | Document ID generation | Standard install |
-| `replicate`	| TTS fallback provider integration |
+| `replicate`	| TTS fallback provider integration | Requires REPLICATE_API_TOKEN at runtime |
 
 **Step-by-step:**
 
