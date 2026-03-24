@@ -4,7 +4,7 @@
  */
 
 import { selectNextSteps } from '@/lib/safetyRecommendations'
-import type { RiskNextStep, SafetyResourceBucket, SafetySeverity } from '@/types'
+import type { RiskNextStep, SafetySeverity } from '@/types'
 
 export type { SafetyResourceBucket } from '@/types'
 export { normalizeCategoryToBucket } from '@/lib/safetyRecommendations'

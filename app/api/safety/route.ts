@@ -132,21 +132,21 @@ function extractAssistantMessageText(message: unknown): string | null {
   return null
 }
 
-function extractFirstAssistantText(data: {
-  choices?: Array<{ message?: unknown }>
-}): string | null {
-  const choices = data?.choices
-  if (!Array.isArray(choices)) {
-    return null
-  }
-  for (const choice of choices) {
-    const text = extractAssistantMessageText(choice?.message)
-    if (text?.trim()) {
-      return text
-    }
-  }
-  return null
-}
+// function extractFirstAssistantText(data: {
+//   choices?: Array<{ message?: unknown }>
+// }): string | null {
+//   const choices = data?.choices
+//   if (!Array.isArray(choices)) {
+//     return null
+//   }
+//   for (const choice of choices) {
+//     const text = extractAssistantMessageText(choice?.message)
+//     if (text?.trim()) {
+//       return text
+//     }
+//   }
+//   return null
+// }
 
 /**
  * If the model wrapped JSON in a fenced block or added prose, extract the JSON object substring.
