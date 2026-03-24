@@ -3,15 +3,43 @@ import { streamText, convertToModelMessages } from "ai";
 import type { ModelMessage, UserModelMessage } from "ai";
 import { NextResponse } from "next/server";
 
-/**
- * POST /api/ask
- * Stateless RAG endpoint. Client sends chat messages + optional context chunks.
- * Streams back the LLM response using the AI SDK UIMessage stream protocol.
- *
- * New shape (v3 useChat):  { id, messages: UIMessage[], chunks?: string[], trigger, messageId }
- * Legacy shape (backward compat): { question: string, chunks?: string[], context?: string }
- */
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 10;
+const MAX_CHUNKS = 50;
+const MAX_CHUNK_LENGTH = 10_000;
+const MAX_MESSAGES = 100;
+
+const requestCounts = new Map<string, { count: number; resetAt: number }>();
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const entry = requestCounts.get(ip);
+
+  if (!entry || now > entry.resetAt) {
+    requestCounts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+
+  entry.count++;
+  return entry.count > RATE_LIMIT_MAX;
+}
+
 export async function POST(request: Request) {
+  const ip = request.headers.get("x-forwarded-for") ?? "unknown";
+  if (isRateLimited(ip)) {
+    return NextResponse.json(
+      { error: "Too many requests", code: "RATE_LIMITED" },
+      { status: 429 }
+    );
+  }
+
+  if (!request.headers.get("x-requested-with")) {
+    return NextResponse.json(
+      { error: "Authentication required", code: "UNAUTHORIZED" },
+      { status: 401 }
+    );
+  }
+
   try {
     const body = await request.json();
 
@@ -19,11 +47,18 @@ export async function POST(request: Request) {
     let chunks: string[] = [];
 
     if (Array.isArray(body?.messages) && body.messages.length > 0) {
-      // New shape from @ai-sdk/react v3 useChat – messages are UIMessage[]
+      if (body.messages.length > MAX_MESSAGES) {
+        return NextResponse.json(
+          {
+            error: `Messages array exceeds limit of ${MAX_MESSAGES}`,
+            code: "PAYLOAD_TOO_LARGE",
+          },
+          { status: 413 }
+        );
+      }
       chunks = Array.isArray(body?.chunks) ? body.chunks : [];
       modelMessages = await convertToModelMessages(body.messages);
     } else if (body?.question) {
-      // Legacy shape – convert plain question string to ModelMessage
       const question = body.question as string;
       const contextText =
         (body?.context as string | undefined) ??
@@ -41,15 +76,37 @@ export async function POST(request: Request) {
       modelMessages = [userMessage];
     } else {
       return NextResponse.json(
-        { error: "Request must include 'messages' array or 'question' string" },
+        {
+          error:
+            "Request must include 'messages' array or 'question' string",
+          code: "INVALID_REQUEST",
+        },
         { status: 400 }
       );
     }
 
-    // Graceful fallback when the API key is not configured
+    if (chunks.length > MAX_CHUNKS) {
+      return NextResponse.json(
+        {
+          error: `Chunks array exceeds limit of ${MAX_CHUNKS}`,
+          code: "PAYLOAD_TOO_LARGE",
+        },
+        { status: 413 }
+      );
+    }
+    if (chunks.some((c) => typeof c === "string" && c.length > MAX_CHUNK_LENGTH)) {
+      return NextResponse.json(
+        {
+          error: `Individual chunk exceeds limit of ${MAX_CHUNK_LENGTH} characters`,
+          code: "PAYLOAD_TOO_LARGE",
+        },
+        { status: 413 }
+      );
+    }
+
     if (!process.env.OPENAI_API_KEY) {
       const fallbackText =
-        "⚠️ OPENAI_API_KEY is not set. Please add it to your .env.local file to enable AI-powered answers.";
+        "The AI service is not configured. Please contact the administrator to enable AI-powered answers.";
       const events = [
         JSON.stringify({ type: "start", messageId: "fallback-msg" }),
         JSON.stringify({ type: "text-start", id: "fallback-part" }),
@@ -71,7 +128,6 @@ export async function POST(request: Request) {
       });
     }
 
-    // Build the RAG system prompt
     const systemPrompt =
       chunks.length > 0
         ? [
@@ -91,9 +147,11 @@ export async function POST(request: Request) {
     });
 
     return result.toUIMessageStreamResponse();
-  } catch {
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : "Unknown error";
+    console.error("[/api/ask] Request failed:", detail);
     return NextResponse.json(
-      { error: "Question answering failed" },
+      { error: "Request processing failed", code: "INTERNAL_ERROR", detail },
       { status: 500 }
     );
   }

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ExtractedDataPanel } from "@/components/features/document/ExtractedDataPanel";
+import { QAPanel } from "@/components/features/document/QAPanel";
 
 interface DocumentPageProps {
   params: Promise<{ id: string }>;
@@ -34,10 +35,8 @@ export default async function DocumentPage({
       <div className="w-full overflow-y-auto border-b border-border p-6 md:w-1/2 md:border-b-0 md:border-r">
         <ExtractedDataPanel sessionId={id} />
       </div>
-      <div className="flex w-full items-center justify-center overflow-y-auto p-6 md:w-1/2">
-        <p className="text-sm text-muted-foreground">
-          Team 2, 3, 4, 5 panels go here
-        </p>
+      <div className="flex w-full flex-col overflow-y-auto p-6 md:w-1/2">
+        <QAPanel />
       </div>
     </div>
   );
