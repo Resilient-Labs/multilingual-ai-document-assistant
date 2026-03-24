@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useEffect, useState } from "react"
 import {
   Item,
   ItemActions,
@@ -25,15 +25,29 @@ export interface DetectTabProps {
   className?: string
 }
 
-const MOCK_OCR_TEXT =
-  "FINAL NOTICE: Payment of $500 is past due. Remit within 7 days to avoid legal action. Contact our office at the number on this letter."
+const CURRENT_DOC_ID_KEY = "current-doc-id"
+const TRANSLATE_SESSION_PREFIX = "translate-"
 
-function buildMockOcr(): OCRResult {
-  return {
-    documentId: "detect-tab-mock",
-    fullText: MOCK_OCR_TEXT,
-    blocks: [],
+interface TranslateSessionPayload {
+  fullText?: unknown
+}
+
+function resolveCurrentTranslateSessionKey(): string | null {
+  const currentDocId = sessionStorage.getItem(CURRENT_DOC_ID_KEY)?.trim()
+  if (currentDocId) {
+    const key = `${TRANSLATE_SESSION_PREFIX}${currentDocId}`
+    if (sessionStorage.getItem(key)) {
+      return key
+    }
   }
+
+  for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
+    const key = sessionStorage.key(index)
+    if (key?.startsWith(TRANSLATE_SESSION_PREFIX)) {
+      return key
+    }
+  }
+  return null
 }
 
 function telHref(phone: string): string {
@@ -80,9 +94,79 @@ function PrimaryActionDescription({ action }: { action: RiskNextStep }) {
 }
 
 export function DetectTab({ className }: DetectTabProps) {
-  // TODO: replace with real OCR data from Team 1 pipeline
-  const mockOcr = useMemo(() => buildMockOcr(), [])
-  const { flags, presentation, loading, error } = useSafetyAnalysis(mockOcr)
+  const [ocr, setOcr] = useState<OCRResult | null>(null)
+  const [documentLookupError, setDocumentLookupError] = useState<string | null>(
+    null
+  )
+  const [documentReady, setDocumentReady] = useState(false)
+
+  useEffect(() => {
+    try {
+      const key = resolveCurrentTranslateSessionKey()
+      if (!key) {
+        setOcr(null)
+        setDocumentLookupError(
+          "No uploaded document found in this session. Upload a document to run safety analysis."
+        )
+        return
+      }
+
+      const raw = sessionStorage.getItem(key)
+      if (!raw) {
+        setOcr(null)
+        setDocumentLookupError(
+          "Document data is unavailable in this session. Please upload again."
+        )
+        return
+      }
+
+      const parsed = JSON.parse(raw) as TranslateSessionPayload
+      const fullText =
+        typeof parsed.fullText === "string" ? parsed.fullText.trim() : ""
+      if (!fullText) {
+        setOcr(null)
+        setDocumentLookupError(
+          "Uploaded document has no readable text for safety analysis."
+        )
+        return
+      }
+
+      const documentId = key.slice(TRANSLATE_SESSION_PREFIX.length)
+      setOcr({
+        documentId,
+        fullText,
+        blocks: [],
+      })
+      setDocumentLookupError(null)
+    } catch {
+      setOcr(null)
+      setDocumentLookupError(
+        "Unable to read uploaded document data from session storage."
+      )
+    } finally {
+      setDocumentReady(true)
+    }
+  }, [])
+
+  const { flags, presentation, loading, error } = useSafetyAnalysis(ocr)
+
+  if (!documentReady) {
+    return (
+      <div className={`space-y-4 ${className ?? ""}`}>
+        <p className="text-sm text-muted-foreground">
+          Loading document context...
+        </p>
+      </div>
+    )
+  }
+
+  if (documentLookupError) {
+    return (
+      <div className={`space-y-4 ${className ?? ""}`}>
+        <p className="text-sm text-muted-foreground">{documentLookupError}</p>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
@@ -112,14 +196,9 @@ export function DetectTab({ className }: DetectTabProps) {
     )
   }
 
-  const confidenceText =
-    flags.confidence != null
-      ? `${flags.confidence}% model confidence in this assessment.`
-      : "Model confidence was not reported for this assessment."
-
-  const riskBody = [flags.category, flags.explanation, confidenceText]
-    .filter(Boolean)
-    .join(" ")
+  const riskBody =
+    [flags.category, flags.explanation].filter(Boolean).join(" - ") ||
+    "Risk category was identified, but no explanation was provided."
 
   return (
     <div className={`space-y-4 ${className ?? ""}`}>

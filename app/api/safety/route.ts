@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { promises as fs } from "fs"
+import { join } from "path"
 import {
   buildSafetyRecommendationPresentation,
   normalizeConfidence,
@@ -67,6 +68,120 @@ function buildSafetyFlags(parsed: Record<string, unknown>): SafetyFlags {
  * Body: { fullText?: string, blocks?: Array<{ text: string; confidence?: number }> }
  */
 
+const SYSTEM_PROMPT_PATH = join(
+  process.cwd(),
+  "app",
+  "api",
+  "safety",
+  "system-prompt.md",
+)
+
+/** Normalize OpenAI-compatible message content (string or content-parts array). */
+function messageContentToString(content: unknown): string | null {
+  if (typeof content === "string") {
+    return content
+  }
+  if (content == null) {
+    return null
+  }
+  if (Array.isArray(content)) {
+    const parts = content
+      .map((part) => {
+        if (typeof part === "string") {
+          return part
+        }
+        if (part && typeof part === "object") {
+          const o = part as Record<string, unknown>
+          if (typeof o.text === "string") {
+            return o.text
+          }
+          if (typeof o.content === "string") {
+            return o.content
+          }
+          if (typeof o.output_text === "string") {
+            return o.output_text
+          }
+        }
+        return ""
+      })
+      .filter(Boolean)
+    return parts.length > 0 ? parts.join("\n") : null
+  }
+  return null
+}
+
+/**
+ * Some providers return the assistant text under `reasoning` or leave `content` empty
+ * when reasoning is enabled; merge all known fields.
+ */
+function extractAssistantMessageText(message: unknown): string | null {
+  if (!message || typeof message !== "object") {
+    return null
+  }
+  const m = message as Record<string, unknown>
+  const candidates = [
+    messageContentToString(m.content),
+    typeof m.reasoning === "string" ? m.reasoning : messageContentToString(m.reasoning),
+    typeof m.refusal === "string" ? m.refusal : null,
+  ]
+  for (const c of candidates) {
+    if (c?.trim()) {
+      return c
+    }
+  }
+  return null
+}
+
+function extractFirstAssistantText(data: {
+  choices?: Array<{ message?: unknown }>
+}): string | null {
+  const choices = data?.choices
+  if (!Array.isArray(choices)) {
+    return null
+  }
+  for (const choice of choices) {
+    const text = extractAssistantMessageText(choice?.message)
+    if (text?.trim()) {
+      return text
+    }
+  }
+  return null
+}
+
+/**
+ * If the model wrapped JSON in a fenced block or added prose, extract the JSON object substring.
+ */
+function extractJsonObjectString(raw: string): string {
+  const trimmed = raw.trim()
+  const fence = /^```(?:json)?\s*([\s\S]*?)```$/m.exec(trimmed)
+  if (fence?.[1]) {
+    return fence[1].trim()
+  }
+  const first = trimmed.indexOf("{")
+  const last = trimmed.lastIndexOf("}")
+  if (first !== -1 && last > first) {
+    return trimmed.slice(first, last + 1)
+  }
+  return trimmed
+}
+
+async function readOpenRouterErrorMessage(res: Response): Promise<string> {
+  const text = await res.text()
+  try {
+    const parsed = JSON.parse(text) as {
+      error?: { message?: string }
+      message?: string
+    }
+    return (
+      parsed?.error?.message ??
+      (typeof parsed?.message === "string" ? parsed.message : null) ??
+      text.slice(0, 200)
+    )
+  } catch {
+    return text.slice(0, 200) || `HTTP ${res.status}`
+  }
+}
+
 function getTextToAnalyze(body: unknown): string | null {
   const fullText = (body as { fullText?: string })?.fullText
   if (typeof fullText === "string" && fullText.trim().length > 0) {
@@ -117,13 +232,13 @@ export async function POST(request: Request) {
 
   let prompt: string
   try {
-    prompt = await fs.readFile(
-      process.cwd() + "/app/api/safety/system-prompt.md",
-      "utf-8",
-    )
+    prompt = await fs.readFile(SYSTEM_PROMPT_PATH, "utf-8")
   } catch {
     return NextResponse.json(
-      { error: "Safety check failed", code: "INTERNAL_ERROR" },
+      {
+        error: "Safety system prompt is missing on the server",
+        code: "INTERNAL_ERROR",
+      },
       { status: 500 },
     )
   }
@@ -138,12 +253,11 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         model: "stepfun/step-3.5-flash:free",
-        max_tokens: 400,
+        // max_tokens: 400,
         messages: [
           { role: "system", content: prompt },
           { role: "user", content: textToAnalyze },
         ],
-        reasoning: { effort: "high", exclude: true },
       }),
     })
   } catch {
@@ -153,27 +267,52 @@ export async function POST(request: Request) {
     )
   }
 
-  let data: { choices?: Array<{ message?: { content?: string } }> }
+  if (!res.ok) {
+    const upstreamMessage = await readOpenRouterErrorMessage(res)
+    return NextResponse.json(
+      {
+        error: "Safety provider returned an error",
+        code: "UPSTREAM_ERROR",
+        detail: upstreamMessage,
+        status: res.status,
+      },
+      { status: 502 },
+    )
+  }
+
+  let data: {
+    choices?: Array<{ message?: { content?: unknown } }>
+  }
   try {
     data = (await res.json()) as typeof data
   } catch {
     return NextResponse.json(
-      { error: "Safety check failed", code: "INTERNAL_ERROR" },
+      {
+        error: "Safety provider returned a non-JSON response",
+        code: "INTERNAL_ERROR",
+      },
       { status: 500 },
     )
   }
 
-  const content = data?.choices?.[0]?.message?.content
-  if (typeof content !== "string") {
+  const rawContent = messageContentToString(
+    data?.choices?.[0]?.message?.content,
+  )
+  if (!rawContent?.trim()) {
     return NextResponse.json(
-      { error: "Safety check failed", code: "INTERNAL_ERROR" },
+      {
+        error: "Safety model returned no usable content",
+        code: "INTERNAL_ERROR",
+      },
       { status: 500 },
     )
   }
+
+  const jsonPayload = extractJsonObjectString(rawContent)
 
   let parsed: Record<string, unknown>
   try {
-    parsed = JSON.parse(content) as Record<string, unknown>
+    parsed = JSON.parse(jsonPayload) as Record<string, unknown>
   } catch {
     return NextResponse.json(
       { error: "Safety check failed", code: "PARSE_ERROR" },
