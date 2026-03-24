@@ -1,40 +1,67 @@
+import { streamText } from "ai";
+import { createHuggingFace } from "@ai-sdk/huggingface";
 import { NextResponse } from "next/server";
 
-/**
- * POST /api/ask
- * Team 3: Stateless RAG. Client sends question + context (chunks or fullText).
- * Backend returns LLM answer. Server stores nothing.
- *
- * Body: { question: string, context: string } or { question: string, chunks: string[] }
- *
- * TODO: Integrate LLM (e.g. OpenAI, Anthropic).
- */
+const MODEL_ID = "mistralai/Mistral-Small-24B-Instruct-2501";
+
 export async function POST(request: Request) {
+  const apiKey = process.env.HUGGINGFACE_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: "HuggingFace API key not configured", code: "CONFIG_ERROR" },
+      { status: 500 },
+    );
+  }
+
+  let body: unknown;
   try {
-    const body = await request.json();
-    const question = body?.question as string | undefined;
-    const context = body?.context as string | undefined;
-    const chunks = body?.chunks as string[] | undefined;
-
-    if (!question) {
-      return NextResponse.json(
-        { error: "question required" },
-        { status: 400 }
-      );
-    }
-
-    const contextText = context ?? chunks?.join("\n\n") ?? "";
-
-    // TODO: Build RAG prompt, call LLM.
-    const answer = contextText
-      ? `Based on the document: ${contextText.slice(0, 500)}... [LLM integration pending]`
-      : "No relevant information found. Please provide context (fullText or chunks) in the request body.";
-
-    return NextResponse.json({ answer });
+    body = await request.json();
   } catch {
     return NextResponse.json(
-      { error: "Question answering failed" },
-      { status: 500 }
+      { error: "Invalid JSON body", code: "VALIDATION_ERROR" },
+      { status: 400 },
+    );
+  }
+
+  const question = (body as Record<string, unknown>)?.question as
+    | string
+    | undefined;
+  const context = (body as Record<string, unknown>)?.context as
+    | string
+    | undefined;
+  const chunks = (body as Record<string, unknown>)?.chunks as
+    | string[]
+    | undefined;
+
+  if (!question) {
+    return NextResponse.json(
+      { error: "question required", code: "VALIDATION_ERROR" },
+      { status: 400 },
+    );
+  }
+
+  const contextText = context ?? chunks?.join("\n\n") ?? "";
+  if (!contextText) {
+    return NextResponse.json(
+      { error: "context or chunks required", code: "VALIDATION_ERROR" },
+      { status: 400 },
+    );
+  }
+
+  const huggingface = createHuggingFace({ apiKey });
+
+  try {
+    const result = streamText({
+      model: huggingface(MODEL_ID),
+      system: `You are a helpful document assistant. Answer the user's question based ONLY on the following document excerpts. If the excerpts do not contain enough information, say so.\n\n--- Document Excerpts ---\n${contextText}\n--- End of Excerpts ---`,
+      prompt: question,
+    });
+
+    return result.toTextStreamResponse();
+  } catch {
+    return NextResponse.json(
+      { error: "LLM inference failed", code: "EXTERNAL_ERROR" },
+      { status: 500 },
     );
   }
 }
