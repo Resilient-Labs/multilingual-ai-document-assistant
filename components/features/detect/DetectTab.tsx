@@ -1,10 +1,6 @@
-// import {
-//   Card,
-//   CardContent,
-//   CardHeader,
-//   CardTitle,
-// } from "@/components/ui/card"
+"use client"
 
+import { useMemo } from "react"
 import {
   Item,
   ItemActions,
@@ -14,105 +10,227 @@ import {
   ItemTitle,
 } from "@/components/ui/item"
 
-import { ExternalLinkIcon, Clock4Icon, ShieldAlertIcon, OctagonAlertIcon } from "lucide-react"
+import {
+  ExternalLinkIcon,
+  Clock4Icon,
+  ShieldAlertIcon,
+  OctagonAlertIcon,
+} from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
-
-export interface SuggestedStep {
-  title: string
-  description: string
-}
-
-export interface ConfidenceBreakdown {
-  financial: number
-  housing: number
-  medical: number
-}
+import { useSafetyAnalysis } from "@/hooks/useSafetyAnalysis"
+import type { OCRResult, RiskNextStep } from "@/types"
 
 export interface DetectTabProps {
-  riskLevel?: number,
-  riskLevelDescription?: string,
-  urgency?: string
-  confidence?: ConfidenceBreakdown
-  suggestedSteps?: SuggestedStep[]
   className?: string
 }
 
-// const bodyText = "leading-7 [&:not(:first-child)]:mt-6"
+const MOCK_OCR_TEXT =
+  "FINAL NOTICE: Payment of $500 is past due. Remit within 7 days to avoid legal action. Contact our office at the number on this letter."
 
-export function DetectTab({
-  riskLevel = 74,
-  riskLevelDescription = " chance this document is not legitimate. Be aware of contacting or sharing sensitive information.",
-  urgency = "High Urgency: Time Sensitive",
-  confidence = { financial: 90, housing: 10, medical: 0 },
-  suggestedSteps = [
-    {
-      title: "Do not use the contact info in the letter",
-      description:
-        "Do not call the number on the letter, call the number listed on the company's official site.",
-    },
-    {
-      title: "Contact the supposed issuer directly",
-      description:
-        "Go to their official website and call the verified customer service number to confirm legitimacy.",
-    }
-  ],
-  className,
-}: DetectTabProps) {
+function buildMockOcr(): OCRResult {
+  return {
+    documentId: "detect-tab-mock",
+    fullText: MOCK_OCR_TEXT,
+    blocks: [],
+  }
+}
+
+function telHref(phone: string): string {
+  const digits = phone.replace(/\D/g, "")
+  return digits ? `tel:${digits}` : `tel:${phone.trim()}`
+}
+
+function PrimaryActionDescription({ action }: { action: RiskNextStep }) {
+  const { type, value } = action
+
+  if (type === "url" && value) {
+    return (
+      <p>
+        <a
+          href={value}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-primary underline underline-offset-2"
+        >
+          {value}
+        </a>
+      </p>
+    )
+  }
+
+  if (type === "phone" && value) {
+    return (
+      <p>
+        <a
+          href={telHref(value)}
+          className="font-medium text-primary underline underline-offset-2"
+        >
+          {value}
+        </a>
+      </p>
+    )
+  }
+
+  if (value) {
+    return <p>{value}</p>
+  }
+
+  return null
+}
+
+export function DetectTab({ className }: DetectTabProps) {
+  // TODO: replace with real OCR data from Team 1 pipeline
+  const mockOcr = useMemo(() => buildMockOcr(), [])
+  const { flags, presentation, loading, error } = useSafetyAnalysis(mockOcr)
+
+  if (loading) {
+    return (
+      <div className={`space-y-4 ${className ?? ""}`}>
+        <p className="text-sm text-muted-foreground">Analyzing document...</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className={`space-y-4 ${className ?? ""}`}>
+        <p className="text-sm text-muted-foreground">
+          Safety analysis could not be completed. {error}
+        </p>
+      </div>
+    )
+  }
+
+  if (!flags || !presentation) {
+    return (
+      <div className={`space-y-4 ${className ?? ""}`}>
+        <p className="text-sm text-muted-foreground">
+          No analysis data available. Try again later.
+        </p>
+      </div>
+    )
+  }
+
+  const confidenceText =
+    flags.confidence != null
+      ? `${flags.confidence}% model confidence in this assessment.`
+      : "Model confidence was not reported for this assessment."
+
+  const riskBody = [flags.category, flags.explanation, confidenceText]
+    .filter(Boolean)
+    .join(" ")
+
   return (
     <div className={`space-y-4 ${className ?? ""}`}>
-      <Item variant="outline" className="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300">
+      <Item
+        variant="outline"
+        className="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+      >
         <ItemMedia variant="icon">
           <OctagonAlertIcon />
         </ItemMedia>
         <ItemContent>
           <ItemTitle>Risk Level</ItemTitle>
-          <ItemDescription>
-            {riskLevel}%
-            {riskLevelDescription}
-          </ItemDescription>
+          <ItemDescription>{riskBody}</ItemDescription>
         </ItemContent>
       </Item>
-      <Badge variant="secondary" className="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300">
+      <Badge
+        variant="secondary"
+        className="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+      >
         <Clock4Icon />
-        <span>{urgency}</span>
+        <span>{presentation.severityLabel}</span>
       </Badge>
       <Item variant="muted">
         <ItemContent>
           <ItemTitle>Confidence</ItemTitle>
           <ItemDescription>
             <span>
-              {confidence.financial}% Financial | {confidence.housing}% Housing | {confidence.medical}% Medical
+              {flags.confidence != null
+                ? `${flags.confidence}%`
+                : "—"}
+              {flags.legitimacy
+                ? ` · Legitimacy: ${flags.legitimacy.replace(/_/g, " ")}`
+                : ""}
+              {` · Severity: ${flags.severity}`}
             </span>
           </ItemDescription>
         </ItemContent>
       </Item>
       <div className="text-lg font-semibold">Suggested Next Steps</div>
       <div className="space-y-4">
-        {suggestedSteps.map((step) => (
-          <Item key={step.title}>
+        {presentation.primaryActions.map((action, index) => {
+          const desc = <PrimaryActionDescription action={action} />
+          const showDesc = Boolean(
+            (action.type === "url" && action.value) ||
+              (action.type === "phone" && action.value) ||
+              (action.type === "info" && action.value)
+          )
+          return (
+          <Item key={`${action.label}-${action.type}-${index}`}>
             <ItemMedia variant="icon">
               <ShieldAlertIcon data-icon="inline-start" />
             </ItemMedia>
             <ItemContent>
-              <ItemTitle>{step.title}</ItemTitle>
-              <ItemDescription><p>{step.description}</p></ItemDescription>
+              <ItemTitle>{action.label}</ItemTitle>
+              {showDesc ? <ItemDescription>{desc}</ItemDescription> : null}
             </ItemContent>
-            <ItemActions>
-              <ExternalLinkIcon className="size-4" />
-            </ItemActions>
+            {(action.type === "url" || action.type === "phone") &&
+            action.value ? (
+              <ItemActions>
+                <ExternalLinkIcon className="size-4" />
+              </ItemActions>
+            ) : null}
           </Item>
-
-          // <Card key={step.title}>
-          //   <CardHeader>
-          //     <CardTitle>{step.title}</CardTitle>
-          //   </CardHeader>
-          //   <CardContent>
-          //     <p>{step.description}</p>
-          //   </CardContent>
-          // </Card>
-        ))}
+          )
+        })}
       </div>
+      <div className="text-lg font-semibold">Helpful Resources</div>
+      <div className="space-y-4">
+        {presentation.resources.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No linked resources.</p>
+        ) : (
+          presentation.resources.map((resource, index) => (
+            <Item key={`${resource.label}-${resource.value}-${index}`}>
+              <ItemMedia variant="icon">
+                <ExternalLinkIcon className="size-4" />
+              </ItemMedia>
+              <ItemContent>
+                <ItemTitle>
+                  {resource.type === "url" && resource.value ? (
+                    <a
+                      href={resource.value}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-primary underline underline-offset-2"
+                    >
+                      {resource.label}
+                    </a>
+                  ) : resource.type === "phone" && resource.value ? (
+                    <a
+                      href={telHref(resource.value)}
+                      className="font-medium text-primary underline underline-offset-2"
+                    >
+                      {resource.label}
+                    </a>
+                  ) : (
+                    resource.label
+                  )}
+                </ItemTitle>
+                {resource.value ? (
+                  <ItemDescription>
+                    <p className="text-muted-foreground">{resource.value}</p>
+                  </ItemDescription>
+                ) : null}
+              </ItemContent>
+            </Item>
+          ))
+        )}
+      </div>
+      {presentation.disclaimer ? (
+        <p className="text-xs text-muted-foreground">{presentation.disclaimer}</p>
+      ) : null}
     </div>
   )
 }

@@ -137,7 +137,7 @@ export async function POST(request: Request) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5.2",
+        model: "stepfun/step-3.5-flash:free",
         max_tokens: 400,
         messages: [
           { role: "system", content: prompt },
