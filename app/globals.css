@@ -74,7 +74,7 @@
 }
 
 @theme inline {
-    --font-sans: var(--font-nunito-sans);
+    --font-sans: var(--font-nunito);
     --font-display: var(--font-nunito);
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
