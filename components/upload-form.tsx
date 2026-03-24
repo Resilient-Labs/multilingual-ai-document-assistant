@@ -63,12 +63,14 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
   const [sourceLang, setSourceLang] = useState("auto");
   const [targetLang, setTargetLang] = useState("es");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
 
     setIsSubmitting(true);
+    setErrorMessage(null);
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -83,6 +85,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
         const message =
           (errBody as { error?: string }).error ?? `Extraction failed (${res.status})`;
         toast.error(message);
+        setErrorMessage(message);
         return;
       }
 
@@ -114,6 +117,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Upload failed";
       toast.error(message);
+      setErrorMessage(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -262,6 +266,11 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
         {/* Translation direction — below dropzone on mobile */}
         {TranslationDirection}
 
+        {errorMessage && (
+          <p role="alert" aria-live="assertive" className="text-sm text-destructive text-center">
+            {errorMessage}
+          </p>
+        )}
         <Button type="submit" disabled={!file || isSubmitting} className="w-full rounded-xl h-10">
           {isSubmitting ? <Spinner className="size-4" /> : "Translate document"}
         </Button>
@@ -324,6 +333,11 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
         )}
       </div>
 
+      {errorMessage && (
+        <p role="alert" aria-live="assertive" className="text-sm text-destructive text-center">
+          {errorMessage}
+        </p>
+      )}
       <Button type="submit" disabled={!file || isSubmitting} size="lg" className="w-full text-base h-12">
         {isSubmitting ? <Spinner className="size-5" /> : "Translate document"}
       </Button>
