@@ -97,7 +97,6 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
   const [sourceLang, setSourceLang] = useState("auto");
   const [targetLang, setTargetLang] = useState("es");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [ocrText, setOcrText] = useState<string | null>(null);
   const [ocrProgress, setOcrProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -109,12 +108,15 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     if (!file) return;
 
     setIsSubmitting(true);
-    setOcrText(null);
     setError(null);
+    setOcrProgress("Loading OCR engine…");
 
-    if (isImage) {
-      setOcrProgress("Loading OCR engine…");
-      try {
+    try {
+      let fullText: string;
+      let docId: string;
+
+      if (isImage) {
+        // Client-side OCR — image never leaves the browser
         const { createWorker } = await import("tesseract.js");
         const worker = await createWorker("eng", 1, {
           logger: (m: { status: string; progress: number }) => {
@@ -127,46 +129,42 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
         });
 
         const bytes = await prepareImageBytes(file, setOcrProgress);
-        const { data } = await worker.recognize(bytes as unknown as Parameters<typeof worker.recognize>[0], {}, { text: true } as Parameters<typeof worker.recognize>[2]);
+        const { data } = await worker.recognize(
+          bytes as unknown as Parameters<typeof worker.recognize>[0],
+          {},
+          { text: true } as Parameters<typeof worker.recognize>[2]
+        );
         await worker.terminate();
 
-        const text = data.text.trim();
-        const docId = `doc_${crypto.randomUUID()}`;
+        fullText = data.text.trim();
+        docId = `doc_${crypto.randomUUID()}`;
 
         const { insertChunk } = await import("@/lib/entitydb");
-        await insertChunk(text, { docId });
-
-        setOcrProgress(null);
-        setOcrText(text);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-        setOcrProgress(null);
-      } finally {
-        setIsSubmitting(false);
-      }
-    } else {
-      try {
+        await insertChunk(fullText, { docId });
+      } else {
+        // Server-side extraction for PDFs / docs
+        setOcrProgress("Uploading…");
         const formData = new FormData();
         formData.append("file", file);
 
         const res = await fetch("/api/documents/upload", { method: "POST", body: formData });
-        const data = await res.json();
+        const payload = await res.json();
+        if (!res.ok) throw new Error(payload.error ?? "Upload failed");
 
-        if (!res.ok) throw new Error(data.error ?? "Upload failed");
-
-        const { docId, ocr, filename: uploadedFilename } = data;
-
-        sessionStorage.setItem(
-          `translate-${docId}`,
-          JSON.stringify({ fullText: ocr.fullText, filename: uploadedFilename, sourceLang, targetLang })
-        );
-
-        router.push(`/translate/${docId}`);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Something went wrong");
-      } finally {
-        setIsSubmitting(false);
+        fullText = payload.ocr.fullText;
+        docId = payload.docId;
       }
+
+      sessionStorage.setItem(
+        `translate-${docId}`,
+        JSON.stringify({ fullText, filename: file.name, sourceLang, targetLang })
+      );
+      router.push(`/translate/${docId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setOcrProgress(null);
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -254,21 +252,13 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     </div>
   );
 
-  const submitLabel = isSubmitting && ocrProgress ? ocrProgress : isImage ? "Extract text" : "Translate document";
+  const submitLabel = isSubmitting && ocrProgress
+    ? ocrProgress
+    : "Translate document";
 
-  const OCRResult = (ocrText || error) && (
-    <div className={cn(
-      "rounded-2xl border p-4 text-sm",
-      error ? "border-destructive/40 bg-destructive/5 text-destructive" : "border-border bg-muted/30"
-    )}>
-      {error ? (
-        <p>{error}</p>
-      ) : (
-        <>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Extracted text</p>
-          <p className="whitespace-pre-wrap leading-relaxed">{ocrText}</p>
-        </>
-      )}
+  const ErrorMessage = error && (
+    <div className="rounded-2xl border border-destructive/40 bg-destructive/5 text-destructive p-4 text-sm">
+      {error}
     </div>
   );
 
@@ -276,7 +266,6 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
   if (mobile) {
     return (
       <form onSubmit={handleSubmit} className="flex flex-col gap-3 h-full">
-        {/* Large dropzone */}
         <div
           {...getRootProps()}
           className={cn(
@@ -327,10 +316,8 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
           )}
         </div>
 
-        {/* Translation direction — below dropzone on mobile */}
         {TranslationDirection}
-
-        {OCRResult}
+        {ErrorMessage}
 
         <Button type="submit" disabled={!file || isSubmitting} className="w-full rounded-xl h-10">
           {isSubmitting ? <Spinner className="size-4" /> : submitLabel}
@@ -342,10 +329,8 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
   /* ── Desktop layout ────────────────────────────────────────────── */
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      {/* Translation direction — above dropzone on desktop */}
       {TranslationDirection}
 
-      {/* Dropzone */}
       <div
         {...getRootProps()}
         className={cn(
@@ -394,7 +379,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
         )}
       </div>
 
-      {OCRResult}
+      {ErrorMessage}
 
       <Button type="submit" disabled={!file || isSubmitting} size="lg" className="w-full text-base h-12">
         {isSubmitting ? <Spinner className="size-5" /> : submitLabel}
