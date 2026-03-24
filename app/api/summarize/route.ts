@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server'
 
 /**
  * POST /api/summarize
@@ -11,27 +11,34 @@ import { NextResponse } from "next/server";
  */
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const fullText = body?.fullText as string | undefined;
+    const body: { fullText?: string } = await request.json()
+    const fullText = body.fullText
 
     if (!fullText) {
-      return NextResponse.json(
-        { error: "fullText required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'fullText required' }, { status: 400 })
     }
 
-    // TODO: Call LLM for summarization.
-    const summary =
-      fullText.trim().length > 0
-        ? `[Summary placeholder. LLM integration pending.]`
-        : "No content to summarize.";
+    // === Mock summarization logic ===
+    // Split text into sentences (simple placeholder logic)
+    const sentences: string[] = fullText
+      .split(/(?<=[.!?])\s+/)
+      .filter((s: string) => s.length > 0)
 
-    return NextResponse.json({ summary });
-  } catch {
-    return NextResponse.json(
-      { error: "Summarization failed" },
-      { status: 500 }
-    );
+    // Produce structured placeholders
+    const documentPurpose =
+      sentences.slice(0, 2).join(' ') || '[Document Purpose placeholder]'
+    const detailedSummary =
+      sentences.slice(2, 5).join(' ') || '[Detailed Summary placeholder]'
+    const llmIntegration =
+      '[LLM call placeholder — replace with actual LLM integration]'
+
+    return NextResponse.json({
+      documentPurpose,
+      detailedSummary,
+      llmIntegration,
+    })
+  } catch (err) {
+    console.error('Summarization error:', err)
+    return NextResponse.json({ error: 'Summarization failed' }, { status: 500 })
   }
 }
