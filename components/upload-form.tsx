@@ -20,10 +20,48 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 import { logDocumentSubmission } from "@/app/actions/logging";
+
+const HEIC_BRANDS = ["heic", "heix", "hevc", "hevx", "heis", "heim", "mif1", "msf1"];
+
+async function prepareImageBytes(
+  file: File,
+  onProgress: (msg: string) => void
+): Promise<Uint8Array> {
+  const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  const isFtyp = header[4] === 0x66 && header[5] === 0x74 && header[6] === 0x79 && header[7] === 0x70;
+  const brand = isFtyp ? String.fromCharCode(header[8], header[9], header[10], header[11]) : "";
+
+  if (!HEIC_BRANDS.includes(brand) && file.type !== "image/heic" && file.type !== "image/heif") {
+    return new Uint8Array(await file.arrayBuffer());
+  }
+
+  onProgress("Decoding HEIC image…");
+  const libheif = await import("libheif-js/wasm-bundle");
+  const rawBytes = new Uint8Array(await file.arrayBuffer());
+  const images = new libheif.HeifDecoder().decode(rawBytes);
+  if (!images?.length) throw new Error("Could not decode HEIC file.");
+
+  const image = images[0];
+  const canvas = document.createElement("canvas");
+  canvas.width = image.get_width();
+  canvas.height = image.get_height();
+  const ctx = canvas.getContext("2d")!;
+  const imageData = ctx.createImageData(canvas.width, canvas.height);
+
+  await new Promise<void>((resolve, reject) => {
+    image.display(imageData, (result: ImageData | null) => {
+      if (result) { resolve(); } else { reject(new Error("HEIF display error")); }
+    });
+  });
+
+  ctx.putImageData(imageData, 0, 0);
+  return new Uint8Array(await new Promise<ArrayBuffer>((resolve, reject) => {
+    canvas.toBlob((b) => b ? b.arrayBuffer().then(resolve) : reject(new Error("canvas export failed")), "image/jpeg", 0.9);
+  }));
+}
 
 const LANGUAGES = [
   { code: "auto", label: "Detect language" },
@@ -59,7 +97,10 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
   const [sourceLang, setSourceLang] = useState("auto");
   const [targetLang, setTargetLang] = useState("es");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [ocrProgress, setOcrProgress] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const isImage = file?.type.startsWith("image/") ?? false;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -67,37 +108,62 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     if (!file) return;
 
     setIsSubmitting(true);
-    setUploadError(null);
+    setError(null);
+    setOcrProgress("Loading OCR engine…");
+
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      let fullText: string;
+      let docId: string;
 
-      const res = await fetch("/api/documents/upload", {
-        method: "POST",
-        body: formData,
-      });
+      if (isImage) {
+        // Client-side OCR — image never leaves the browser
+        const { createWorker } = await import("tesseract.js");
+        const worker = await createWorker("eng", 1, {
+          logger: (m: { status: string; progress: number }) => {
+            if (m.status === "recognizing text") {
+              setOcrProgress(`Recognizing… ${Math.round(m.progress * 100)}%`);
+            } else {
+              setOcrProgress(m.status);
+            }
+          },
+        });
 
-      const data = await res.json();
+        const bytes = await prepareImageBytes(file, setOcrProgress);
+        const { data } = await worker.recognize(
+          bytes as unknown as Parameters<typeof worker.recognize>[0],
+          {},
+          { text: true } as Parameters<typeof worker.recognize>[2]
+        );
+        await worker.terminate();
 
-      if (!res.ok) {
-        throw new Error(data.error ?? "Upload failed");
+        fullText = data.text.trim();
+        docId = `doc_${crypto.randomUUID()}`;
+
+        const { insertChunk } = await import("@/lib/entitydb");
+        await insertChunk(fullText, { docId });
+      } else {
+        // Server-side extraction for PDFs / docs
+        setOcrProgress("Uploading…");
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch("/api/documents/upload", { method: "POST", body: formData });
+        const payload = await res.json();
+        if (!res.ok) throw new Error(payload.error ?? "Upload failed");
+
+        fullText = payload.ocr.fullText;
+        docId = payload.docId;
       }
-
-      const { docId, ocr, filename: uploadedFilename } = data;
 
       sessionStorage.setItem(
         `translate-${docId}`,
-        JSON.stringify({
-          fullText: ocr.fullText,
-          filename: uploadedFilename,
-          sourceLang,
-          targetLang,
-        })
+        JSON.stringify({ fullText, filename: file.name, sourceLang, targetLang })
       );
-
       router.push(`/translate/${docId}`);
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Something went wrong");
+      setError(err instanceof Error ? err.message : String(err));
+      setOcrProgress(null);
+    } finally {
       setIsSubmitting(false);
     }
   }
@@ -186,11 +252,20 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     </div>
   );
 
+  const submitLabel = isSubmitting && ocrProgress
+    ? ocrProgress
+    : "Translate document";
+
+  const ErrorMessage = error && (
+    <div className="rounded-2xl border border-destructive/40 bg-destructive/5 text-destructive p-4 text-sm">
+      {error}
+    </div>
+  );
+
   /* ── Mobile layout ─────────────────────────────────────────────── */
   if (mobile) {
     return (
       <form onSubmit={handleSubmit} className="flex flex-col gap-3 h-full">
-        {/* Large dropzone */}
         <div
           {...getRootProps()}
           className={cn(
@@ -241,18 +316,11 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
           )}
         </div>
 
-        {/* Translation direction — below dropzone on mobile */}
         {TranslationDirection}
-
-        {uploadError && (
-          <Alert variant="destructive">
-            <AlertTitle>Upload failed</AlertTitle>
-            <AlertDescription>{uploadError}</AlertDescription>
-          </Alert>
-        )}
+        {ErrorMessage}
 
         <Button type="submit" disabled={!file || isSubmitting} className="w-full rounded-xl h-10">
-          {isSubmitting ? <Spinner className="size-4" /> : "Translate document"}
+          {isSubmitting ? <Spinner className="size-4" /> : submitLabel}
         </Button>
       </form>
     );
@@ -261,10 +329,8 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
   /* ── Desktop layout ────────────────────────────────────────────── */
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      {/* Translation direction — above dropzone on desktop */}
       {TranslationDirection}
 
-      {/* Dropzone */}
       <div
         {...getRootProps()}
         className={cn(
@@ -313,15 +379,10 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
         )}
       </div>
 
-      {uploadError && (
-        <Alert variant="destructive">
-          <AlertTitle>Upload failed</AlertTitle>
-          <AlertDescription>{uploadError}</AlertDescription>
-        </Alert>
-      )}
+      {ErrorMessage}
 
       <Button type="submit" disabled={!file || isSubmitting} size="lg" className="w-full text-base h-12">
-        {isSubmitting ? <Spinner className="size-5" /> : "Translate document"}
+        {isSubmitting ? <Spinner className="size-5" /> : submitLabel}
       </Button>
     </form>
   );
