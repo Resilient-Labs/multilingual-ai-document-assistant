@@ -53,7 +53,7 @@ async function prepareImageBytes(
 
   await new Promise<void>((resolve, reject) => {
     image.display(imageData, (result: ImageData | null) => {
-      result ? resolve() : reject(new Error("HEIF display error"));
+      if (result) { resolve(); } else { reject(new Error("HEIF display error")); }
     });
   });
 
