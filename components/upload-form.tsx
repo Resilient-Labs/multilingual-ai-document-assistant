@@ -22,6 +22,45 @@ import {
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 
+const HEIC_BRANDS = ["heic", "heix", "hevc", "hevx", "heis", "heim", "mif1", "msf1"];
+
+async function prepareImageBytes(
+  file: File,
+  onProgress: (msg: string) => void
+): Promise<Uint8Array> {
+  const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  const isFtyp = header[4] === 0x66 && header[5] === 0x74 && header[6] === 0x79 && header[7] === 0x70;
+  const brand = isFtyp ? String.fromCharCode(header[8], header[9], header[10], header[11]) : "";
+
+  if (!HEIC_BRANDS.includes(brand) && file.type !== "image/heic" && file.type !== "image/heif") {
+    return new Uint8Array(await file.arrayBuffer());
+  }
+
+  onProgress("Decoding HEIC image…");
+  const libheif = await import("libheif-js/wasm-bundle");
+  const rawBytes = new Uint8Array(await file.arrayBuffer());
+  const images = new libheif.HeifDecoder().decode(rawBytes);
+  if (!images?.length) throw new Error("Could not decode HEIC file.");
+
+  const image = images[0];
+  const canvas = document.createElement("canvas");
+  canvas.width = image.get_width();
+  canvas.height = image.get_height();
+  const ctx = canvas.getContext("2d")!;
+  const imageData = ctx.createImageData(canvas.width, canvas.height);
+
+  await new Promise<void>((resolve, reject) => {
+    image.display(imageData, (result: ImageData | null) => {
+      result ? resolve() : reject(new Error("HEIF display error"));
+    });
+  });
+
+  ctx.putImageData(imageData, 0, 0);
+  return new Uint8Array(await new Promise<ArrayBuffer>((resolve, reject) => {
+    canvas.toBlob((b) => b ? b.arrayBuffer().then(resolve) : reject(new Error("canvas export failed")), "image/jpeg", 0.9);
+  }));
+}
+
 const LANGUAGES = [
   { code: "auto", label: "Detect language" },
   { code: "en", label: "English" },
@@ -55,30 +94,54 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
   const [sourceLang, setSourceLang] = useState("auto");
   const [targetLang, setTargetLang] = useState("es");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [ocrText, setOcrText] = useState<string | null>(null);
+  const [ocrProgress, setOcrProgress] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  /**
-   * TODO (next team): implement document upload + translation flow
-   *
-   * Steps needed:
-   *  1. Upload `file` to the backend — see POST /api/documents/upload
-   *     - Send as multipart/form-data
-   *     - Receive back a `documentId`
-   *  2. Kick off translation job with `sourceLang` and `targetLang`
-   *     - POST /api/translate  { documentId, sourceLang, targetLang }
-   *  3. Redirect to the translation results page, e.g.:
-   *     - router.push(`/translate/${documentId}`)
-   *     - Or whichever route the translate tab maps to
-   *  4. Handle loading / error states (isSubmitting is wired up, just set it)
-   */
+  const isImage = file?.type.startsWith("image/") ?? false;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
 
-    setIsSubmitting(true);
-    try {
-      // TODO: replace this placeholder with the real upload + redirect logic above
-    
+    if (!isImage) {
       alert(`[Placeholder] Would upload "${file.name}" and translate ${sourceLang} → ${targetLang}`);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setOcrText(null);
+    setError(null);
+    setOcrProgress("Loading OCR engine…");
+
+    try {
+      const { createWorker } = await import("tesseract.js");
+      const worker = await createWorker("eng", 1, {
+        logger: (m: { status: string; progress: number }) => {
+          if (m.status === "recognizing text") {
+            setOcrProgress(`Recognizing… ${Math.round(m.progress * 100)}%`);
+          } else {
+            setOcrProgress(m.status);
+          }
+        },
+      });
+
+      const bytes = await prepareImageBytes(file, setOcrProgress);
+
+      const { data } = await worker.recognize(bytes, {}, { text: true } as Parameters<typeof worker.recognize>[2]);
+      await worker.terminate();
+
+      const text = data.text.trim();
+      const docId = `doc_${crypto.randomUUID()}`;
+
+      const { insertChunk } = await import("@/lib/entitydb");
+      await insertChunk(text, { docId });
+
+      setOcrProgress(null);
+      setOcrText(text);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setOcrProgress(null);
     } finally {
       setIsSubmitting(false);
     }
@@ -168,6 +231,24 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     </div>
   );
 
+  const submitLabel = isSubmitting && ocrProgress ? ocrProgress : isImage ? "Extract text" : "Translate document";
+
+  const OCRResult = (ocrText || error) && (
+    <div className={cn(
+      "rounded-2xl border p-4 text-sm",
+      error ? "border-destructive/40 bg-destructive/5 text-destructive" : "border-border bg-muted/30"
+    )}>
+      {error ? (
+        <p>{error}</p>
+      ) : (
+        <>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Extracted text</p>
+          <p className="whitespace-pre-wrap leading-relaxed">{ocrText}</p>
+        </>
+      )}
+    </div>
+  );
+
   /* ── Mobile layout ─────────────────────────────────────────────── */
   if (mobile) {
     return (
@@ -226,8 +307,10 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
         {/* Translation direction — below dropzone on mobile */}
         {TranslationDirection}
 
+        {OCRResult}
+
         <Button type="submit" disabled={!file || isSubmitting} className="w-full rounded-xl h-10">
-          {isSubmitting ? <Spinner className="size-4" /> : "Translate document"}
+          {isSubmitting ? <Spinner className="size-4" /> : submitLabel}
         </Button>
       </form>
     );
@@ -288,8 +371,10 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
         )}
       </div>
 
+      {OCRResult}
+
       <Button type="submit" disabled={!file || isSubmitting} size="lg" className="w-full text-base h-12">
-        {isSubmitting ? <Spinner className="size-5" /> : "Translate document"}
+        {isSubmitting ? <Spinner className="size-5" /> : submitLabel}
       </Button>
     </form>
   );
