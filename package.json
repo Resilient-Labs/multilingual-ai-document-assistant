@@ -15,6 +15,7 @@
   "dependencies": {
     "@babycommando/entity-db": "github:babycommando/entity-db",
     "@base-ui/react": "^1.2.0",
+    "@google/genai": "^1.46.0",
     "@heroicons/react": "^2.2.0",
     "@tailwindcss/postcss": "^4.2.1",
     "class-variance-authority": "^0.7.1",
