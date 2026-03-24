@@ -191,8 +191,8 @@ export default function TranslatePage() {
         throw new Error(errorMessage);
       }
 
-      const contentType = response.headers.get("content-type") ?? "unknown";
-      const provider = response.headers.get("x-tts-provider") ?? "unknown";
+      const _contentType = response.headers.get("content-type") ?? "unknown";
+      const _provider = response.headers.get("x-tts-provider") ?? "unknown";
       const audioBlob = await response.blob();
       if (audioBlob.size === 0) {
         throw new Error("Generated audio was empty. Please try again.");
