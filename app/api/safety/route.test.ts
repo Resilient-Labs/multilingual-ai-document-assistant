@@ -18,8 +18,12 @@ function createSuccessfulFetchMock(flags: Record<string, unknown>) {
             content: JSON.stringify({
               category: flags.category ?? 'Unknown',
               severity: flags.severity ?? 'low',
+              riskLevel: flags.riskLevel,
+              confidence: flags.confidence ?? 75,
+              legitimacy: flags.legitimacy ?? 'uncertain',
               explanation: flags.explanation ?? 'Test explanation',
-              detectedAt: 0,
+              evidenceCharOffset:
+                (flags.evidenceCharOffset as number | undefined) ?? 42,
             }),
           },
         },
@@ -124,6 +128,20 @@ describe('POST /api/safety', () => {
       expect(body.flags.severity).toBe('medium')
       expect(body.flags.explanation).toBeDefined()
       expect(body.flags.detectedAt).toBeGreaterThan(0)
+      expect(body.flags.evidenceCharOffset).toBe(42)
+      expect(Array.isArray(body.flags.nextSteps)).toBe(true)
+      expect(body.flags.nextSteps.length).toBeGreaterThan(0)
+      expect(body.flags.nextSteps[0]).toMatchObject({
+        label: expect.any(String),
+        type: expect.stringMatching(/^(phone|url|info)$/),
+      })
+      expect(body.presentation).toBeDefined()
+      expect(body.presentation.headline).toContain('Medical Bill')
+      expect(body.presentation.summary).toBeNull()
+      expect(body.presentation.primaryActions.length).toBe(
+        body.flags.nextSteps.length
+      )
+      expect(body.flags.confidence).toBe(75)
     })
   })
 
@@ -150,6 +168,7 @@ describe('POST /api/safety', () => {
       expect(body.flags.category).toBe('Debt Collection Letter')
       expect(body.flags.severity).toBe('high')
       expect(body.flags.detectedAt).toBeGreaterThan(0)
+      expect(body.flags.nextSteps.length).toBeGreaterThanOrEqual(3)
 
       expect(globalThis.fetch).toHaveBeenCalledTimes(1)
       const fetchCall = (globalThis.fetch as ReturnType<typeof vi.fn>).mock

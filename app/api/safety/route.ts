@@ -1,5 +1,63 @@
 import { NextResponse } from "next/server"
 import { promises as fs } from "fs"
+import {
+  buildSafetyRecommendationPresentation,
+  normalizeConfidence,
+  normalizeLegitimacy,
+  normalizeRiskLevel,
+  selectNextSteps,
+} from "@/lib/safetyRecommendations"
+import { normalizeSeverity } from "@/lib/safetyNextSteps"
+import type { SafetyFlags } from "@/types"
+
+/** Values below this are treated as legacy model character offsets, not Unix ms. */
+const LEGACY_OFFSET_MAX = 1_000_000_000_000
+
+function pickEvidenceCharOffset(parsed: Record<string, unknown>): number | undefined {
+  const fromField = parsed.evidenceCharOffset
+  if (typeof fromField === "number" && Number.isFinite(fromField)) {
+    return Math.max(0, Math.floor(fromField))
+  }
+  const legacy = parsed.detectedAt
+  if (typeof legacy === "number" && Number.isFinite(legacy) && legacy < LEGACY_OFFSET_MAX) {
+    return Math.max(0, Math.floor(legacy))
+  }
+  return undefined
+}
+
+function buildSafetyFlags(parsed: Record<string, unknown>): SafetyFlags {
+  const category =
+    typeof parsed.category === "string" && parsed.category.trim()
+      ? parsed.category.trim()
+      : "Unknown"
+  const severity = normalizeSeverity(parsed.severity)
+  const riskLevel = normalizeRiskLevel(parsed.riskLevel) ?? severity
+  const confidence = normalizeConfidence(parsed.confidence)
+  const legitimacy = normalizeLegitimacy(parsed.legitimacy)
+  const explanation =
+    typeof parsed.explanation === "string" ? parsed.explanation : undefined
+  const hasExplanation = Boolean(explanation?.trim())
+  const evidenceCharOffset = pickEvidenceCharOffset(parsed)
+  const nextSteps = selectNextSteps({
+    category,
+    severity,
+    confidence,
+    legitimacy,
+    hasExplanation,
+  })
+
+  return {
+    category,
+    severity,
+    riskLevel,
+    confidence,
+    legitimacy,
+    explanation,
+    evidenceCharOffset,
+    detectedAt: Date.now(),
+    nextSteps,
+  }
+}
 
 /**
  * POST /api/safety
@@ -80,7 +138,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         model: "openai/gpt-5.2",
-        max_tokens: 200,
+        max_tokens: 400,
         messages: [
           { role: "system", content: prompt },
           { role: "user", content: textToAnalyze },
@@ -113,9 +171,9 @@ export async function POST(request: Request) {
     )
   }
 
-  let flags: Record<string, unknown>
+  let parsed: Record<string, unknown>
   try {
-    flags = JSON.parse(content) as Record<string, unknown>
+    parsed = JSON.parse(content) as Record<string, unknown>
   } catch {
     return NextResponse.json(
       { error: "Safety check failed", code: "PARSE_ERROR" },
@@ -123,7 +181,8 @@ export async function POST(request: Request) {
     )
   }
 
-  flags.detectedAt = Date.now()
+  const flags = buildSafetyFlags(parsed)
+  const presentation = buildSafetyRecommendationPresentation(flags)
 
-  return NextResponse.json({ flags })
+  return NextResponse.json({ flags, presentation })
 }
