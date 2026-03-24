@@ -12,10 +12,7 @@ import { extractFieldCandidates } from "@/lib/documents/fieldCandidates";
 import type { CanonicalDocument } from "@/types/CanonicalDocument";
 import type { Document, OCRResult } from "@/types";
 
-// 🟡 [PRINCIPAL] Architecture: Magic number tied to specific ML model.
-//    If model changes, this breaks silently. Consider:
-//    - Import from a shared embedding config
-//    - Add runtime validation when EntityDB is initialized
+
 /** Xenova/all-MiniLM-L6-v2 embedding size — keeps EntityDB.query from breaking on length mismatch. */
 const PLACEHOLDER_EMBEDDING_DIM = 384;
 
@@ -37,8 +34,7 @@ export interface PersistOCRParams {
   file?: File;
 }
 
-// 🟡 [PRINCIPAL] Architecture: Duplicated interface — identical type exists in
-//    hooks/useDocumentSession.ts. Extract to types/entitydb.ts as single source of truth.
+
 interface EntityDBInternal {
   dbPromise: Promise<{
     transaction(
@@ -164,18 +160,3 @@ export async function getDocumentFromEntityDB(
   return payload as unknown as CanonicalDocument;
 }
 
-/* ═══════════════════════════════════════════
-   PRINCIPAL ENGINEER AUDIT — entitydb-persist.ts 2026-03-24
-   🔴 High: 0  🟡 Medium: 2  🔵 Low: 0
-   ═══════════════════════════════════════════
-   
-   Summary:
-   - PLACEHOLDER_EMBEDDING_DIM (384) coupled to specific model without validation
-   - EntityDBInternal interface duplicated from useDocumentSession.ts
-   
-   ✅ Good patterns observed:
-   - Clear single purpose (persist OCR to EntityDB)
-   - Proper browser-only guards
-   - Well-documented placeholder vector rationale
-   - Exported buildCanonicalPersistPayload for testability
-*/

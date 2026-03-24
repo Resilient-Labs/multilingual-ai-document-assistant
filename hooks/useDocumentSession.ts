@@ -17,13 +17,11 @@ import type { EntityDB } from "@babycommando/entity-db";
 import { getEntityDB } from "@/lib/entitydb";
 import type { CanonicalDocument } from "@/types/CanonicalDocument";
 
-// 🟡 [PRINCIPAL] Architecture: Duplicated constant — also exists as EXTRACTED_DOCUMENT_ENTITY_KEY
-//    in lib/entitydb-persist.ts. Import from single source of truth to avoid drift.
+
 /** The metadata field used to identify the extracted-document record. */
 const EXTRACTED_DOCUMENT_KEY = "extracted_document" as const;
 
-// 🟡 [PRINCIPAL] Architecture: Duplicated interface — identical EntityDBInternal exists
-//    in lib/entitydb-persist.ts. Extract to shared types/entitydb.ts.
+
 /** Internal shape of the EntityDB instance to access the raw IDB promise. */
 interface EntityDBInternal {
   dbPromise: Promise<{
@@ -116,18 +114,3 @@ export function useDocumentSession(
 
   return { data, loading, error };
 }
-
-/* ═══════════════════════════════════════════
-   PRINCIPAL ENGINEER AUDIT — useDocumentSession.ts 2026-03-24
-   🔴 High: 0  🟡 Medium: 2  🔵 Low: 0
-   ═══════════════════════════════════════════
-   
-   Summary:
-   - EXTRACTED_DOCUMENT_KEY duplicated (also in lib/entitydb-persist.ts)
-   - EntityDBInternal interface duplicated (also in lib/entitydb-persist.ts)
-   
-   ✅ Good patterns observed:
-   - Proper useEffect cleanup with cancellation flag
-   - Correct dependency array [sessionId]
-   - Single responsibility
-*/

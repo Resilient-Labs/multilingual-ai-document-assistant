@@ -248,16 +248,3 @@ describe("persistOCRToEntityDB and getDocumentFromEntityDB", () => {
   });
 });
 
-/* ═══════════════════════════════════════════
-   PRINCIPAL ENGINEER AUDIT — entitydb-persist.test.ts 2026-03-24
-   🔴 High: 0  🟡 Medium: 0  🔵 Low: 0
-   ═══════════════════════════════════════════
-   
-   ✅ Principal Engineer Audit — No issues found.
-   
-   Good patterns observed:
-   - Proper isolation with vi.hoisted for mock state
-   - Comprehensive coverage: build payload, persist, retrieve, round-trip
-   - Tests edge cases (non-image files, image data URL storage)
-   - Clean afterEach cleanup with unstubAllGlobals
-*/

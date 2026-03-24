@@ -1,9 +1,4 @@
-// 🟡 [PRINCIPAL] Architecture: God Component (~420 lines, 5+ responsibilities).
-//    This file handles: HEIC conversion, OCR processing, form state, dropzone logic,
-//    and two distinct layouts. Consider extracting:
-//    - prepareImageBytes → lib/image/heic-converter.ts
-//    - LANGUAGES/TARGET_LANGUAGES → constants/languages.ts
-//    - Mobile vs Desktop could be separate components using a shared hook
+
 "use client";
 
 import { useCallback, useState } from "react";
@@ -56,8 +51,7 @@ async function prepareImageBytes(
   const canvas = document.createElement("canvas");
   canvas.width = image.get_width();
   canvas.height = image.get_height();
-  // 🟡 [PRINCIPAL] Code Quality: Non-null assertion on getContext is unsafe.
-  //    Handle null case: const ctx = canvas.getContext("2d"); if (!ctx) throw new Error("...");
+  
   const ctx = canvas.getContext("2d")!;
   const imageData = ctx.createImageData(canvas.width, canvas.height);
 
@@ -114,8 +108,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // 🟡 [PRINCIPAL] Code Quality: Silently swallowing errors hides issues in production.
-    //    At minimum, log to console.error or a monitoring service.
+    
     logDocumentSubmission(sourceLang, targetLang).catch(() => {});
     if (!file) return;
 
@@ -240,8 +233,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     setFile(null);
   }
 
-  // 🟡 [PRINCIPAL] React: Defining JSX as a variable inside render creates a new reference every render.
-  //    Extract to a memoized child component or use useMemo if props are stable.
+ 
   const TranslationDirection = (
     <div className={cn("rounded-2xl border border-border p-4", mobile ? "bg-muted/20" : "bg-muted/30")}>
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
@@ -433,19 +425,3 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
   );
 }
 
-/* ═══════════════════════════════════════════
-   PRINCIPAL ENGINEER AUDIT — upload-form.tsx 2026-03-24
-   🔴 High: 0  🟡 Medium: 4  🔵 Low: 0
-   ═══════════════════════════════════════════
-   
-   Summary:
-   - God component with multiple responsibilities (HEIC conversion, OCR, forms, layouts)
-   - Non-null assertion on canvas context could fail silently
-   - Swallowed error in logDocumentSubmission
-   - JSX variables (TranslationDirection, ErrorMessage) recreated each render
-   
-   Recommended refactors:
-   1. Extract prepareImageBytes to lib/image/heic-converter.ts
-   2. Extract LANGUAGES to constants/languages.ts
-   3. Split into UploadFormMobile + UploadFormDesktop using shared useUploadForm hook
-*/
