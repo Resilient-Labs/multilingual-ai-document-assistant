@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useCallback, useState } from "react";
@@ -23,6 +24,8 @@ import {
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 import { logDocumentSubmission } from "@/app/actions/logging";
+import { persistOCRToEntityDB } from "@/lib/entitydb-persist";
+import type { OCRResult } from "@/types";
 
 const HEIC_BRANDS = ["heic", "heix", "hevc", "hevx", "heis", "heim", "mif1", "msf1"];
 
@@ -48,6 +51,7 @@ async function prepareImageBytes(
   const canvas = document.createElement("canvas");
   canvas.width = image.get_width();
   canvas.height = image.get_height();
+  
   const ctx = canvas.getContext("2d")!;
   const imageData = ctx.createImageData(canvas.width, canvas.height);
 
@@ -104,6 +108,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    
     logDocumentSubmission(sourceLang, targetLang).catch(() => {});
     if (!file) return;
 
@@ -139,8 +144,29 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
         fullText = data.text.trim();
         docId = `doc_${crypto.randomUUID()}`;
 
-        const { insertChunk } = await import("@/lib/entitydb");
-        await insertChunk(fullText, { docId });
+        const createdAt = Date.now();
+        const ocrResult: OCRResult = {
+          documentId: docId,
+          fullText,
+          blocks: [
+            {
+              id: "b1",
+              documentId: docId,
+              text: fullText,
+              confidence: 1.0,
+            },
+          ],
+        };
+
+        await persistOCRToEntityDB({
+          docId,
+          filename: file.name,
+          mimeType: file.type,
+          sizeBytes: file.size,
+          createdAt,
+          ocr: ocrResult,
+          file,
+        });
       } else {
         // Server-side extraction for PDFs / docs
         setOcrProgress("Uploading…");
@@ -153,6 +179,16 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
 
         fullText = payload.ocr.fullText;
         docId = payload.docId;
+
+        await persistOCRToEntityDB({
+          docId: payload.docId,
+          filename: payload.filename ?? file.name,
+          mimeType: payload.mimeType ?? file.type,
+          sizeBytes: payload.sizeBytes ?? file.size,
+          createdAt: payload.createdAt ?? Date.now(),
+          ocr: payload.ocr,
+          file,
+        });
       }
 
       sessionStorage.setItem(
@@ -198,6 +234,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     setFile(null);
   }
 
+ 
   const TranslationDirection = (
     <div className={cn("rounded-2xl border border-border p-4", mobile ? "bg-muted/20" : "bg-muted/30")}>
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
@@ -388,3 +425,4 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     </form>
   );
 }
+

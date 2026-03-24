@@ -7,4 +7,5 @@ node_modules
 tsconfig.tsbuildinfo
 .DS_Store
 *.traineddata
+.cursor
 logs/
