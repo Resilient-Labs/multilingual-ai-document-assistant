@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useDropzone } from "react-dropzone";
 import {
   ArrowRightLeftIcon,
@@ -21,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
+import { logDocumentSubmission } from "@/app/actions/logging";
 
 const HEIC_BRANDS = ["heic", "heix", "hevc", "hevx", "heis", "heim", "mif1", "msf1"];
 
@@ -90,6 +92,7 @@ interface UploadFormProps {
 }
 
 export function UploadForm({ mobile = false }: UploadFormProps) {
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [sourceLang, setSourceLang] = useState("auto");
   const [targetLang, setTargetLang] = useState("es");
@@ -102,48 +105,68 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    logDocumentSubmission(sourceLang, targetLang).catch(() => {});
     if (!file) return;
-
-    if (!isImage) {
-      alert(`[Placeholder] Would upload "${file.name}" and translate ${sourceLang} → ${targetLang}`);
-      return;
-    }
 
     setIsSubmitting(true);
     setOcrText(null);
     setError(null);
-    setOcrProgress("Loading OCR engine…");
 
-    try {
-      const { createWorker } = await import("tesseract.js");
-      const worker = await createWorker("eng", 1, {
-        logger: (m: { status: string; progress: number }) => {
-          if (m.status === "recognizing text") {
-            setOcrProgress(`Recognizing… ${Math.round(m.progress * 100)}%`);
-          } else {
-            setOcrProgress(m.status);
-          }
-        },
-      });
+    if (isImage) {
+      setOcrProgress("Loading OCR engine…");
+      try {
+        const { createWorker } = await import("tesseract.js");
+        const worker = await createWorker("eng", 1, {
+          logger: (m: { status: string; progress: number }) => {
+            if (m.status === "recognizing text") {
+              setOcrProgress(`Recognizing… ${Math.round(m.progress * 100)}%`);
+            } else {
+              setOcrProgress(m.status);
+            }
+          },
+        });
 
-      const bytes = await prepareImageBytes(file, setOcrProgress);
+        const bytes = await prepareImageBytes(file, setOcrProgress);
+        const { data } = await worker.recognize(bytes as unknown as Parameters<typeof worker.recognize>[0], {}, { text: true } as Parameters<typeof worker.recognize>[2]);
+        await worker.terminate();
 
-      const { data } = await worker.recognize(bytes, {}, { text: true } as Parameters<typeof worker.recognize>[2]);
-      await worker.terminate();
+        const text = data.text.trim();
+        const docId = `doc_${crypto.randomUUID()}`;
 
-      const text = data.text.trim();
-      const docId = `doc_${crypto.randomUUID()}`;
+        const { insertChunk } = await import("@/lib/entitydb");
+        await insertChunk(text, { docId });
 
-      const { insertChunk } = await import("@/lib/entitydb");
-      await insertChunk(text, { docId });
+        setOcrProgress(null);
+        setOcrText(text);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        setOcrProgress(null);
+      } finally {
+        setIsSubmitting(false);
+      }
+    } else {
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
 
-      setOcrProgress(null);
-      setOcrText(text);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setOcrProgress(null);
-    } finally {
-      setIsSubmitting(false);
+        const res = await fetch("/api/documents/upload", { method: "POST", body: formData });
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.error ?? "Upload failed");
+
+        const { docId, ocr, filename: uploadedFilename } = data;
+
+        sessionStorage.setItem(
+          `translate-${docId}`,
+          JSON.stringify({ fullText: ocr.fullText, filename: uploadedFilename, sourceLang, targetLang })
+        );
+
+        router.push(`/translate/${docId}`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Something went wrong");
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   }
 

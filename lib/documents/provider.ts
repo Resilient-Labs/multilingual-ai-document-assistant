@@ -56,16 +56,13 @@ export class TesseractOCRProvider implements OCRProvider {
       const buffer = Buffer.from(fileBuffer);
       const { data } = await worker.recognize(buffer, {}, { text: true, blocks: true } as Parameters<typeof worker.recognize>[2]);
 
-      const rawLines = (data.blocks ?? [])
-        .flatMap((b: { paragraphs?: { lines?: unknown[] }[] }) => b.paragraphs ?? [])
-        .flatMap((p: { lines?: unknown[] }) => p.lines ?? [])
-        .filter((l: { text?: string }) => l.text?.trim().length > 0);
+      type RawLine = { text: string; confidence: number; bbox: { x0: number; y0: number; x1: number; y1: number } };
+      const rawLines = ((data.blocks ?? []) as Array<{ paragraphs?: Array<{ lines?: RawLine[] }> }>)
+        .flatMap((b) => b.paragraphs ?? [])
+        .flatMap((p) => p.lines ?? [])
+        .filter((l) => l.text?.trim().length > 0);
 
-      const blocks: RawOCRBlock[] = (rawLines as Array<{
-        text: string;
-        confidence: number;
-        bbox: { x0: number; y0: number; x1: number; y1: number };
-      }>).map((line) => ({
+      const blocks: RawOCRBlock[] = rawLines.map((line) => ({
         text: line.text.trim(),
         confidence: line.confidence / 100,
         bbox: {
