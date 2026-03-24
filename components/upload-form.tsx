@@ -123,7 +123,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     if (accepted.length > 0) setFile(accepted[0]);
   }, []);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
     maxFiles: 1,
     maxSize: MAX_FILE_SIZE_BYTES,
@@ -209,7 +209,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
       <form onSubmit={handleSubmit} className="flex flex-col gap-3 h-full">
         {/* Large dropzone */}
         <div
-          {...getRootProps()}
+          {...getRootProps({ role: "presentation" })}
           className={cn(
             "flex-1 flex flex-col items-center justify-center gap-5 rounded-2xl border-2 border-dashed cursor-pointer transition-colors min-h-[280px]",
             isDragActive
@@ -249,6 +249,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
               <Button
                 size="default"
                 type="button"
+                onClick={open}
                 className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-6"
               >
                 <CameraIcon className="size-4" />
@@ -276,7 +277,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
 
       {/* Dropzone */}
       <div
-        {...getRootProps()}
+        {...getRootProps({ role: "presentation" })}
         className={cn(
           "flex flex-col items-center justify-center gap-5 rounded-2xl border-2 border-dashed px-10 py-16 text-center cursor-pointer transition-colors min-h-[280px]",
           isDragActive
@@ -316,7 +317,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
                 PDF, DOC, DOCX, TXT, or image — 4.5 MB max
               </p>
             </div>
-            <Button size="lg" variant="outline" type="button" className="px-8 text-base">
+            <Button size="lg" variant="outline" type="button" onClick={open} className="px-8 text-base">
               Browse files
             </Button>
           </>
