@@ -39,9 +39,54 @@ export interface OCRProvider {
 }
 
 export class MockOCRProvider implements OCRProvider {
-  async extract(_fileBuffer: ArrayBuffer, _mimeType: string): Promise<RawOCRResult> {
+  async extract(fileBuffer: ArrayBuffer, mimeType: string): Promise<RawOCRResult> {
+    const fileSize = fileBuffer.byteLength;
+    const isPdf = mimeType === "application/pdf";
+    const pageCount = isPdf ? Math.max(1, Math.floor(fileSize / 50000)) : 1;
+
+    const pages: RawOCRPage[] = [];
+
+    for (let i = 0; i < pageCount; i++) {
+      const pageWidth = 612;
+      const pageHeight = 792;
+
+      pages.push({
+        pageNumber: i + 1,
+        width: pageWidth,
+        height: pageHeight,
+        blocks: [
+          {
+            text: `Sample text block on page ${i + 1}`,
+            confidence: 0.95,
+            bbox: { x: 72, y: 72, width: 468, height: 24 },
+          },
+          {
+            text: `Name: John Doe`,
+            confidence: 0.92,
+            bbox: { x: 72, y: 120, width: 200, height: 18 },
+          },
+          {
+            text: `Date: 2026-03-15`,
+            confidence: 0.94,
+            bbox: { x: 72, y: 150, width: 180, height: 18 },
+          },
+          {
+            text: `Amount: $1,234.56`,
+            confidence: 0.91,
+            bbox: { x: 72, y: 180, width: 160, height: 18 },
+          },
+        ],
+        fullText: [
+          `Sample text block on page ${i + 1}`,
+          `Name: John Doe`,
+          `Date: 2026-03-15`,
+          `Amount: $1,234.56`,
+        ].join("\n"),
+      });
+    }
+
     return {
-      pages: [{ pageNumber: 1, width: 612, height: 792, blocks: [], fullText: "" }],
+      pages,
       language: "en",
     };
   }

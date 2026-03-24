@@ -65,7 +65,7 @@ describe("parseAndValidateFiles", () => {
   });
 
   it("returns INVALID_FILE_TYPE for unsupported mime type", async () => {
-    const file = createMockFile("test.txt", "text/plain", 1024);
+    const file = createMockFile("test.xyz", "application/xyz", 1024);
     const formData = new FormData();
     formData.append("file", file);
     const request = createMockRequest(formData);
@@ -75,8 +75,8 @@ describe("parseAndValidateFiles", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.type).toBe("INVALID_FILE_TYPE");
-      expect(result.error.details.filename).toBe("test.txt");
-      expect(result.error.details.mimeType).toBe("text/plain");
+      expect(result.error.details.filename).toBe("test.xyz");
+      expect(result.error.details.mimeType).toBe("application/xyz");
     }
   });
 

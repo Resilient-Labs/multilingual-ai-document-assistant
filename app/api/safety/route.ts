@@ -295,9 +295,8 @@ export async function POST(request: Request) {
     )
   }
 
-  const rawContent = messageContentToString(
-    data?.choices?.[0]?.message?.content,
-  )
+  // Prefer extracting assistant text across multiple possible fields (content, reasoning, refusal)
+  const rawContent = extractAssistantMessageText(data?.choices?.[0]?.message) ?? messageContentToString(data?.choices?.[0]?.message?.content)
   if (!rawContent?.trim()) {
     return NextResponse.json(
       {
