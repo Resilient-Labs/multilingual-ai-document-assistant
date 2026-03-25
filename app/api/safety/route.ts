@@ -295,9 +295,9 @@ export async function POST(request: Request) {
     )
   }
 
-  const rawContent = messageContentToString(
-    data?.choices?.[0]?.message?.content,
-  )
+  const rawContent =
+    extractAssistantMessageText(data?.choices?.[0]?.message) ??
+    messageContentToString(data?.choices?.[0]?.message?.content)
   if (!rawContent?.trim()) {
     return NextResponse.json(
       {
