@@ -195,6 +195,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
         `translate-${docId}`,
         JSON.stringify({ fullText, filename: file.name, sourceLang, targetLang })
       );
+      sessionStorage.setItem("current-doc-id", docId);
       router.push(`/translate/${docId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

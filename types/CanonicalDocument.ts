@@ -7,6 +7,7 @@ import type {
   OCRResult,
   ExtractedFile,
   FieldCandidate,
+  SafetyAnalysisResponse,
 } from "./index";
 
 export interface CanonicalDocument {
@@ -16,4 +17,6 @@ export interface CanonicalDocument {
   fieldCandidates: FieldCandidate[];
   extractedAt: number;
   updatedAt: number;
+  /** Client-only merge of POST /api/safety after extract (zero-retention). */
+  safety?: SafetyAnalysisResponse;
 }
