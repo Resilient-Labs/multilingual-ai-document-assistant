@@ -165,3 +165,6 @@ Never: edit `components/ui`, duplicate components, create monolithic components,
 ## Additional Reference
 
 For detailed rules and examples, see [reference.md](reference.md).
+
+
+
