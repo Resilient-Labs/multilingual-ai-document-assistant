@@ -69,10 +69,12 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     
-    // Could either use logDocumentSubmission like this or remove this function
-    const logDocumentSubmission = async (source: string, target: string) => {
-      console.log(`Document submission: ${source} → ${target}`);
-    };
+    // TODO: Remove or use this
+    // const logDocumentSubmission = async (source: string, target: string) => {
+    //   console.log(`Document submission: ${source} → ${target}`);
+    // };
+
+    // logDocumentSubmission(sourceLang, targetLang).catch(() => {});
 
     if (!file) return;
 
