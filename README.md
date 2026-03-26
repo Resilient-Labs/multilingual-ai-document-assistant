@@ -6,6 +6,7 @@ Privacy-first document assistant with **zero-retention** architecture. Documents
 - **No Redis** — server stores nothing
 - **No raw IndexedDB** — we use EntityDB instead
 - **EntityDB** — IndexedDB under the hood + Transformers.js for embeddings and semantic search
+- **Stateless API pattern** — routes process and return results without database persistence
 
 ---
 
@@ -52,6 +53,7 @@ npm install
 | `next`, `react`, `react-dom` | Next.js app framework | Standard install |
 | `@babycommando/entity-db` | In-browser vector DB (IndexedDB + Transformers.js under the hood) | May take 1–2 min; pulls WASM deps |
 | `uuid` | Document ID generation | Standard install |
+| `replicate`	| TTS fallback provider integration | Requires REPLICATE_API_TOKEN at runtime |
 
 **Step-by-step:**
 
@@ -80,6 +82,19 @@ Optional. Copy `.env.local.example` to `.env.local` when you add OCR, LLM, or ot
 ```bash
 cp .env.local.example .env.local
 ```
+Set keys as needed for active integrations:
+- `DEEPL_API_KEY` (translation route)
+- `DEEPGRAM_API_KEY` (TTS route)
+- `REPLICATE_API_TOKEN` (XTTS + MiniMax TTS fallback)
+- `OPEN_ROUTER_API_TOKEN` (safety route)
+
+Optional/advanced TTS variables:
+- `XTTS_REPLICATE_MODEL`
+- `XTTS_SPEAKER_WAV_URL`
+- `MINIMAX_REPLICATE_MODEL`
+- `MINIMAX_FEMININE_VOICE_ID`
+- `MINIMAX_MASCULINE_VOICE_ID`
+- `MINIMAX_AUDIO_FORMAT` 
 
 No Redis or server storage is required. Add keys only when integrating external services.
 
@@ -95,6 +110,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 - The app should load without errors.
 - API routes are stateless — they process and return; no server storage.
+- TTS and safety require their respective API keys.
 
 ### Onboarding checklist
 
@@ -136,12 +152,16 @@ npm run typecheck
 | Port 3000 in use | Run `npm run dev -- -p 3001` to use a different port |
 | Build fails | Run `npm ci` for a clean install, then `npm run build` |
 | EntityDB / Transformers.js errors | Check `next.config.js` has webpack aliases for `onnxruntime-node` and `sharp` |
+| Translation fails |	Verify DEEPL_API_KEY is set |
+| Read Aloud fails	| Verify DEEPGRAM_API_KEY and/or REPLICATE_API_TOKEN are set |
+| Upload rejected around 5–10MB	| Backend limit is 4.5MB `(lib/constants.ts)` |
 
 ### Key dependencies
 
 ```bash
 npm install uuid
 npm install github:babycommando/entity-db
+npm install replicate
 ```
 
 | Package | Purpose | Install source |
@@ -231,6 +251,7 @@ lib/
     fieldCandidates.ts # Key/value field extraction
     validation.ts     # Upload validation and request guards
     errors.ts         # Shared error response helpers
+  tts/                # TTS provider router + mappings + providers
   entitydb.ts         # EntityDB client for chunks and semantic search
   constants.ts        # File limits, allowed MIME types
   documentId.ts       # Document ID generation
@@ -247,6 +268,8 @@ All endpoints are **stateless**. Client sends data; backend processes and return
 |----------|--------|------|-------------|
 | `/api/documents/upload` | POST | `FormData` (file) | OCR, return docId + OCR JSON |
 | `/api/documents/extract` | POST | `FormData` (files[] or file) | OCR, return normalized entity-ready JSON |
+| /api/translate	| POST	| `{ text, targetLang }` |	Translation via DeepL |
+| /api/tts	| POST | `{ text, targetLang, gender, spanishAccent? }`	| TTS via provider router (Deepgram/XTTS/MiniMax) |
 | `/api/ask` | POST | `{ question, context? }` or `{ question, chunks? }` | RAG answer |
 | `/api/summarize` | POST | `{ fullText }` | Summary |
 | `/api/safety` | POST | `{ fullText?, blocks? }` | Risk flags |

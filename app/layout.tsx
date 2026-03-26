@@ -27,7 +27,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${nunito.variable} ${nunitoSans.variable} font-sans`}>
+      <body
+        suppressHydrationWarning
+        className={`${nunito.variable} ${nunitoSans.variable} font-sans`}
+      >
         {children}
         <Toaster />
       </body>

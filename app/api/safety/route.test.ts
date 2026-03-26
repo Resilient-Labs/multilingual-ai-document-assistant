@@ -18,8 +18,12 @@ function createSuccessfulFetchMock(flags: Record<string, unknown>) {
             content: JSON.stringify({
               category: flags.category ?? 'Unknown',
               severity: flags.severity ?? 'low',
+              riskLevel: flags.riskLevel,
+              confidence: flags.confidence ?? 75,
+              legitimacy: flags.legitimacy ?? 'uncertain',
               explanation: flags.explanation ?? 'Test explanation',
-              detectedAt: 0,
+              evidenceCharOffset:
+                (flags.evidenceCharOffset as number | undefined) ?? 42,
             }),
           },
         },
@@ -124,6 +128,20 @@ describe('POST /api/safety', () => {
       expect(body.flags.severity).toBe('medium')
       expect(body.flags.explanation).toBeDefined()
       expect(body.flags.detectedAt).toBeGreaterThan(0)
+      expect(body.flags.evidenceCharOffset).toBe(42)
+      expect(Array.isArray(body.flags.nextSteps)).toBe(true)
+      expect(body.flags.nextSteps.length).toBeGreaterThan(0)
+      expect(body.flags.nextSteps[0]).toMatchObject({
+        label: expect.any(String),
+        type: expect.stringMatching(/^(phone|url|info)$/),
+      })
+      expect(body.presentation).toBeDefined()
+      expect(body.presentation.headline).toContain('Medical Bill')
+      expect(body.presentation.summary).toBeNull()
+      expect(body.presentation.primaryActions.length).toBe(
+        body.flags.nextSteps.length
+      )
+      expect(body.flags.confidence).toBe(75)
     })
   })
 
@@ -150,6 +168,7 @@ describe('POST /api/safety', () => {
       expect(body.flags.category).toBe('Debt Collection Letter')
       expect(body.flags.severity).toBe('high')
       expect(body.flags.detectedAt).toBeGreaterThan(0)
+      expect(body.flags.nextSteps.length).toBeGreaterThanOrEqual(3)
 
       expect(globalThis.fetch).toHaveBeenCalledTimes(1)
       const fetchCall = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
@@ -205,6 +224,23 @@ describe('POST /api/safety', () => {
       expect(body.code).toBe('INTERNAL_ERROR')
     })
 
+    it('returns 502 UPSTREAM_ERROR when OpenRouter HTTP status is not ok', async () => {
+      ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: false,
+        status: 429,
+        text: async () =>
+          JSON.stringify({ error: { message: 'Rate limit exceeded' } }),
+      })
+
+      const request = createMockRequest({ fullText: 'Some text' })
+      const response = await POST(request)
+      const body = await response.json()
+
+      expect(response.status).toBe(502)
+      expect(body.code).toBe('UPSTREAM_ERROR')
+      expect(body.detail).toContain('Rate limit')
+    })
+
     it('returns 500 when fetch throws', async () => {
       ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(
         new Error('Network error')
@@ -216,6 +252,94 @@ describe('POST /api/safety', () => {
 
       expect(response.status).toBe(500)
       expect(body.code).toBe('EXTERNAL_ERROR')
+    })
+  })
+
+  describe('model output shapes', () => {
+    it('parses JSON wrapped in markdown fences', async () => {
+      const payload = {
+        category: 'Promotional',
+        severity: 'low',
+        confidence: 80,
+        legitimacy: 'uncertain',
+        explanation: 'Looks like marketing.',
+        evidenceCharOffset: 0,
+      }
+      const fenced = `\`\`\`json\n${JSON.stringify(payload)}\n\`\`\``
+      ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: fenced } }],
+        }),
+      })
+
+      const request = createMockRequest({ fullText: 'Buy now limited offer' })
+      const response = await POST(request)
+      const body = (await response.json()) as SafetyAnalysisResponse
+
+      expect(response.status).toBe(200)
+      expect(body.flags.category).toBe('Promotional')
+    })
+
+    it('accepts message content as array of text parts', async () => {
+      const inner = JSON.stringify({
+        category: 'Unknown',
+        severity: 'low',
+        confidence: 50,
+        legitimacy: 'uncertain',
+        explanation: 'Too short.',
+        evidenceCharOffset: 0,
+      })
+      ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: [{ type: 'text', text: inner }],
+              },
+            },
+          ],
+        }),
+      })
+
+      const request = createMockRequest({ fullText: 'Hi' })
+      const response = await POST(request)
+      const body = (await response.json()) as SafetyAnalysisResponse
+
+      expect(response.status).toBe(200)
+      expect(body.flags.category).toBe('Unknown')
+    })
+
+    it('uses reasoning field when content is empty', async () => {
+      const inner = JSON.stringify({
+        category: 'Utility Bill',
+        severity: 'low',
+        confidence: 70,
+        legitimacy: 'likely_legitimate',
+        explanation: 'Routine bill.',
+        evidenceCharOffset: 0,
+      })
+      ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: null,
+                reasoning: inner,
+              },
+            },
+          ],
+        }),
+      })
+
+      const request = createMockRequest({ fullText: 'Electric bill due' })
+      const response = await POST(request)
+      const body = (await response.json()) as SafetyAnalysisResponse
+
+      expect(response.status).toBe(200)
+      expect(body.flags.category).toBe('Utility Bill')
     })
   })
 })

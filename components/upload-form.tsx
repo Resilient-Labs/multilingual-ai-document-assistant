@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useCallback, useState } from "react";
@@ -67,6 +68,8 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    
+    logDocumentSubmission(sourceLang, targetLang).catch(() => {});
     if (!file) return;
 
     setIsSubmitting(true);
@@ -152,6 +155,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     setFile(null);
   }
 
+ 
   const TranslationDirection = (
     <div className={cn("rounded-2xl border border-border p-4", mobile ? "bg-muted/20" : "bg-muted/30")}>
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
@@ -207,11 +211,20 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     </div>
   );
 
+  const submitLabel = isSubmitting && ocrProgress
+    ? ocrProgress
+    : "Translate document";
+
+  const ErrorMessage = error && (
+    <div className="rounded-2xl border border-destructive/40 bg-destructive/5 text-destructive p-4 text-sm">
+      {error}
+    </div>
+  );
+
   /* ── Mobile layout ─────────────────────────────────────────────── */
   if (mobile) {
     return (
       <form onSubmit={handleSubmit} className="flex flex-col gap-3 h-full">
-        {/* Large dropzone */}
         <div
           {...getRootProps({ role: "presentation" })}
           className={cn(
@@ -263,8 +276,8 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
           )}
         </div>
 
-        {/* Translation direction — below dropzone on mobile */}
         {TranslationDirection}
+        {ErrorMessage}
 
         {errorMessage && (
           <p role="alert" aria-live="assertive" className="text-sm text-destructive text-center">
@@ -272,7 +285,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
           </p>
         )}
         <Button type="submit" disabled={!file || isSubmitting} className="w-full rounded-xl h-10">
-          {isSubmitting ? <Spinner className="size-4" /> : "Translate document"}
+          {isSubmitting ? <Spinner className="size-4" /> : submitLabel}
         </Button>
       </form>
     );
@@ -281,10 +294,8 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
   /* ── Desktop layout ────────────────────────────────────────────── */
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      {/* Translation direction — above dropzone on desktop */}
       {TranslationDirection}
 
-      {/* Dropzone */}
       <div
         {...getRootProps({ role: "presentation" })}
         className={cn(
@@ -339,8 +350,9 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
         </p>
       )}
       <Button type="submit" disabled={!file || isSubmitting} size="lg" className="w-full text-base h-12">
-        {isSubmitting ? <Spinner className="size-5" /> : "Translate document"}
+        {isSubmitting ? <Spinner className="size-5" /> : submitLabel}
       </Button>
     </form>
   );
 }
+

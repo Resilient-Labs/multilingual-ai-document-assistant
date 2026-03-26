@@ -40,12 +40,53 @@ curl -X POST http://localhost:3000/api/safety \
 interface SafetyAnalysisResponse {
   flags: {
     category: string // e.g. "Debt Collection Letter", "Medical Bill", "Unknown"
-    severity: 'low' | 'medium' | 'high'
+    severity: 'low' | 'medium' | 'high' | 'urgent'
+    riskLevel?: 'low' | 'medium' | 'high' | 'urgent' // from model; defaults to severity if omitted
+    confidence?: number // 0–100 from model; drives low-confidence resource path when present
+    legitimacy?: 'likely_legitimate' | 'uncertain' | 'likely_scam'
     explanation?: string // One to two sentences with evidence from the document
-    detectedAt: number // Unix timestamp (server-set)
+    detectedAt: number // Unix timestamp in ms when the server finished analysis
+    evidenceCharOffset?: number // 0-based index in analyzed text (from the model)
+    nextSteps: Array<{
+      label: string
+      type: 'phone' | 'url' | 'info'
+      value?: string
+    }> // Deterministic templates from category, severity, confidence, legitimacy (server rule engine)
+  }
+  presentation: {
+    headline: string
+    severityLabel: string
+    summary: string | null // always null from API; client may merge Team 2 Summary
+    primaryActions: Array<{ label: string; type: 'phone' | 'url' | 'info'; value?: string }>
+    resources: Array<{ label: string; type: 'phone' | 'url' | 'info'; value?: string }> // url + phone subset
+    disclaimer: string
   }
 }
 ```
+
+---
+
+## Category buckets and next-step rules (Team 5)
+
+Curated links live in `lib/data/safetyResources.json` and are selected by **`normalizeCategoryToBucket`** in `@/lib/safetyRecommendations` (re-exported from `@/lib/safetyNextSteps`). Model **`category`** strings are matched with substring heuristics (e.g. lease/rental → **housing**, medical/Medicare → **medical**, court/summons → **legal**, IRS/debt/bank → **financial**); anything else → **general**.
+
+| Bucket    | Typical model categories (examples)                          |
+| --------- | ------------------------------------------------------------- |
+| housing   | Lease Agreement, eviction/rental wording                      |
+| financial | IRS Tax Notice, Debt Collection, Bank Statement, utility bill |
+| medical   | Medical Bill, EOB, hospital                                     |
+| legal     | Court Summons, subpoena                                         |
+| general   | Unknown, Promotional, no match                                |
+
+**Urgent prefix:** For **`severity`** `high` or `urgent`, an informational lead-in step is prepended (deadlines and keeping copies). See `urgentPrefix` in the JSON bank.
+
+**Low confidence:** If the model sends **`confidence`** below `SAFETY_CONFIDENCE_LOW` (40) in `@/lib/safetyConstants`, resources use the **general** bucket and a **verify via official website** info step is added—avoid trusting numbers/links that appear only on the document.
+
+**Legitimacy / scam:** If **`legitimacy`** is **`likely_scam`**, FTC report-fraud and IC3 steps are prepended. When confidence is at least **`SAFETY_CONFIDENCE_MIN_FOR_SCAM_RESOURCE_ADJUSTMENT`** (55), institution-specific phone lines (e.g. IRS) are omitted from the **financial** bucket so the UI does not imply a suspicious letter is official.
+
+**Prompt categories:** Align with `SAFETY_DOCUMENT_CATEGORIES` in `@/lib/safetyConstants` where possible; the bucket mapper is substring-based, not a strict enum match.
+
+**Persistence (zero-retention):** Store `{ flags, presentation }` on the client (e.g. `CanonicalDocument.safety`) after extract + safety resolve; see `types/CanonicalDocument.ts`.
 
 **Error (400):**
 
@@ -80,7 +121,7 @@ const response = await fetch('/api/documents/extract', {
   body: formData,
 })
 const { ocr } = await response.json()
-const { flags } = await analyzeDocumentSafety(ocr)
+const { flags, presentation } = await analyzeDocumentSafety(ocr)
 ```
 
 **React hook:** Use `useSafetyAnalysis(ocr)` from `@/hooks/useSafetyAnalysis`:
@@ -88,7 +129,9 @@ const { flags } = await analyzeDocumentSafety(ocr)
 ```ts
 import { useSafetyAnalysis } from '@/hooks/useSafetyAnalysis'
 
-const { flags, loading, error } = useSafetyAnalysis(data?.ocr ?? null)
+const { flags, presentation, loading, error } = useSafetyAnalysis(
+  data?.ocr ?? null
+)
 ```
 
 ---
@@ -97,9 +140,9 @@ const { flags, loading, error } = useSafetyAnalysis(data?.ocr ?? null)
 
 | Teammate                | Use case                               | Fields to use                                              |
 | ----------------------- | -------------------------------------- | ---------------------------------------------------------- |
-| **Naima** (next steps)  | Map categories to recommended actions  | `flags.category`, `flags.severity`                         |
-| **Justin** (confidence) | Extend response with confidence scores | Response type in `@/types` — add `confidence` when ready   |
-| **Brandi** (results UI) | Display flags to user                  | `flags` via `analyzeDocumentSafety` or `useSafetyAnalysis` |
+| **Naima** (next steps)  | Curated actions (server rule engine)   | `flags.nextSteps`, `flags.category`, `flags.severity`, `flags.confidence`, `flags.legitimacy` |
+| **Justin** (confidence) | Confidence in UI / persistence         | `flags.confidence`, `flags.riskLevel`                     |
+| **Brandi** (results UI) | Structured display                     | `presentation` (headline, severityLabel, primaryActions, resources, disclaimer) plus `flags` as needed |
 
 **Category reference:** See `SAFETY_DOCUMENT_CATEGORIES` in `@/lib/safetyConstants` for the list of document types the model may return.
 
@@ -117,6 +160,6 @@ sequenceDiagram
     Client->>ExtractAPI: FormData (files)
     ExtractAPI-->>Client: ExtractionResponse (document, ocr, fieldCandidates)
     Client->>SafetyAPI: POST { fullText, blocks } from ocr
-    SafetyAPI-->>Client: { flags }
-    Client->>BrandiUI: Pass flags for display
+    SafetyAPI-->>Client: { flags, presentation }
+    Client->>BrandiUI: Pass flags + presentation for display
 ```
