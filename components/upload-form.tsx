@@ -69,7 +69,11 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     
-    logDocumentSubmission(sourceLang, targetLang).catch(() => {});
+    // Could either use logDocumentSubmission like this or remove this function
+    const logDocumentSubmission = async (source: string, target: string) => {
+      console.log(`Document submission: ${source} → ${target}`);
+    };
+
     if (!file) return;
 
     setIsSubmitting(true);
@@ -211,13 +215,13 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     </div>
   );
 
-  const submitLabel = isSubmitting && ocrProgress
-    ? ocrProgress
-    : "Translate document";
+  const submitLabel = isSubmitting
+  ? "Processing..."
+  : "Translate document";
 
-  const ErrorMessage = error && (
+  const ErrorMessage = errorMessage && (
     <div className="rounded-2xl border border-destructive/40 bg-destructive/5 text-destructive p-4 text-sm">
-      {error}
+      {errorMessage}
     </div>
   );
 
