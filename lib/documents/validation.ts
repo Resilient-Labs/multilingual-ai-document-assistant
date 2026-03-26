@@ -85,7 +85,7 @@ export async function parseAndValidateFiles(
         success: false,
         error: {
           type: "INVALID_FILE_TYPE",
-          message: `Invalid file type: ${file.type}. Allowed: PDF, JPEG, PNG, WebP.`,
+          message: `Invalid file type: ${file.type}. Allowed: PDF, DOC, DOCX, TXT, JPEG, PNG, WebP, HEIC.`,
           details: {
             filename: file.name,
             mimeType: file.type,

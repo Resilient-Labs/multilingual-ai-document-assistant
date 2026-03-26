@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Nunito, Nunito_Sans } from "next/font/google";
+import { Toaster } from "@/components/ui/sonner";
 import './globals.css'
 
 const nunito = Nunito({
@@ -31,6 +32,7 @@ export default function RootLayout({
         className={`${nunito.variable} ${nunitoSans.variable} font-sans`}
       >
         {children}
+        <Toaster />
       </body>
     </html>
   );

@@ -13,10 +13,11 @@ export const MAX_FILES_PER_REQUEST = 10;
 /** Allowed MIME types for upload */
 export const ALLOWED_MIME_TYPES = [
   "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/plain",
   "image/jpeg",
   "image/png",
   "image/webp",
-  "text/plain",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "image/heic",
 ];

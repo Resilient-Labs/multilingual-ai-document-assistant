@@ -28,7 +28,7 @@ export function invalidFileTypeError(
   mimeType: string
 ): NextResponse<ExtractionErrorResponse> {
   return errorResponse(
-    `Invalid file type: ${mimeType}. Allowed: PDF, JPEG, PNG, WebP.`,
+    `Invalid file type: ${mimeType}. Allowed: PDF, DOC, DOCX, TXT, JPEG, PNG, WebP, HEIC.`,
     "INVALID_FILE_TYPE",
     400,
     { filename, mimeType }

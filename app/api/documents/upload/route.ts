@@ -79,10 +79,7 @@ export async function POST(request: Request) {
 
     if (!ALLOWED_MIME_TYPES.includes(file.type)) {
       return NextResponse.json(
-        {
-          error:
-            "Invalid file type. Allowed: PDF, TXT, DOC, DOCX, JPEG, PNG, WebP.",
-        },
+        { error: "Invalid file type. Allowed: PDF, DOC, DOCX, TXT, JPEG, PNG, WebP, HEIC." },
         { status: 400 }
       );
     }

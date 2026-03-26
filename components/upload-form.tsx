@@ -23,49 +23,12 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
-import { logDocumentSubmission } from "@/app/actions/logging";
-import { persistOCRToEntityDB } from "@/lib/entitydb-persist";
-import type { OCRResult } from "@/types";
-
-const HEIC_BRANDS = ["heic", "heix", "hevc", "hevx", "heis", "heim", "mif1", "msf1"];
-
-async function prepareImageBytes(
-  file: File,
-  onProgress: (msg: string) => void
-): Promise<Uint8Array> {
-  const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
-  const isFtyp = header[4] === 0x66 && header[5] === 0x74 && header[6] === 0x79 && header[7] === 0x70;
-  const brand = isFtyp ? String.fromCharCode(header[8], header[9], header[10], header[11]) : "";
-
-  if (!HEIC_BRANDS.includes(brand) && file.type !== "image/heic" && file.type !== "image/heif") {
-    return new Uint8Array(await file.arrayBuffer());
-  }
-
-  onProgress("Decoding HEIC image…");
-  const libheif = await import("libheif-js/wasm-bundle");
-  const rawBytes = new Uint8Array(await file.arrayBuffer());
-  const images = new libheif.HeifDecoder().decode(rawBytes);
-  if (!images?.length) throw new Error("Could not decode HEIC file.");
-
-  const image = images[0];
-  const canvas = document.createElement("canvas");
-  canvas.width = image.get_width();
-  canvas.height = image.get_height();
-  
-  const ctx = canvas.getContext("2d")!;
-  const imageData = ctx.createImageData(canvas.width, canvas.height);
-
-  await new Promise<void>((resolve, reject) => {
-    image.display(imageData, (result: ImageData | null) => {
-      if (result) { resolve(); } else { reject(new Error("HEIF display error")); }
-    });
-  });
-
-  ctx.putImageData(imageData, 0, 0);
-  return new Uint8Array(await new Promise<ArrayBuffer>((resolve, reject) => {
-    canvas.toBlob((b) => b ? b.arrayBuffer().then(resolve) : reject(new Error("canvas export failed")), "image/jpeg", 0.9);
-  }));
-}
+import { toast } from "sonner";
+import { getEntityDB, insertChunk } from "@/lib/entitydb";
+import { chunkOCRResult } from "@/lib/chunking";
+import { MAX_FILE_SIZE_BYTES } from "@/lib/constants";
+import type { ExtractionResponse } from "@/types";
+import type { CanonicalDocument } from "@/types/CanonicalDocument";
 
 const LANGUAGES = [
   { code: "auto", label: "Detect language" },
@@ -101,10 +64,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
   const [sourceLang, setSourceLang] = useState("auto");
   const [targetLang, setTargetLang] = useState("es");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [ocrProgress, setOcrProgress] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const isImage = file?.type.startsWith("image/") ?? false;
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -113,93 +73,54 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     if (!file) return;
 
     setIsSubmitting(true);
-    setError(null);
-    setOcrProgress("Loading OCR engine…");
-
+    setErrorMessage(null);
     try {
-      let fullText: string;
-      let docId: string;
+      const formData = new FormData();
+      formData.append("file", file);
 
-      if (isImage) {
-        // Client-side OCR — image never leaves the browser
-        const { createWorker } = await import("tesseract.js");
-        const worker = await createWorker("eng", 1, {
-          logger: (m: { status: string; progress: number }) => {
-            if (m.status === "recognizing text") {
-              setOcrProgress(`Recognizing… ${Math.round(m.progress * 100)}%`);
-            } else {
-              setOcrProgress(m.status);
-            }
-          },
-        });
+      const res = await fetch("/api/documents/extract", {
+        method: "POST",
+        body: formData,
+      });
 
-        const bytes = await prepareImageBytes(file, setOcrProgress);
-        const { data } = await worker.recognize(
-          bytes as unknown as Parameters<typeof worker.recognize>[0],
-          {},
-          { text: true } as Parameters<typeof worker.recognize>[2]
-        );
-        await worker.terminate();
-
-        fullText = data.text.trim();
-        docId = `doc_${crypto.randomUUID()}`;
-
-        const createdAt = Date.now();
-        const ocrResult: OCRResult = {
-          documentId: docId,
-          fullText,
-          blocks: [
-            {
-              id: "b1",
-              documentId: docId,
-              text: fullText,
-              confidence: 1.0,
-            },
-          ],
-        };
-
-        await persistOCRToEntityDB({
-          docId,
-          filename: file.name,
-          mimeType: file.type,
-          sizeBytes: file.size,
-          createdAt,
-          ocr: ocrResult,
-          file,
-        });
-      } else {
-        // Server-side extraction for PDFs / docs
-        setOcrProgress("Uploading…");
-        const formData = new FormData();
-        formData.append("file", file);
-
-        const res = await fetch("/api/documents/upload", { method: "POST", body: formData });
-        const payload = await res.json();
-        if (!res.ok) throw new Error(payload.error ?? "Upload failed");
-
-        fullText = payload.ocr.fullText;
-        docId = payload.docId;
-
-        await persistOCRToEntityDB({
-          docId: payload.docId,
-          filename: payload.filename ?? file.name,
-          mimeType: payload.mimeType ?? file.type,
-          sizeBytes: payload.sizeBytes ?? file.size,
-          createdAt: payload.createdAt ?? Date.now(),
-          ocr: payload.ocr,
-          file,
-        });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        const message =
+          (errBody as { error?: string }).error ?? `Extraction failed (${res.status})`;
+        toast.error(message);
+        setErrorMessage(message);
+        return;
       }
 
-      sessionStorage.setItem(
-        `translate-${docId}`,
-        JSON.stringify({ fullText, filename: file.name, sourceLang, targetLang })
-      );
-      sessionStorage.setItem("current-doc-id", docId);
-      router.push(`/translate/${docId}`);
+      const response = (await res.json()) as ExtractionResponse;
+      const { document, ocr, files, fieldCandidates, extractedAt } = response;
+
+      const canonical: CanonicalDocument = {
+        document,
+        ocr,
+        files,
+        fieldCandidates,
+        extractedAt,
+        updatedAt: Date.now(),
+      };
+
+      const db = getEntityDB();
+      await db.insert({
+        entityKey: "extracted_document",
+        text: ocr.fullText,
+        ...canonical,
+      });
+
+      const chunks = chunkOCRResult(ocr);
+      for (const chunkText of chunks) {
+        await insertChunk(chunkText, { docId: document.id });
+      }
+
+      router.push(`/document/${document.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setOcrProgress(null);
+      const message = err instanceof Error ? err.message : "Upload failed";
+      toast.error(message);
+      setErrorMessage(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -209,10 +130,10 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     if (accepted.length > 0) setFile(accepted[0]);
   }, []);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
     maxFiles: 1,
-    maxSize: 10 * 1024 * 1024,
+    maxSize: MAX_FILE_SIZE_BYTES,
     accept: {
       "application/pdf": [".pdf"],
       "application/msword": [".doc"],
@@ -305,7 +226,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     return (
       <form onSubmit={handleSubmit} className="flex flex-col gap-3 h-full">
         <div
-          {...getRootProps()}
+          {...getRootProps({ role: "presentation" })}
           className={cn(
             "flex-1 flex flex-col items-center justify-center gap-5 rounded-2xl border-2 border-dashed cursor-pointer transition-colors min-h-[280px]",
             isDragActive
@@ -340,11 +261,12 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
                 <p className="text-base font-semibold text-foreground">
                   Take a photo or upload a file
                 </p>
-                <p className="text-sm text-muted-foreground">10MB max</p>
+                <p className="text-sm text-muted-foreground">4.5 MB max</p>
               </div>
               <Button
                 size="default"
                 type="button"
+                onClick={open}
                 className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-6"
               >
                 <CameraIcon className="size-4" />
@@ -357,6 +279,11 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
         {TranslationDirection}
         {ErrorMessage}
 
+        {errorMessage && (
+          <p role="alert" aria-live="assertive" className="text-sm text-destructive text-center">
+            {errorMessage}
+          </p>
+        )}
         <Button type="submit" disabled={!file || isSubmitting} className="w-full rounded-xl h-10">
           {isSubmitting ? <Spinner className="size-4" /> : submitLabel}
         </Button>
@@ -370,7 +297,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
       {TranslationDirection}
 
       <div
-        {...getRootProps()}
+        {...getRootProps({ role: "presentation" })}
         className={cn(
           "flex flex-col items-center justify-center gap-5 rounded-2xl border-2 border-dashed px-10 py-16 text-center cursor-pointer transition-colors min-h-[280px]",
           isDragActive
@@ -407,18 +334,21 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
                 {isDragActive ? "Drop your file here" : "Drag & drop or choose a file"}
               </p>
               <p className="text-sm text-muted-foreground">
-                PDF, DOC, DOCX, TXT, or image — 10 MB max
+                PDF, DOC, DOCX, TXT, or image — 4.5 MB max
               </p>
             </div>
-            <Button size="lg" variant="outline" type="button" className="px-8 text-base">
+            <Button size="lg" variant="outline" type="button" onClick={open} className="px-8 text-base">
               Browse files
             </Button>
           </>
         )}
       </div>
 
-      {ErrorMessage}
-
+      {errorMessage && (
+        <p role="alert" aria-live="assertive" className="text-sm text-destructive text-center">
+          {errorMessage}
+        </p>
+      )}
       <Button type="submit" disabled={!file || isSubmitting} size="lg" className="w-full text-base h-12">
         {isSubmitting ? <Spinner className="size-5" /> : submitLabel}
       </Button>
