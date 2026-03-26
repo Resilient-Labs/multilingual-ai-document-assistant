@@ -6,6 +6,10 @@ const nextConfig = {
       "onnxruntime-node$": false,
       "sharp$": false,
     };
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings ?? []),
+      { module: /libheif-js/, message: /Critical dependency/ },
+    ];
     return config;
   },
 };

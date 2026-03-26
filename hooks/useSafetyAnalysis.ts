@@ -2,10 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import { analyzeDocumentSafety } from '@/lib/safetyClient'
-import type { OCRResult, SafetyFlags } from '@/types'
+import type {
+  OCRResult,
+  SafetyFlags,
+  SafetyRecommendationPresentation,
+} from '@/types'
 
 export interface UseSafetyAnalysisResult {
   flags: SafetyFlags | null
+  presentation: SafetyRecommendationPresentation | null
   loading: boolean
   error: string | null
 }
@@ -20,12 +25,15 @@ export function useSafetyAnalysis(
   ocr: OCRResult | null
 ): UseSafetyAnalysisResult {
   const [flags, setFlags] = useState<SafetyFlags | null>(null)
+  const [presentation, setPresentation] =
+    useState<SafetyRecommendationPresentation | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!ocr) {
       setFlags(null)
+      setPresentation(null)
       setError(null)
       setLoading(false)
       return
@@ -35,6 +43,7 @@ export function useSafetyAnalysis(
       ocr.fullText?.trim() || ocr.blocks?.some((b) => b.text?.trim())
     if (!hasText) {
       setFlags(null)
+      setPresentation(null)
       setError(null)
       setLoading(false)
       return
@@ -44,11 +53,13 @@ export function useSafetyAnalysis(
     setLoading(true)
     setError(null)
     setFlags(null)
+    setPresentation(null)
 
     analyzeDocumentSafety(ocr)
       .then((res) => {
         if (!cancelled) {
           setFlags(res.flags)
+          setPresentation(res.presentation)
           setError(null)
         }
       })
@@ -58,6 +69,7 @@ export function useSafetyAnalysis(
             err instanceof Error ? err.message : 'Safety analysis failed'
           )
           setFlags(null)
+          setPresentation(null)
         }
       })
       .finally(() => {
@@ -69,5 +81,5 @@ export function useSafetyAnalysis(
     }
   }, [ocr])
 
-  return { flags, loading, error }
+  return { flags, presentation, loading, error }
 }

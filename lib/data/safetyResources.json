@@ -1,0 +1,86 @@
+{
+  "urgentPrefix": {
+    "label": "This document may need attention soon. Verify deadlines on the original and keep copies of all correspondence.",
+    "type": "info"
+  },
+  "verifyOfficialStep": {
+    "label": "If you need to respond, verify using contact information from the organization’s official website—not numbers or links that appear only on this document.",
+    "type": "info"
+  },
+  "missingExplanationStep": {
+    "label": "We could not tie specific risks to exact phrases in this text. Treat unexpected payment demands with extra caution.",
+    "type": "info"
+  },
+  "scamPrioritySteps": [
+    {
+      "label": "FTC: Report fraud and learn next steps",
+      "type": "url",
+      "value": "https://reportfraud.ftc.gov/"
+    },
+    {
+      "label": "FBI IC3: Report internet crime",
+      "type": "url",
+      "value": "https://www.ic3.gov/"
+    }
+  ],
+  "buckets": {
+    "housing": [
+      {
+        "label": "Tenant rights and housing programs (HUD)",
+        "type": "url",
+        "value": "https://www.hud.gov/topics/rental_assistance"
+      },
+      {
+        "label": "Local legal aid (search by state)",
+        "type": "url",
+        "value": "https://www.lsc.gov/find-legal-aid"
+      }
+    ],
+    "financial": [
+      {
+        "label": "FTC: debt collection and scam help",
+        "type": "url",
+        "value": "https://consumer.ftc.gov/debt-collection"
+      },
+      {
+        "label": "IRS (verify tax notices): individual assistance",
+        "type": "phone",
+        "value": "1-800-829-1040"
+      }
+    ],
+    "medical": [
+      {
+        "label": "Medicare rights and billing questions",
+        "type": "url",
+        "value": "https://www.medicare.gov/basics/reporting-scams-fraud"
+      },
+      {
+        "label": "Compare the bill to your explanation of benefits (EOB) and contact the provider’s billing office for itemized charges.",
+        "type": "info"
+      }
+    ],
+    "legal": [
+      {
+        "label": "U.S. Courts: understanding notices and court basics",
+        "type": "url",
+        "value": "https://www.uscourts.gov/"
+      },
+      {
+        "label": "Use the court name, case number, and date on the document to confirm filings with the clerk of that court.",
+        "type": "info"
+      }
+    ],
+    "general": [
+      {
+        "label": "USA.gov: government services and consumer help",
+        "type": "url",
+        "value": "https://www.usa.gov/"
+      },
+      {
+        "label": "211 (community resources; call or visit 211.org)",
+        "type": "url",
+        "value": "https://www.211.org/"
+      }
+    ]
+  }
+}

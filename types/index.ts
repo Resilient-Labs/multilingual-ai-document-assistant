@@ -113,20 +113,64 @@ export interface Language {
 
 // --- RiskFlag (Team 5) ---
 
+export type SafetySeverity = "low" | "medium" | "high" | "urgent";
+
+/** Coarse bucket for curated resource templates (maps from model category string). */
+export type SafetyResourceBucket =
+  | "housing"
+  | "financial"
+  | "medical"
+  | "legal"
+  | "general";
+
+/** Model-assessed legitimacy for scam-oriented escalation of next steps. */
+export type SafetyLegitimacy =
+  | "likely_legitimate"
+  | "uncertain"
+  | "likely_scam";
+
+/** Curated action for the user (phone, link, or plain guidance). */
+export interface RiskNextStep {
+  label: string;
+  type: "phone" | "url" | "info";
+  /** Phone number or URL when type is phone or url */
+  value?: string;
+}
+
+/** UI-oriented view model; `summary` is null from the API (client may merge Team 2 Summary). */
+export interface SafetyRecommendationPresentation {
+  headline: string;
+  severityLabel: string;
+  summary: string | null;
+  primaryActions: RiskNextStep[];
+  resources: RiskNextStep[];
+  disclaimer: string;
+}
+
 export interface RiskFlag {
   category: string;
-  severity: "low" | "medium" | "high";
+  severity: SafetySeverity;
+  /** Overall classification confidence 0–100 (from the model). */
+  confidence?: number;
+  /** Document risk level; when omitted, treat as aligned with `severity`. */
+  riskLevel?: SafetySeverity;
+  legitimacy?: SafetyLegitimacy;
   explanation?: string;
+  /** Unix timestamp in milliseconds; set by the server when the analysis completes. */
   detectedAt: number;
+  /** 0-based character index in the analyzed text for highlighting (from the model). */
+  evidenceCharOffset?: number;
 }
 
 // --- Safety API (Team 5) ---
-// Extends RiskFlag; downstream consumers (e.g. Justin) may add confidence field.
 
-export interface SafetyFlags extends RiskFlag {}
+export interface SafetyFlags extends RiskFlag {
+  nextSteps: RiskNextStep[];
+}
 
 export interface SafetyAnalysisResponse {
   flags: SafetyFlags;
+  presentation: SafetyRecommendationPresentation;
 }
 
 // --- OCR API response (from stateless backend) ---
