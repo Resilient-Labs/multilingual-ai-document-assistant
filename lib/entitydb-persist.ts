@@ -1,13 +1,15 @@
 "use client";
 
 /**
- * Persist OCR output and document metadata into EntityDB (IndexedDB) without
- * running the embedding pipeline. Uses the same "vectors" store and
- * entityKey convention as useDocumentSession.
+ * Persist OCR output and document metadata into EntityDB (IndexedDB).
+ * Document metadata is written directly to IDB (no embedding needed).
+ * Text chunks are inserted via EntityDB.insert() so real embeddings are
+ * generated for semantic search / RAG.
  */
 
 import type { EntityDB } from "@babycommando/entity-db";
-import { getEntityDB } from "@/lib/entitydb";
+import { getEntityDB, insertChunk } from "@/lib/entitydb";
+import { chunkText } from "@/lib/chunking";
 import { extractFieldCandidates } from "@/lib/documents/fieldCandidates";
 import type { CanonicalDocument } from "@/types/CanonicalDocument";
 import type { Document, OCRResult } from "@/types";
@@ -130,6 +132,14 @@ export async function persistOCRToEntityDB(params: PersistOCRParams): Promise<vo
   const tx = db.transaction("vectors", "readwrite");
   const store = tx.objectStore("vectors");
   await store.add(record);
+
+  const chunks = chunkText(params.ocr.fullText);
+  for (const chunk of chunks) {
+    await insertChunk(chunk.text, {
+      docId: params.docId,
+      chunkId: chunk.id,
+    });
+  }
 }
 
 export async function getDocumentFromEntityDB(
