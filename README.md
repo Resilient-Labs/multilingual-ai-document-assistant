@@ -218,7 +218,7 @@ See `types/index.ts` for full definitions.
 
 | Team | Area | Files / endpoints | What to build |
 |------|------|-------------------|---------------|
-| **Team 1** | Upload & OCR | `app/api/documents/upload`, `app/api/documents/extract` | File upload, OCR pipeline. Return JSON. Client stores in EntityDB. |
+| **Team 1** | Upload & OCR | `app/api/documents/extract` (canonical) | File upload, OCR pipeline. Return JSON. Client stores in EntityDB. |
 | **Team 2** | Summarization | `app/api/summarize` | Receive `fullText`, return summary via LLM. Stateless. |
 | **Team 3** | RAG & embeddings | `app/api/ask`, `lib/entitydb.ts` | Chunking, embeddings in EntityDB, RAG. Client sends context; backend returns answer. |
 | **Team 4** | Multilingual | (to be added) | Speech-to-text, translation, multilingual responses. |
@@ -238,8 +238,8 @@ See `types/index.ts` for full definitions.
 ```
 app/
   api/
-    documents/upload   # Stateless: OCR, return JSON
-    documents/extract  # Stateless: OCR, return normalized entity-ready JSON
+    documents/extract  # Canonical extraction endpoint (OCR + text extraction)
+    documents/upload   # Deprecated wrapper → delegates to /extract
     ask               # Stateless: RAG (client sends context)
     summarize         # Stateless: summary (client sends fullText)
     safety            # Stateless: risk flags (client sends text)
@@ -266,13 +266,15 @@ All endpoints are **stateless**. Client sends data; backend processes and return
 
 | Endpoint | Method | Body | Description |
 |----------|--------|------|-------------|
-| `/api/documents/upload` | POST | `FormData` (file) | OCR, return docId + OCR JSON |
-| `/api/documents/extract` | POST | `FormData` (files[] or file) | OCR, return normalized entity-ready JSON |
+| `/api/documents/extract` | POST | `FormData` (files[] or file) | **Canonical** extraction endpoint — OCR, return normalized entity-ready JSON |
+| `/api/documents/upload` | POST | `FormData` (file) | **Deprecated** — thin wrapper that delegates to `/extract`. Will be removed after 2026-06-27. |
 | /api/translate	| POST	| `{ text, targetLang }` |	Translation via DeepL |
 | /api/tts	| POST | `{ text, targetLang, gender, spanishAccent? }`	| TTS via provider router (Deepgram/XTTS/MiniMax) |
 | `/api/ask` | POST | `{ question, context? }` or `{ question, chunks? }` | RAG answer |
 | `/api/summarize` | POST | `{ fullText }` | Summary |
 | `/api/safety` | POST | `{ fullText?, blocks? }` | Risk flags |
+
+Document extraction endpoints are rate-limited in `middleware.ts` to reduce abuse of CPU-intensive OCR and parsing flows.
 
 ---
 

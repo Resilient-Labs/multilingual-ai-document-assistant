@@ -82,6 +82,20 @@ Alphabetical inventory (55). Import from `@/components/ui/<name>`.
 
 ---
 
+## Shared components (`components/shared/`)
+
+### LanguageSelector
+
+| | |
+|---|---|
+| **Location** | `components/shared/LanguageSelector.tsx` |
+| **Purpose** | Source/target language picker with swap button. Exports `LANGUAGES` constant for reuse. |
+| **Props** | `sourceLang`, `targetLang`, `onSourceChange`, `onTargetChange`, `muted?`, `className?` |
+| **Built with** | Select, SelectTrigger, SelectContent, SelectItem, SelectGroup, SelectLabel; lucide-react ArrowRightLeftIcon |
+| **Usage** | `components/upload-form.tsx` (both mobile and desktop layouts) |
+
+---
+
 ## App-level components (root of `components/`)
 
 ### UploadForm
@@ -89,8 +103,8 @@ Alphabetical inventory (55). Import from `@/components/ui/<name>`.
 | | |
 |---|---|
 | **Location** | `components/upload-form.tsx` |
-| **Purpose** | File upload (dropzone), processing, OCR persistence, navigation to translate flow; writes `sessionStorage` keys used by DetectTab. |
-| **Built with** | Button, Select, Spinner, react-dropzone, lucide-react |
+| **Purpose** | File upload dropzone UI (mobile + desktop layouts). Delegates OCR/upload/persistence logic to `useDocumentUpload`; language selection to `LanguageSelector`. Writes `sessionStorage` keys used by DetectTab. |
+| **Built with** | Button, Spinner, react-dropzone, lucide-react, `useDocumentUpload`, `LanguageSelector` |
 
 ---
 
