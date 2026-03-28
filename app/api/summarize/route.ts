@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server'
 
 /**
  * POST /api/summarize
@@ -11,27 +11,21 @@ import { NextResponse } from "next/server";
  */
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const fullText = body?.fullText as string | undefined;
+    const body = await request.json()
+    const fullText = body?.fullText as string | undefined
 
     if (!fullText) {
-      return NextResponse.json(
-        { error: "fullText required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'fullText required' }, { status: 400 })
     }
 
     // TODO: Call LLM for summarization.
     const summary =
       fullText.trim().length > 0
         ? `[Summary placeholder. LLM integration pending.]`
-        : "No content to summarize.";
+        : 'No content to summarize.'
 
-    return NextResponse.json({ summary });
+    return NextResponse.json({ summary })
   } catch {
-    return NextResponse.json(
-      { error: "Summarization failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Summarization failed' }, { status: 500 })
   }
 }

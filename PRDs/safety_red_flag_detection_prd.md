@@ -8,14 +8,14 @@ A document analysis system that evaluates uploaded documents for risk, urgency, 
 
 - Help users assess document importance and validity
 - Provide clear categorization with confidence scores
-    - Flag specific key terms
-    - Categories: medical, financial, housing
-    - Severity level: low, medium, high, urgent
-        - The date affects the urgency (overdue)
-    - Risk level: how likely is this a scam
+  - Flag specific key terms
+  - Categories: medical, financial, housing
+  - Severity level: low, medium, high, urgent
+    - The date affects the urgency (overdue)
+  - Risk level: how likely is this a scam
 - Guide users toward appropriate next actions
-    - Add links for relevant resources that are classified as medical, financial, housing
-    - Ask other teams for summarization so we can use it for flagging
+  - Add links for relevant resources that are classified as medical, financial, housing
+  - Ask other teams for summarization so we can use it for flagging
 
 ## User Stories
 
@@ -41,9 +41,9 @@ A document analysis system that evaluates uploaded documents for risk, urgency, 
 - Given a user uploads a document, when the system processes it, then it returns:
 - Document category (risk, urgency, legitimacy)
 - Confidence score (0-100%)
-    - Classes for each flag with corresponding confidence score
+  - Classes for each flag with corresponding confidence score
 - Suggested next steps
-    - Resource bank based on class (websites, phone numbers, etc.)
+  - Resource bank based on class (websites, phone numbers, etc.)
 
 ## Success Metrics
 
@@ -67,10 +67,9 @@ A document analysis system that evaluates uploaded documents for risk, urgency, 
 - Set up Convex engine
 - API Route: /api/safety/analyze
 - Convex Function: processSafetyCheck()
-- Talk to:
-    - Team 1- for document ingestion
+- Talk to: - Team 1- for document ingestion
 
-2.0 Analysis Model (LLM or ML classifier) Setup- Godwin
+  2.0 Analysis Model (LLM or ML classifier) Setup- Godwin
 
 - Set up LLM (model), use PFT
 - Choose dataset
@@ -81,22 +80,20 @@ A document analysis system that evaluates uploaded documents for risk, urgency, 
 - Risk pattern recognition
 - Rule Engine (confidence thresholds + heuristics) (Justin)
 - Model Output:
-    - Urgency
-    - Legitimacy- scam
-    - Category- medical, legal, financial, housing, etc.
-    - Next steps
-- Talk to:
-    - Team 4- pass model analysis output for translation
-    - Team 2- pass on for summary
+  - Urgency
+  - Legitimacy- scam
+  - Category- medical, legal, financial, housing, etc.
+  - Next steps
+- Talk to: - Team 4- pass model analysis output for translation - Team 2- pass on for summary
 
-3.0 Develop confidence scoring system- Justin
+  3.0 Develop confidence scoring system- Justin
 
 - Define scoring criteria
 - Implement confidence calculation
 - Add confidence visualization
 - Risk Scoring + Flag Detection
 
-4.0 Create next steps recommendation- Naima
+  4.0 Create next steps recommendation- Naima
 
 - Map categories to actions
 - Implement recommendation logic
@@ -104,10 +101,10 @@ A document analysis system that evaluates uploaded documents for risk, urgency, 
 - Resource Mapping (next steps templates)
 - Convex Storage (results + metadata)
 
-5.0 Build results output- Brandi
+  5.0 Build results output- Brandi
 
 - Add confidence score display
 - Show recommended next steps
 - (Optional) Create results UI- Could add display depending on what UI the other teams are responsible for
 - Talk to:
-    - Other teams frontend to make sure UI is cohesive
+  - Other teams frontend to make sure UI is cohesive

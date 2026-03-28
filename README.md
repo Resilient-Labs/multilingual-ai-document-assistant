@@ -3,6 +3,7 @@
 Privacy-first document assistant with **zero-retention** architecture. Documents are processed but **never stored on servers**. All persistent data lives in the user's browser (EntityDB). Backend is stateless.
 
 **Key points:**
+
 - **No Redis** — server stores nothing
 - **No raw IndexedDB** — we use EntityDB instead
 - **EntityDB** — IndexedDB under the hood + Transformers.js for embeddings and semantic search
@@ -48,12 +49,12 @@ npm install
 
 **What this installs:**
 
-| Package | What it does | Install notes |
-|---------|--------------|---------------|
-| `next`, `react`, `react-dom` | Next.js app framework | Standard install |
-| `@babycommando/entity-db` | In-browser vector DB (IndexedDB + Transformers.js under the hood) | May take 1–2 min; pulls WASM deps |
-| `uuid` | Document ID generation | Standard install |
-| `replicate`	| TTS fallback provider integration | Requires REPLICATE_API_TOKEN at runtime |
+| Package                      | What it does                                                      | Install notes                           |
+| ---------------------------- | ----------------------------------------------------------------- | --------------------------------------- |
+| `next`, `react`, `react-dom` | Next.js app framework                                             | Standard install                        |
+| `@babycommando/entity-db`    | In-browser vector DB (IndexedDB + Transformers.js under the hood) | May take 1–2 min; pulls WASM deps       |
+| `uuid`                       | Document ID generation                                            | Standard install                        |
+| `replicate`                  | TTS fallback provider integration                                 | Requires REPLICATE_API_TOKEN at runtime |
 
 **Step-by-step:**
 
@@ -82,19 +83,22 @@ Optional. Copy `.env.local.example` to `.env.local` when you add OCR, LLM, or ot
 ```bash
 cp .env.local.example .env.local
 ```
+
 Set keys as needed for active integrations:
+
 - `DEEPL_API_KEY` (translation route)
 - `DEEPGRAM_API_KEY` (TTS route)
 - `REPLICATE_API_TOKEN` (XTTS + MiniMax TTS fallback)
 - `OPEN_ROUTER_API_TOKEN` (safety route)
 
 Optional/advanced TTS variables:
+
 - `XTTS_REPLICATE_MODEL`
 - `XTTS_SPEAKER_WAV_URL`
 - `MINIMAX_REPLICATE_MODEL`
 - `MINIMAX_FEMININE_VOICE_ID`
 - `MINIMAX_MASCULINE_VOICE_ID`
-- `MINIMAX_AUDIO_FORMAT` 
+- `MINIMAX_AUDIO_FORMAT`
 
 No Redis or server storage is required. Add keys only when integrating external services.
 
@@ -123,16 +127,16 @@ Before you start contributing, confirm:
 
 ### Available scripts
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start development server (hot reload) |
-| `npm run build` | Build for production |
-| `npm run start` | Start production server |
-| `npm run lint` | Run ESLint |
-| `npm run format` | Check formatting with Prettier |
-| `npm run typecheck` | Run TypeScript type checking |
-| `npm run test` | Run tests with Vitest |
-| `npm run test:watch` | Run tests in watch mode |
+| Command              | Description                           |
+| -------------------- | ------------------------------------- |
+| `npm run dev`        | Start development server (hot reload) |
+| `npm run build`      | Build for production                  |
+| `npm run start`      | Start production server               |
+| `npm run lint`       | Run ESLint                            |
+| `npm run format`     | Check formatting with Prettier        |
+| `npm run typecheck`  | Run TypeScript type checking          |
+| `npm run test`       | Run tests with Vitest                 |
+| `npm run test:watch` | Run tests in watch mode               |
 
 ### Linting & Formatting
 
@@ -147,14 +151,14 @@ npm run typecheck
 
 ### Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| Port 3000 in use | Run `npm run dev -- -p 3001` to use a different port |
-| Build fails | Run `npm ci` for a clean install, then `npm run build` |
+| Issue                             | Solution                                                                      |
+| --------------------------------- | ----------------------------------------------------------------------------- |
+| Port 3000 in use                  | Run `npm run dev -- -p 3001` to use a different port                          |
+| Build fails                       | Run `npm ci` for a clean install, then `npm run build`                        |
 | EntityDB / Transformers.js errors | Check `next.config.js` has webpack aliases for `onnxruntime-node` and `sharp` |
-| Translation fails |	Verify DEEPL_API_KEY is set |
-| Read Aloud fails	| Verify DEEPGRAM_API_KEY and/or REPLICATE_API_TOKEN are set |
-| Upload rejected around 5–10MB	| Backend limit is 4.5MB `(lib/constants.ts)` |
+| Translation fails                 | Verify DEEPL_API_KEY is set                                                   |
+| Read Aloud fails                  | Verify DEEPGRAM_API_KEY and/or REPLICATE_API_TOKEN are set                    |
+| Upload rejected around 5–10MB     | Backend limit is 4.5MB `(lib/constants.ts)`                                   |
 
 ### Key dependencies
 
@@ -164,18 +168,18 @@ npm install github:babycommando/entity-db
 npm install replicate
 ```
 
-| Package | Purpose | Install source |
-|---------|---------|----------------|
-| `@babycommando/entity-db` | In-browser vector DB for chunks, embeddings, semantic search | GitHub |
-| `uuid` | Document ID generation (`doc_${uuidv4()}`) | npm |
+| Package                   | Purpose                                                      | Install source |
+| ------------------------- | ------------------------------------------------------------ | -------------- |
+| `@babycommando/entity-db` | In-browser vector DB for chunks, embeddings, semantic search | GitHub         |
+| `uuid`                    | Document ID generation (`doc_${uuidv4()}`)                   | npm            |
 
 **EntityDB** stores all data in the browser. Use `lib/entitydb.ts`:
 
 ```js
-import { insertChunk, queryChunks } from "@/lib/entitydb";
+import { insertChunk, queryChunks } from '@/lib/entitydb'
 
-await insertChunk("Document text here", { docId: "doc_123", chunkId: "c1" });
-const results = await queryChunks("search query", { limit: 5 });
+await insertChunk('Document text here', { docId: 'doc_123', chunkId: 'c1' })
+const results = await queryChunks('search query', { limit: 5 })
 ```
 
 ---
@@ -216,13 +220,13 @@ See `types/index.ts` for full definitions.
 
 ## Team ownership / areas of work
 
-| Team | Area | Files / endpoints | What to build |
-|------|------|-------------------|---------------|
-| **Team 1** | Upload & OCR | `app/api/documents/upload`, `app/api/documents/extract` | File upload, OCR pipeline. Return JSON. Client stores in EntityDB. |
-| **Team 2** | Summarization | `app/api/summarize` | Receive `fullText`, return summary via LLM. Stateless. |
-| **Team 3** | RAG & embeddings | `app/api/ask`, `lib/entitydb.ts` | Chunking, embeddings in EntityDB, RAG. Client sends context; backend returns answer. |
-| **Team 4** | Multilingual | (to be added) | Speech-to-text, translation, multilingual responses. |
-| **Team 5** | Safety detection | `app/api/safety` | Receive text/blocks, return risk flags. Stateless. |
+| Team       | Area             | Files / endpoints                                       | What to build                                                                        |
+| ---------- | ---------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **Team 1** | Upload & OCR     | `app/api/documents/upload`, `app/api/documents/extract` | File upload, OCR pipeline. Return JSON. Client stores in EntityDB.                   |
+| **Team 2** | Summarization    | `app/api/summarize`                                     | Receive `fullText`, return summary via LLM. Stateless.                               |
+| **Team 3** | RAG & embeddings | `app/api/ask`, `lib/entitydb.ts`                        | Chunking, embeddings in EntityDB, RAG. Client sends context; backend returns answer. |
+| **Team 4** | Multilingual     | (to be added)                                           | Speech-to-text, translation, multilingual responses.                                 |
+| **Team 5** | Safety detection | `app/api/safety`                                        | Receive text/blocks, return risk flags. Stateless.                                   |
 
 **Shared resources:**
 
@@ -264,18 +268,17 @@ types/                # Entity definitions (Document, OCRBlock, FieldCandidate, 
 
 All endpoints are **stateless**. Client sends data; backend processes and returns. No server storage.
 
-| Endpoint | Method | Body | Description |
-|----------|--------|------|-------------|
-| `/api/documents/upload` | POST | `FormData` (file) | OCR, return docId + OCR JSON |
-| `/api/documents/extract` | POST | `FormData` (files[] or file) | OCR, return normalized entity-ready JSON |
-| /api/translate	| POST	| `{ text, targetLang }` |	Translation via DeepL |
-| /api/tts	| POST | `{ text, targetLang, gender, spanishAccent? }`	| TTS via provider router (Deepgram/XTTS/MiniMax) |
-| `/api/ask` | POST | `{ question, context? }` or `{ question, chunks? }` | RAG answer |
-| `/api/summarize` | POST | `{ fullText }` | Summary |
-| `/api/safety` | POST | `{ fullText?, blocks? }` | Risk flags |
+| Endpoint                 | Method | Body                                                | Description                                     |
+| ------------------------ | ------ | --------------------------------------------------- | ----------------------------------------------- |
+| `/api/documents/upload`  | POST   | `FormData` (file)                                   | OCR, return docId + OCR JSON                    |
+| `/api/documents/extract` | POST   | `FormData` (files[] or file)                        | OCR, return normalized entity-ready JSON        |
+| /api/translate           | POST   | `{ text, targetLang }`                              | Translation via DeepL                           |
+| /api/tts                 | POST   | `{ text, targetLang, gender, spanishAccent? }`      | TTS via provider router (Deepgram/XTTS/MiniMax) |
+| `/api/ask`               | POST   | `{ question, context? }` or `{ question, chunks? }` | RAG answer                                      |
+| `/api/summarize`         | POST   | `{ fullText }`                                      | Summary                                         |
+| `/api/safety`            | POST   | `{ fullText?, blocks? }`                            | Risk flags                                      |
 
 ---
-
 
 ## Storage limits
 

@@ -4,11 +4,11 @@ Single source of truth for everything under `components/`. **Do not edit `compon
 
 ## Layout
 
-| Path | Role |
-|------|------|
-| `components/ui/` | shadcn primitives (generated; do not edit) |
-| `components/shared/` | Reusable across features (empty today) |
-| `components/features/{feature}/` | Feature-specific composed components |
+| Path                             | Role                                       |
+| -------------------------------- | ------------------------------------------ |
+| `components/ui/`                 | shadcn primitives (generated; do not edit) |
+| `components/shared/`             | Reusable across features (empty today)     |
+| `components/features/{feature}/` | Feature-specific composed components       |
 
 ---
 
@@ -24,61 +24,61 @@ Alphabetical inventory (55). Import from `@/components/ui/<name>`.
 
 ### DocumentTabs
 
-| | |
-|---|---|
-| **Location** | `components/features/tabs-layout/DocumentTabs.tsx` |
-| **Purpose** | Tab container with pluggable slots for Detect and Ask content. |
-| **Props** | `detectContent` (ReactNode), `askContent` (ReactNode), `className?` |
-| **Built with** | Tabs, TabsList, TabsTrigger, TabsContent |
-| **Usage** | `app/dashboard/page.tsx` — passes `<DetectTab />` and `<AskTab />` as slots |
+|                |                                                                             |
+| -------------- | --------------------------------------------------------------------------- |
+| **Location**   | `components/features/tabs-layout/DocumentTabs.tsx`                          |
+| **Purpose**    | Tab container with pluggable slots for Detect and Ask content.              |
+| **Props**      | `detectContent` (ReactNode), `askContent` (ReactNode), `className?`         |
+| **Built with** | Tabs, TabsList, TabsTrigger, TabsContent                                    |
+| **Usage**      | `app/dashboard/page.tsx` — passes `<DetectTab />` and `<AskTab />` as slots |
 
 ---
 
 ### DetectTab
 
-| | |
-|---|---|
-| **Location** | `components/features/detect/DetectTab.tsx` |
-| **Purpose** | Safety / detection UI: risk summary, severity, confidence, suggested actions, resources, disclaimer. Loads document text from `sessionStorage` (`translate-{docId}` / `current-doc-id`), then runs `useSafetyAnalysis` → `POST /api/safety`. |
-| **Props** | `className?` |
-| **Built with** | Item, ItemMedia, ItemContent, ItemTitle, ItemDescription, ItemActions, Badge; lucide-react icons |
-| **Usage** | Plugs into `DocumentTabs` as `detectContent`, and mobile dashboard Detect tab |
+|                |                                                                                                                                                                                                                                              |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Location**   | `components/features/detect/DetectTab.tsx`                                                                                                                                                                                                   |
+| **Purpose**    | Safety / detection UI: risk summary, severity, confidence, suggested actions, resources, disclaimer. Loads document text from `sessionStorage` (`translate-{docId}` / `current-doc-id`), then runs `useSafetyAnalysis` → `POST /api/safety`. |
+| **Props**      | `className?`                                                                                                                                                                                                                                 |
+| **Built with** | Item, ItemMedia, ItemContent, ItemTitle, ItemDescription, ItemActions, Badge; lucide-react icons                                                                                                                                             |
+| **Usage**      | Plugs into `DocumentTabs` as `detectContent`, and mobile dashboard Detect tab                                                                                                                                                                |
 
 ---
 
 ### AskTab
 
-| | |
-|---|---|
-| **Location** | `components/features/ask/AskTab.tsx` |
-| **Purpose** | Placeholder for document Q&A / ask interface. |
-| **Props** | `className?` |
-| **Built with** | Layout-only (no shadcn primitives yet) |
-| **Usage** | Plugs into `DocumentTabs` as `askContent` |
+|                |                                               |
+| -------------- | --------------------------------------------- |
+| **Location**   | `components/features/ask/AskTab.tsx`          |
+| **Purpose**    | Placeholder for document Q&A / ask interface. |
+| **Props**      | `className?`                                  |
+| **Built with** | Layout-only (no shadcn primitives yet)        |
+| **Usage**      | Plugs into `DocumentTabs` as `askContent`     |
 
 ---
 
 ### ExtractedDataPanel
 
-| | |
-|---|---|
-| **Location** | `components/features/document/ExtractedDataPanel.tsx` |
-| **Purpose** | Canonical document session UI: job status, progress, OCR text, field candidates, tabs for document data. |
-| **Props** | (see file — document session driven) |
-| **Built with** | Card, Tabs, Textarea, Input, Label, Button, Alert, Spinner, Progress |
-| **Usage** | Feature document / extraction flows |
+|                |                                                                                                          |
+| -------------- | -------------------------------------------------------------------------------------------------------- |
+| **Location**   | `components/features/document/ExtractedDataPanel.tsx`                                                    |
+| **Purpose**    | Canonical document session UI: job status, progress, OCR text, field candidates, tabs for document data. |
+| **Props**      | (see file — document session driven)                                                                     |
+| **Built with** | Card, Tabs, Textarea, Input, Label, Button, Alert, Spinner, Progress                                     |
+| **Usage**      | Feature document / extraction flows                                                                      |
 
 ---
 
 ### TtsPlaybackVisual
 
-| | |
-|---|---|
-| **Location** | `components/features/tts/TtsPlaybackVisual.tsx` |
-| **Purpose** | TTS playback controls and visual sync (audio ref, waveform-style UI, word timing). |
-| **Props** | `audioRef`, `audioUrl`, `text`, `className?` |
-| **Built with** | Button, `cn` utility |
-| **Usage** | Text-to-speech playback feature |
+|                |                                                                                    |
+| -------------- | ---------------------------------------------------------------------------------- |
+| **Location**   | `components/features/tts/TtsPlaybackVisual.tsx`                                    |
+| **Purpose**    | TTS playback controls and visual sync (audio ref, waveform-style UI, word timing). |
+| **Props**      | `audioRef`, `audioUrl`, `text`, `className?`                                       |
+| **Built with** | Button, `cn` utility                                                               |
+| **Usage**      | Text-to-speech playback feature                                                    |
 
 ---
 
@@ -86,11 +86,11 @@ Alphabetical inventory (55). Import from `@/components/ui/<name>`.
 
 ### UploadForm
 
-| | |
-|---|---|
-| **Location** | `components/upload-form.tsx` |
-| **Purpose** | File upload (dropzone), processing, OCR persistence, navigation to translate flow; writes `sessionStorage` keys used by DetectTab. |
-| **Built with** | Button, Select, Spinner, react-dropzone, lucide-react |
+|                |                                                                                                                                    |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Location**   | `components/upload-form.tsx`                                                                                                       |
+| **Purpose**    | File upload (dropzone), processing, OCR persistence, navigation to translate flow; writes `sessionStorage` keys used by DetectTab. |
+| **Built with** | Button, Select, Spinner, react-dropzone, lucide-react                                                                              |
 
 ---
 

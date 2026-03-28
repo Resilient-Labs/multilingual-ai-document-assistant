@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server'
 
 /**
  * POST /api/ask
@@ -11,30 +11,27 @@ import { NextResponse } from "next/server";
  */
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const question = body?.question as string | undefined;
-    const context = body?.context as string | undefined;
-    const chunks = body?.chunks as string[] | undefined;
+    const body = await request.json()
+    const question = body?.question as string | undefined
+    const context = body?.context as string | undefined
+    const chunks = body?.chunks as string[] | undefined
 
     if (!question) {
-      return NextResponse.json(
-        { error: "question required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'question required' }, { status: 400 })
     }
 
-    const contextText = context ?? chunks?.join("\n\n") ?? "";
+    const contextText = context ?? chunks?.join('\n\n') ?? ''
 
     // TODO: Build RAG prompt, call LLM.
     const answer = contextText
       ? `Based on the document: ${contextText.slice(0, 500)}... [LLM integration pending]`
-      : "No relevant information found. Please provide context (fullText or chunks) in the request body.";
+      : 'No relevant information found. Please provide context (fullText or chunks) in the request body.'
 
-    return NextResponse.json({ answer });
+    return NextResponse.json({ answer })
   } catch {
     return NextResponse.json(
-      { error: "Question answering failed" },
+      { error: 'Question answering failed' },
       { status: 500 }
-    );
+    )
   }
 }

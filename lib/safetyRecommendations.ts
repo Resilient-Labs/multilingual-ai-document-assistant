@@ -23,7 +23,9 @@ import type {
 } from '@/types'
 
 /** Normalize model category string to a coarse bucket for templates. */
-export function normalizeCategoryToBucket(category: string): SafetyResourceBucket {
+export function normalizeCategoryToBucket(
+  category: string
+): SafetyResourceBucket {
   const c = category.trim().toLowerCase()
   if (
     c.includes('lease') ||
@@ -75,7 +77,8 @@ export function normalizeConfidence(raw: unknown): number | undefined {
 export function normalizeLegitimacy(raw: unknown): SafetyLegitimacy {
   if (typeof raw !== 'string') return 'uncertain'
   const s = raw.trim().toLowerCase().replace(/\s+/g, '_')
-  if (s === 'likely_legitimate' || s === 'legitimate') return 'likely_legitimate'
+  if (s === 'likely_legitimate' || s === 'legitimate')
+    return 'likely_legitimate'
   if (s === 'likely_scam' || s === 'scam' || s === 'likely_fraud')
     return 'likely_scam'
   return 'uncertain'

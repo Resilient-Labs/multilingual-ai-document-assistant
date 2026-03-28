@@ -90,8 +90,8 @@ Create documentation from answers. Tell the user to keep it for component docs.
 **Example pattern:**
 
 ```tsx
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 
 interface UserCardProps {
   name: string
