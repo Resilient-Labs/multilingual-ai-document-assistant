@@ -1,7 +1,6 @@
 'use server'
 
-import fs from 'fs'
-import path from 'path'
+import crypto from 'crypto'
 
 function getTimeStamp() {
   const now = new Date()
@@ -28,28 +27,10 @@ export async function logDocumentSubmission(
   targetLang: string
 ): Promise<void> {
   try {
-    const logsDir = path.join(process.cwd(), 'logs')
-    const logsFile = path.join(logsDir, 'logs.json')
-
-    fs.mkdirSync(logsDir, { recursive: true })
-
-    let entries: unknown[] = []
-    if (fs.existsSync(logsFile)) {
-      try {
-        const raw = fs.readFileSync(logsFile, 'utf-8')
-        const parsed: unknown = JSON.parse(raw)
-        if (Array.isArray(parsed)) {
-          entries = parsed
-        }
-      } catch {
-        entries = []
-      }
-    }
-
     const entry = {
       timestamp: getTimeStamp(),
       type: 'Form Submission',
-      requestId: '9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa',
+      requestId: crypto.randomUUID(),
       endpoint: '/submit',
       method: 'POST',
       status: 200,
@@ -57,8 +38,8 @@ export async function logDocumentSubmission(
       targetLang,
     }
 
-    entries.push(entry)
-    fs.writeFileSync(logsFile, JSON.stringify(entries, null, 2), 'utf-8')
+    // eslint-disable-next-line no-console
+    console.log(JSON.stringify(entry))
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('[logDocumentSubmission] Failed to write log entry:', err)
