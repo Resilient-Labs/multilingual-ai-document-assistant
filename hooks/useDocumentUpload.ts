@@ -124,6 +124,19 @@ export function useDocumentUpload(): UseDocumentUploadResult {
         });
       }
 
+      setOcrProgress("Preparing document for Q&A…");
+
+      void (async () => {
+        try {
+          const chunks = chunkText(fullText);
+          for (const chunk of chunks) {
+            await insertChunk(chunk.text, { docId, chunkId: chunk.id });
+          }
+        } catch (err) {
+          console.error("[chunking] Failed to embed chunks:", err);
+        }
+      })();
+
       sessionStorage.setItem(
         `translate-${docId}`,
         JSON.stringify({ fullText, filename: file.name, sourceLang, targetLang })
