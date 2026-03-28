@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { apiFetch } from "@/lib/api-client";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -22,26 +21,12 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { TtsPlaybackVisual } from "@/components/features/tts/TtsPlaybackVisual";
+import { VoiceFilterDialog } from "@/components/features/tts/VoiceFilterDialog";
+import { useTranslation } from "@/hooks/useTranslation";
+import { useReadAloud } from "@/hooks/useReadAloud";
 import { isDeepgramLanguage } from "@/lib/tts/deepgram-voices";
 import type { Gender, SpanishAccent } from "@/lib/tts/types";
-
-interface TranslateSession {
-  fullText: string;
-  filename: string;
-  sourceLang: string;
-  targetLang: string;
-}
 
 const LANGUAGE_LABELS: Record<string, string> = {
   auto: "Detected",
@@ -65,153 +50,20 @@ const LANGUAGE_LABELS: Record<string, string> = {
   vi: "Vietnamese",
 };
 
-const SPANISH_ACCENTS: Array<{ label: string; value: SpanishAccent }> = [
-  { label: "Argentine", value: "argentine" },
-  { label: "Colombian", value: "colombian" },
-  { label: "Latin American", value: "latin-american" },
-  { label: "Mexican", value: "mexican" },
-  { label: "Peninsular", value: "peninsular" },
-];
-
 export default function TranslatePage() {
   const params = useParams();
   const router = useRouter();
   const id = Array.isArray(params.id) ? params.id[0] : (params.id ?? "");
 
-  const [session, setSession] = useState<TranslateSession | null>(null);
-  const [sessionMissing, setSessionMissing] = useState(false);
-  const [translatedText, setTranslatedText] = useState<string | null>(null);
-  const [translateLoading, setTranslateLoading] = useState(false);
-  const [translateError, setTranslateError] = useState<string | null>(null);
+  const { session, sessionMissing, translatedText, translateLoading, translateError } =
+    useTranslation(id);
+
+  const { audioRef, ttsAudioUrl, ttsLoading, ttsError, generateAudio } =
+    useReadAloud();
+
   const [isReadAloudOpen, setIsReadAloudOpen] = useState(false);
-  const [ttsLoading, setTtsLoading] = useState(false);
-  const [ttsError, setTtsError] = useState<string | null>(null);
-  const [ttsAudioUrl, setTtsAudioUrl] = useState<string | null>(null);
   const [voiceGender, setVoiceGender] = useState<Gender>("feminine");
-  const [spanishAccent, setSpanishAccent] =
-    useState<SpanishAccent>("latin-american");
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  useEffect(() => {
-    if (!id) return;
-    const raw = sessionStorage.getItem(`translate-${id}`);
-    if (!raw) {
-      setSessionMissing(true);
-      return;
-    }
-    try {
-      const parsed: TranslateSession = JSON.parse(raw);
-      setSession(parsed);
-    } catch {
-      setSessionMissing(true);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    if (!session) return;
-
-    async function runTranslation() {
-      setTranslateLoading(true);
-      setTranslateError(null);
-      try {
-        const res = await apiFetch("/api/translate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: session!.fullText,
-            targetLang: session!.targetLang,
-          }),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.error ?? "Translation failed");
-        }
-
-        setTranslatedText(data.translatedText);
-      } catch (err) {
-        setTranslateError(
-          err instanceof Error ? err.message : "Translation failed"
-        );
-      } finally {
-        setTranslateLoading(false);
-      }
-    }
-
-    runTranslation();
-  }, [session]);
-
-  useEffect(() => {
-    return () => {
-      if (ttsAudioUrl) {
-        URL.revokeObjectURL(ttsAudioUrl);
-      }
-    };
-  }, [ttsAudioUrl]);
-
-  useEffect(() => {
-    if (!ttsAudioUrl || !audioRef.current) return;
-
-    const maybePlay = async () => {
-      try {
-        await audioRef.current?.play();
-      } catch {
-        setTtsError("Audio is ready. Tap Play in AI Read Aloud to start playback.");
-      }
-    };
-
-    void maybePlay();
-  }, [ttsAudioUrl]);
-
-  async function handleReadAloudGenerate() {
-    if (!translatedText || !session) return;
-
-    setTtsLoading(true);
-    setTtsError(null);
-    try {
-      const response = await apiFetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: translatedText,
-          targetLang: session.targetLang,
-          gender: showGenderFilter ? voiceGender : "feminine",
-          spanishAccent: session.targetLang === "es" ? spanishAccent : undefined,
-        }),
-      });
-
-      if (!response.ok) {
-        let errorMessage = "Read Aloud failed";
-        try {
-          const data = await response.json();
-          errorMessage = data.error ?? errorMessage;
-        } catch {
-          // Keep fallback message when response body is not JSON.
-        }
-        throw new Error(errorMessage);
-      }
-
-
-      const audioBlob = await response.blob();
-      if (audioBlob.size === 0) {
-        throw new Error("Generated audio was empty. Please try again.");
-      }
-
-      const nextAudioUrl = URL.createObjectURL(audioBlob);
-      setTtsAudioUrl((currentUrl) => {
-        if (currentUrl) {
-          URL.revokeObjectURL(currentUrl);
-        }
-        return nextAudioUrl;
-      });
-      setIsReadAloudOpen(false);
-    } catch (err) {
-      setTtsError(err instanceof Error ? err.message : "Read Aloud failed");
-    } finally {
-      setTtsLoading(false);
-    }
-  }
+  const [spanishAccent, setSpanishAccent] = useState<SpanishAccent>("latin-american");
 
   if (sessionMissing) {
     return (
@@ -242,19 +94,26 @@ export default function TranslatePage() {
   const targetLangLabel = session
     ? (LANGUAGE_LABELS[session.targetLang] ?? session.targetLang)
     : "";
-  const showGenderFilter = session
-    ? isDeepgramLanguage(session.targetLang)
-    : false;
+  const showGenderFilter = session ? isDeepgramLanguage(session.targetLang) : false;
   const showSpanishAccentFilter = session?.targetLang === "es";
   const hasVoiceFilters = showGenderFilter || showSpanishAccentFilter;
 
   function handleReadAloudClick() {
+    if (!translatedText || !session) return;
     if (hasVoiceFilters) {
       setIsReadAloudOpen(true);
       return;
     }
+    void generateAudio(translatedText, session.targetLang, { gender: voiceGender });
+  }
 
-    void handleReadAloudGenerate();
+  function handleVoiceFilterConfirm() {
+    if (!translatedText || !session) return;
+    setIsReadAloudOpen(false);
+    void generateAudio(translatedText, session.targetLang, {
+      gender: showGenderFilter ? voiceGender : "feminine",
+      spanishAccent,
+    });
   }
 
   return (
@@ -288,7 +147,6 @@ export default function TranslatePage() {
 
       <main className="flex-1 px-6 py-8">
         <div className="mx-auto flex max-w-2xl flex-col gap-6">
-          {/* Original document */}
           <Card className="flex w-full flex-col overflow-hidden">
             <CardHeader>
               <CardTitle>Original Document</CardTitle>
@@ -309,7 +167,6 @@ export default function TranslatePage() {
             </CardContent>
           </Card>
 
-          {/* Translation */}
           <Card className="flex w-full flex-col overflow-hidden">
             <CardHeader>
               <CardTitle>
@@ -364,7 +221,6 @@ export default function TranslatePage() {
                         ? "Generating audio..."
                         : "Read Aloud"}
                     </Button>
-
                   </div>
 
                   {ttsLoading && !hasVoiceFilters && (
@@ -412,81 +268,19 @@ export default function TranslatePage() {
         </div>
       </main>
 
-      <Dialog open={isReadAloudOpen && hasVoiceFilters} onOpenChange={setIsReadAloudOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Read Aloud voice settings</DialogTitle>
-            <DialogDescription>
-              Choose voice filters before generating speech audio.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-4">
-            {showGenderFilter && (
-              <div className="grid gap-2">
-                <Label>Gender</Label>
-                <RadioGroup
-                  value={voiceGender}
-                  onValueChange={(value) => setVoiceGender(value as Gender)}
-                  className="grid gap-3"
-                >
-                  <label className="flex items-center gap-2 rounded-md border border-border p-2">
-                    <RadioGroupItem value="feminine" id="voice-feminine" />
-                    <span>Feminine</span>
-                  </label>
-                  <label className="flex items-center gap-2 rounded-md border border-border p-2">
-                    <RadioGroupItem value="masculine" id="voice-masculine" />
-                    <span>Masculine</span>
-                  </label>
-                </RadioGroup>
-              </div>
-            )}
-
-            {showSpanishAccentFilter && (
-              <div className="grid gap-2">
-                <Label>Accent</Label>
-                <RadioGroup
-                  value={spanishAccent}
-                  onValueChange={(value) =>
-                    setSpanishAccent(value as SpanishAccent)
-                  }
-                  className="grid gap-2"
-                >
-                  {SPANISH_ACCENTS.map((accent) => (
-                    <label
-                      key={accent.value}
-                      className="flex items-center gap-2 rounded-md border border-border p-2"
-                    >
-                      <RadioGroupItem value={accent.value} id={accent.value} />
-                      <span>{accent.label}</span>
-                    </label>
-                  ))}
-                </RadioGroup>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsReadAloudOpen(false)}
-              disabled={ttsLoading}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={handleReadAloudGenerate}
-              disabled={ttsLoading || !translatedText}
-              className="gap-2"
-            >
-              {ttsLoading && <Spinner className="size-4" aria-hidden="true" />}
-              {ttsLoading ? "Generating..." : "Start"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <VoiceFilterDialog
+        open={isReadAloudOpen && hasVoiceFilters}
+        onOpenChange={setIsReadAloudOpen}
+        showGenderFilter={showGenderFilter}
+        showSpanishAccentFilter={showSpanishAccentFilter}
+        voiceGender={voiceGender}
+        onVoiceGenderChange={setVoiceGender}
+        spanishAccent={spanishAccent}
+        onSpanishAccentChange={setSpanishAccent}
+        onConfirm={handleVoiceFilterConfirm}
+        loading={ttsLoading}
+        disabled={ttsLoading || !translatedText}
+      />
     </div>
   );
 }
