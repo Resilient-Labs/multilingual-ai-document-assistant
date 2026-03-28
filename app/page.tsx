@@ -5,6 +5,7 @@ import { GlobeIcon, MessageSquareIcon, ShieldCheckIcon, UploadCloudIcon } from "
 import { useIsMobile } from "@/hooks/use-mobile";
 import { UploadForm } from "@/components/upload-form";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 
 const NAV_TABS = [
   { value: "upload", label: "Upload", icon: UploadCloudIcon },
@@ -15,6 +16,7 @@ const NAV_TABS = [
 
 export default function Page() {
   const isMobile = useIsMobile();
+  const maxSizeLabel = `${(MAX_FILE_SIZE_BYTES / 1024 / 1024).toFixed(1)} MB`;
 
   /* ── Mobile ─────────────────────────────────────────────────────── */
   if (isMobile) {
@@ -126,7 +128,7 @@ export default function Page() {
         <div className="w-full max-w-2xl">
           <h2 className="text-3xl font-bold font-display mb-2">Upload a document</h2>
           <p className="text-base text-muted-foreground mb-8">
-            Supports PDF, DOC, DOCX, TXT, and images up to 10 MB.
+            Supports PDF, DOC, DOCX, TXT, and images up to {maxSizeLabel}.
           </p>
           <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
             <UploadForm />

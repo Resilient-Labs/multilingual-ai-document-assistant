@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 import { useDocumentUpload } from "@/hooks/useDocumentUpload";
 import { LanguageSelector } from "@/components/shared/LanguageSelector";
 
@@ -28,11 +29,12 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
   const onDrop = useCallback((accepted: File[]) => {
     if (accepted.length > 0) setFile(accepted[0]);
   }, []);
+  const maxSizeLabel = `${(MAX_FILE_SIZE_BYTES / 1024 / 1024).toFixed(1)} MB`;
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     maxFiles: 1,
-    maxSize: 10 * 1024 * 1024,
+    maxSize: MAX_FILE_SIZE_BYTES,
     accept: {
       "application/pdf": [".pdf"],
       "application/msword": [".doc"],
@@ -50,12 +52,19 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
   const submitLabel =
     isSubmitting && ocrProgress ? ocrProgress : "Translate document";
 
-  const ErrorMessage = error && (
+  const ErrorMessage = (
     <div
       role="alert"
-      className="rounded-2xl border border-destructive/40 bg-destructive/5 text-destructive p-4 text-sm"
+      aria-live="assertive"
+      aria-atomic="true"
+      className={cn(
+        "rounded-2xl border p-4 text-sm transition-colors",
+        error
+          ? "border-destructive/40 bg-destructive/5 text-destructive"
+          : "border-transparent"
+      )}
     >
-      {error}
+      {error ?? ""}
     </div>
   );
 
@@ -102,7 +111,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
                 <p className="text-base font-semibold text-foreground">
                   Take a photo or upload a file
                 </p>
-                <p className="text-sm text-muted-foreground">10MB max</p>
+                <p className="text-sm text-muted-foreground">{maxSizeLabel} max</p>
               </div>
               <Button
                 size="default"
@@ -188,7 +197,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
                 {isDragActive ? "Drop your file here" : "Drag & drop or choose a file"}
               </p>
               <p className="text-sm text-muted-foreground">
-                PDF, DOC, DOCX, TXT, or image — 10 MB max
+                PDF, DOC, DOCX, TXT, or image — {maxSizeLabel} max
               </p>
             </div>
             <Button size="lg" variant="outline" type="button" className="px-8 text-base">
