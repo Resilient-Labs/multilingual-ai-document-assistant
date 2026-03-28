@@ -7,8 +7,6 @@ import { persistOCRToEntityDB } from "@/lib/entitydb-persist";
 import { prepareImageBytes } from "@/lib/image-utils";
 import { apiFetch } from "@/lib/api-client";
 import type { OCRResult, ExtractionResponse, ExtractionErrorResponse } from "@/types";
-import { chunkText } from "@/lib/chunking";
-import { insertChunk } from "@/lib/entitydb";
 
 export interface UseDocumentUploadResult {
   isSubmitting: boolean;
@@ -124,19 +122,6 @@ export function useDocumentUpload(): UseDocumentUploadResult {
           file,
         });
       }
-
-      setOcrProgress("Preparing document for Q&A…");
-
-      void (async () => {
-        try {
-          const chunks = chunkText(fullText);
-          for (const chunk of chunks) {
-            await insertChunk(chunk.text, { docId, chunkId: chunk.id });
-          }
-        } catch (err) {
-          console.error("[chunking] Failed to embed chunks:", err);
-        }
-      })();
 
       sessionStorage.setItem(
         `translate-${docId}`,
