@@ -34,7 +34,7 @@ function getClientIp(request: NextRequest): string {
 function buildRateLimitResponse(retryAfterSeconds: number) {
   return NextResponse.json(
     {
-      error: "Too many extraction requests. Please wait before trying again.",
+      error: "Too many requests. Please wait before trying again.",
       code: "RATE_LIMITED",
     },
     {
@@ -46,7 +46,25 @@ function buildRateLimitResponse(retryAfterSeconds: number) {
   );
 }
 
+function isAuthenticated(request: NextRequest): boolean {
+  const expectedKey = process.env.NEXT_PUBLIC_API_SECRET_KEY;
+
+  // If no key is configured, skip auth check (e.g. local dev without .env.local).
+  if (!expectedKey) return true;
+
+  const providedKey = request.headers.get("x-api-key");
+  return providedKey === expectedKey;
+}
+
 export function middleware(request: NextRequest) {
+  // Auth guard — reject requests that don't carry the correct API key.
+  if (!isAuthenticated(request)) {
+    return NextResponse.json(
+      { error: "Unauthorized", code: "UNAUTHORIZED" },
+      { status: 401 }
+    );
+  }
+
   if (request.method !== "POST") {
     return NextResponse.next();
   }
@@ -85,5 +103,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/api/documents/extract", "/api/documents/upload"],
+  matcher: ["/api/:path*"],
 };

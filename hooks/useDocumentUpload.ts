@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { logDocumentSubmission } from "@/app/actions/logging";
 import { persistOCRToEntityDB } from "@/lib/entitydb-persist";
 import { prepareImageBytes } from "@/lib/image-utils";
+import { apiFetch } from "@/lib/api-client";
 import type { OCRResult, ExtractionResponse, ExtractionErrorResponse } from "@/types";
 import { chunkText } from "@/lib/chunking";
 import { insertChunk } from "@/lib/entitydb";
@@ -99,7 +100,7 @@ export function useDocumentUpload(): UseDocumentUploadResult {
         const formData = new FormData();
         formData.append("file", file);
 
-        const res = await fetch("/api/documents/extract", {
+        const res = await apiFetch("/api/documents/extract", {
           method: "POST",
           body: formData,
         });

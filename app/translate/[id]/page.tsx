@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { apiFetch } from "@/lib/api-client";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -113,7 +114,7 @@ export default function TranslatePage() {
       setTranslateLoading(true);
       setTranslateError(null);
       try {
-        const res = await fetch("/api/translate", {
+        const res = await apiFetch("/api/translate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -169,7 +170,7 @@ export default function TranslatePage() {
     setTtsLoading(true);
     setTtsError(null);
     try {
-      const response = await fetch("/api/tts", {
+      const response = await apiFetch("/api/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

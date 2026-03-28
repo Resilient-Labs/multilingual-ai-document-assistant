@@ -4,6 +4,7 @@
  * Brandi and other consumers can use this or the useSafetyAnalysis hook.
  */
 
+import { apiFetch } from '@/lib/api-client'
 import type { OCRResult, SafetyAnalysisResponse } from '@/types'
 
 /**
@@ -30,7 +31,7 @@ export async function analyzeDocumentSafety(
     throw new Error('OCR has no text to analyze')
   }
 
-  const res = await fetch('/api/safety', {
+  const res = await apiFetch('/api/safety', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
