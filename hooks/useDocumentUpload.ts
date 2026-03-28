@@ -6,6 +6,8 @@ import { logDocumentSubmission } from "@/app/actions/logging";
 import { persistOCRToEntityDB } from "@/lib/entitydb-persist";
 import { prepareImageBytes } from "@/lib/image-utils";
 import type { OCRResult, ExtractionResponse, ExtractionErrorResponse } from "@/types";
+import { chunkText } from "@/lib/chunking";
+import { insertChunk } from "@/lib/entitydb";
 
 export interface UseDocumentUploadResult {
   isSubmitting: boolean;
