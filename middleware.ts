@@ -1,102 +1,139 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
+import {
+  API_CSRF_COOKIE_NAME,
+  hasUpstashRateLimitEnv,
+  hasValidCsrfRequest,
+  isMutatingMethod,
+  shouldFailClosedForRateLimit,
+} from "@/lib/api-security";
 
-const WINDOW_MS = 60_000;
 const MAX_REQUESTS_PER_WINDOW = 10;
+const CSRF_BOOTSTRAP_PATH = "/api/csrf";
 
-type RateLimitEntry = {
-  count: number;
-  resetAt: number;
-};
+// ---------------------------------------------------------------------------
+// Rate limiter — Upstash Redis when configured, in-memory fallback for local dev
+// ---------------------------------------------------------------------------
 
-const rateLimitStore = globalThis as typeof globalThis & {
-  __documentExtractionRateLimit?: Map<string, RateLimitEntry>;
-};
-
-function getRateLimitBucket(): Map<string, RateLimitEntry> {
-  if (!rateLimitStore.__documentExtractionRateLimit) {
-    rateLimitStore.__documentExtractionRateLimit = new Map();
-  }
-
-  return rateLimitStore.__documentExtractionRateLimit;
+function buildRateLimiter() {
+  return new Ratelimit({
+    redis: new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL!,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+    }),
+    limiter: Ratelimit.slidingWindow(MAX_REQUESTS_PER_WINDOW, "60 s"),
+    analytics: true,
+    prefix: "ratelimit:api",
+  });
 }
 
+let _rateLimiter: Ratelimit | null = null;
+
+function getRateLimiter(): Ratelimit | null {
+  if (!hasUpstashRateLimitEnv()) return null;
+
+  if (!_rateLimiter) {
+    _rateLimiter = buildRateLimiter();
+  }
+  return _rateLimiter;
+}
+
+// ---------------------------------------------------------------------------
+// Client IP — use platform-verified IP, fall back to headers only in dev
+// ---------------------------------------------------------------------------
+
 function getClientIp(request: NextRequest): string {
-  const forwardedFor = request.headers.get("x-forwarded-for");
-  if (forwardedFor) {
-    const ip = forwardedFor.split(",")[0]?.trim();
+  // request.ip is set by Vercel/platform and cannot be spoofed by the client.
+  if (request.ip) return request.ip;
+
+  // Fallback for local development where request.ip is undefined.
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) {
+    const ip = forwarded.split(",")[0]?.trim();
     if (ip) return ip;
   }
 
-  return request.headers.get("x-real-ip") ?? "unknown";
+  return request.headers.get("x-real-ip") ?? "127.0.0.1";
 }
 
-function buildRateLimitResponse(retryAfterSeconds: number) {
-  return NextResponse.json(
-    {
-      error: "Too many requests. Please wait before trying again.",
-      code: "RATE_LIMITED",
-    },
-    {
-      status: 429,
-      headers: {
-        "Retry-After": String(retryAfterSeconds),
-      },
-    }
-  );
+// ---------------------------------------------------------------------------
+// Same-origin request guard
+// ---------------------------------------------------------------------------
+
+function hasValidApiCsrf(request: NextRequest): boolean {
+  return hasValidCsrfRequest({
+    requestUrl: request.url,
+    originHeader: request.headers.get("origin"),
+    refererHeader: request.headers.get("referer"),
+    secFetchSite: request.headers.get("sec-fetch-site"),
+    cookieToken: request.cookies.get(API_CSRF_COOKIE_NAME)?.value ?? null,
+    headerToken: request.headers.get("x-csrf-token"),
+  });
 }
 
-function isAuthenticated(request: NextRequest): boolean {
-  const expectedKey = process.env.NEXT_PUBLIC_API_SECRET_KEY;
+// ---------------------------------------------------------------------------
+// Middleware
+// ---------------------------------------------------------------------------
 
-  // If no key is configured, skip auth check (e.g. local dev without .env.local).
-  if (!expectedKey) return true;
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
 
-  const providedKey = request.headers.get("x-api-key");
-  return providedKey === expectedKey;
-}
+  if (pathname === CSRF_BOOTSTRAP_PATH) {
+    return NextResponse.next();
+  }
 
-export function middleware(request: NextRequest) {
-  // Auth guard — reject requests that don't carry the correct API key.
-  if (!isAuthenticated(request)) {
+  if (isMutatingMethod(request.method) && !hasValidApiCsrf(request)) {
     return NextResponse.json(
-      { error: "Unauthorized", code: "UNAUTHORIZED" },
-      { status: 401 }
+      {
+        error: "Forbidden: same-origin CSRF validation failed.",
+        code: "CSRF_VALIDATION_FAILED",
+      },
+      { status: 403 }
     );
   }
 
-  if (request.method !== "POST") {
+  if (!isMutatingMethod(request.method)) {
     return NextResponse.next();
   }
 
-  const now = Date.now();
-  const bucket = getRateLimitBucket();
+  if (!hasUpstashRateLimitEnv()) {
+    if (shouldFailClosedForRateLimit()) {
+      return NextResponse.json(
+        {
+          error:
+            "Rate limiting is not configured for production. Set Upstash Redis credentials.",
+          code: "RATE_LIMIT_CONFIG_ERROR",
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.next();
+  }
+
+  const rateLimiter = getRateLimiter();
+  if (!rateLimiter) return NextResponse.next();
+
   const clientIp = getClientIp(request);
-  const currentEntry = bucket.get(clientIp);
+  const { success, reset } = await rateLimiter.limit(clientIp);
 
-  if (!currentEntry || now >= currentEntry.resetAt) {
-    bucket.set(clientIp, {
-      count: 1,
-      resetAt: now + WINDOW_MS,
-    });
-    return NextResponse.next();
-  }
-
-  if (currentEntry.count >= MAX_REQUESTS_PER_WINDOW) {
+  if (!success) {
     const retryAfterSeconds = Math.max(
       1,
-      Math.ceil((currentEntry.resetAt - now) / 1000)
+      Math.ceil((reset - Date.now()) / 1000)
     );
-    return buildRateLimitResponse(retryAfterSeconds);
-  }
-
-  currentEntry.count += 1;
-
-  // Opportunistically clean up expired entries to keep memory bounded.
-  for (const [ip, entry] of bucket.entries()) {
-    if (now >= entry.resetAt) {
-      bucket.delete(ip);
-    }
+    return NextResponse.json(
+      {
+        error: "Too many requests. Please wait before trying again.",
+        code: "RATE_LIMITED",
+      },
+      {
+        status: 429,
+        headers: { "Retry-After": String(retryAfterSeconds) },
+      }
+    );
   }
 
   return NextResponse.next();

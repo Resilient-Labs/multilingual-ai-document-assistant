@@ -87,6 +87,7 @@ Set keys as needed for active integrations:
 - `DEEPGRAM_API_KEY` (TTS route)
 - `REPLICATE_API_TOKEN` (XTTS + MiniMax TTS fallback)
 - `OPEN_ROUTER_API_TOKEN` (safety route)
+- `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (required for production API rate limiting)
 
 Optional/advanced TTS variables:
 - `XTTS_REPLICATE_MODEL`
@@ -274,7 +275,7 @@ All endpoints are **stateless**. Client sends data; backend processes and return
 | `/api/summarize` | POST | `{ fullText }` | Summary |
 | `/api/safety` | POST | `{ fullText?, blocks? }` | Risk flags |
 
-Document extraction endpoints are rate-limited in `middleware.ts` to reduce abuse of CPU-intensive OCR and parsing flows.
+All mutating `/api/*` endpoints are guarded in `middleware.ts` with same-origin CSRF checks. Rate limiting is applied to mutating API requests when Upstash Redis is configured.
 
 ---
 
@@ -307,7 +308,7 @@ This work delivers a **text chunking path for RAG**: `chunkText()` lives under `
 | Audit item | What shipped in this range |
 |------------|----------------------------|
 | Move and wire `lib/chunking.ts`; call `chunkText` on persist; chunks through embedding path | `chunking.ts` moved to `lib/`; `persistOCRToEntityDB` calls `chunkText(fullText)` and `insertChunk` per chunk with `docId` / `chunkId`. |
-| Rate limit extraction endpoints | `middleware.ts`: sliding window per client IP on `POST` to `/api/documents/extract` and `/api/documents/upload` (429 + `Retry-After`). |
+| Rate limit API endpoints | `middleware.ts`: same-origin CSRF guard for mutating `/api/*` requests and sliding-window rate limiting per client IP when Upstash Redis is configured. |
 | Align file size limits (UI vs server) | Dropzone `maxSize` and copy use `MAX_FILE_SIZE_BYTES` from `lib/constants.ts` (4.5 MB), same as the API. |
 | `role="alert"` / live region for errors | Error container uses `role="alert"`, `aria-live="assertive"`, `aria-atomic="true"`; styling hides the empty state without removing the live region. |
 | Overlap between `/upload` and `/extract` | `/api/documents/upload` is a **deprecated thin wrapper** that delegates to the extract handler and sets `Deprecation`, `Sunset`, and `Link: successor-version` headers; README documents `/extract` as canonical. |
