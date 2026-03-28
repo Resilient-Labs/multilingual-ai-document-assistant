@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { MAX_SAFETY_CHARS } from "@/lib/constants"
 import { promises as fs } from "fs"
 import { join } from "path"
 import {
@@ -219,6 +220,16 @@ export async function POST(request: Request) {
         code: "VALIDATION_ERROR",
       },
       { status: 400 },
+    )
+  }
+
+  if (textToAnalyze.length > MAX_SAFETY_CHARS) {
+    return NextResponse.json(
+      {
+        error: `Text too long. Maximum is ${MAX_SAFETY_CHARS.toLocaleString()} characters.`,
+        code: "INPUT_TOO_LONG",
+      },
+      { status: 413 },
     )
   }
 

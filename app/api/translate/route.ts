@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { MAX_TRANSLATE_CHARS } from "@/lib/constants";
 
 /**
  * Maps the app's language codes to DeepL v2 target language codes.
@@ -41,6 +42,16 @@ export async function POST(request: Request) {
 
     if (!text || typeof text !== "string" || text.trim() === "") {
       return NextResponse.json({ error: "No text provided" }, { status: 400 });
+    }
+
+    if (text.length > MAX_TRANSLATE_CHARS) {
+      return NextResponse.json(
+        {
+          error: `Text too long. Maximum is ${MAX_TRANSLATE_CHARS.toLocaleString()} characters.`,
+          code: "INPUT_TOO_LONG",
+        },
+        { status: 413 }
+      );
     }
 
     if (!targetLang || typeof targetLang !== "string") {

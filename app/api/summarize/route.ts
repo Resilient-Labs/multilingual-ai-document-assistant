@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { MAX_SUMMARIZE_CHARS } from "@/lib/constants";
 
 /**
  * POST /api/summarize
@@ -18,6 +19,16 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "fullText required" },
         { status: 400 }
+      );
+    }
+
+    if (fullText.length > MAX_SUMMARIZE_CHARS) {
+      return NextResponse.json(
+        {
+          error: `Text too long. Maximum is ${MAX_SUMMARIZE_CHARS.toLocaleString()} characters.`,
+          code: "INPUT_TOO_LONG",
+        },
+        { status: 413 }
       );
     }
 

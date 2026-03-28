@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { MAX_ASK_QUESTION_CHARS, MAX_ASK_CONTEXT_CHARS } from "@/lib/constants";
 
 /**
  * POST /api/ask
@@ -23,7 +24,27 @@ export async function POST(request: Request) {
       );
     }
 
+    if (question.length > MAX_ASK_QUESTION_CHARS) {
+      return NextResponse.json(
+        {
+          error: `Question too long. Maximum is ${MAX_ASK_QUESTION_CHARS.toLocaleString()} characters.`,
+          code: "INPUT_TOO_LONG",
+        },
+        { status: 413 }
+      );
+    }
+
     const contextText = context ?? chunks?.join("\n\n") ?? "";
+
+    if (contextText.length > MAX_ASK_CONTEXT_CHARS) {
+      return NextResponse.json(
+        {
+          error: `Context too long. Maximum is ${MAX_ASK_CONTEXT_CHARS.toLocaleString()} characters.`,
+          code: "INPUT_TOO_LONG",
+        },
+        { status: 413 }
+      );
+    }
 
     // TODO: Build RAG prompt, call LLM.
     const answer = contextText

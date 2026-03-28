@@ -93,6 +93,17 @@ describe('POST /api/safety', () => {
       expect(body.code).toBe('VALIDATION_ERROR')
     })
 
+    it('returns 413 when text exceeds character limit', async () => {
+      const request = createMockRequest({
+        fullText: 'a'.repeat(50_001),
+      })
+      const response = await POST(request)
+      const body = await response.json()
+
+      expect(response.status).toBe(413)
+      expect(body.code).toBe('INPUT_TOO_LONG')
+    })
+
     it('returns 400 when blocks have no text', async () => {
       const request = createMockRequest({
         blocks: [{ text: '' }, { text: '   ' }],
