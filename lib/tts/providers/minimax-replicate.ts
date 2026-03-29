@@ -8,6 +8,11 @@ import {
   MINIMAX_MASCULINE_VOICE_ID,
   MINIMAX_AUDIO_FORMAT,
 } from "@/lib/env";
+import {
+  REPLICATE_META_TIMEOUT_MS,
+  REPLICATE_RUN_TIMEOUT_MS,
+  AUDIO_DOWNLOAD_TIMEOUT_MS,
+} from "@/lib/constants";
 
 type ReplicateModelRef = `${string}/${string}` | `${string}/${string}:${string}`;
 
@@ -70,6 +75,7 @@ async function resolveModelRef(): Promise<ReplicateModelRef> {
       headers: {
         Authorization: `Token ${REPLICATE_API_TOKEN}`,
       },
+      signal: AbortSignal.timeout(REPLICATE_META_TIMEOUT_MS),
     }
   );
 
@@ -107,6 +113,7 @@ export async function synthesizeWithMinimaxReplicate(input: {
         audio_format: MINIMAX_AUDIO_FORMAT,
         ...(languageBoost ? { language_boost: languageBoost } : {}),
       },
+      signal: AbortSignal.timeout(REPLICATE_RUN_TIMEOUT_MS),
     });
   } catch (error) {
     const maybeError = error as { message?: string; status?: number };
@@ -122,7 +129,9 @@ export async function synthesizeWithMinimaxReplicate(input: {
     throw new TtsError("MiniMax returned an invalid audio response", 502);
   }
 
-  const audioResponse = await fetch(audioUrl);
+  const audioResponse = await fetch(audioUrl, {
+    signal: AbortSignal.timeout(AUDIO_DOWNLOAD_TIMEOUT_MS),
+  });
   if (!audioResponse.ok) {
     throw new TtsError("MiniMax audio download failed", 502);
   }

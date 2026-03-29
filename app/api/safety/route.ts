@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { MAX_SAFETY_CHARS } from "@/lib/constants"
+import { MAX_SAFETY_CHARS, OPENROUTER_TIMEOUT_MS } from "@/lib/constants"
 import { OPEN_ROUTER_API_TOKEN } from "@/lib/env"
 import { promises as fs } from "fs"
 import { join } from "path"
@@ -263,8 +263,15 @@ export async function POST(request: Request) {
           { role: "user", content: textToAnalyze },
         ],
       }),
+      signal: AbortSignal.timeout(OPENROUTER_TIMEOUT_MS),
     })
-  } catch {
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      return NextResponse.json(
+        { error: "Safety check timed out", code: "TIMEOUT" },
+        { status: 504 },
+      )
+    }
     return NextResponse.json(
       { error: "Safety check failed", code: "EXTERNAL_ERROR" },
       { status: 500 },

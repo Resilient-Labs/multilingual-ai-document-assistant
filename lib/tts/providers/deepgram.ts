@@ -2,6 +2,7 @@ import { resolveAuraModel } from "@/lib/tts/deepgram-voices";
 import type { Gender, SpanishAccent, TtsSynthesisResult } from "@/lib/tts/types";
 import { TtsError } from "@/lib/tts/types";
 import { DEEPGRAM_API_KEY } from "@/lib/env";
+import { DEEPGRAM_TIMEOUT_MS } from "@/lib/constants";
 
 interface DeepgramInput {
   text: string;
@@ -28,6 +29,7 @@ export async function synthesizeWithDeepgram(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ text: input.text }),
+      signal: AbortSignal.timeout(DEEPGRAM_TIMEOUT_MS),
     }
   );
 

@@ -7,6 +7,11 @@ import {
   XTTS_REPLICATE_MODEL,
   XTTS_SPEAKER_WAV_URL,
 } from "@/lib/env";
+import {
+  REPLICATE_META_TIMEOUT_MS,
+  REPLICATE_RUN_TIMEOUT_MS,
+  AUDIO_DOWNLOAD_TIMEOUT_MS,
+} from "@/lib/constants";
 type ReplicateModelRef = `${string}/${string}` | `${string}/${string}:${string}`;
 let resolvedModelRef: ReplicateModelRef | null = null;
 
@@ -51,6 +56,7 @@ async function resolveModelRef(): Promise<ReplicateModelRef> {
       headers: {
         Authorization: `Token ${REPLICATE_API_TOKEN}`,
       },
+      signal: AbortSignal.timeout(REPLICATE_META_TIMEOUT_MS),
     }
   );
 
@@ -86,6 +92,7 @@ export async function synthesizeWithXttsReplicate(input: {
         speaker: XTTS_SPEAKER_WAV_URL,
         language,
       },
+      signal: AbortSignal.timeout(REPLICATE_RUN_TIMEOUT_MS),
     });
   } catch (error) {
     const maybeError = error as { message?: string; status?: number };
@@ -101,7 +108,9 @@ export async function synthesizeWithXttsReplicate(input: {
     throw new TtsError("XTTS fallback returned an invalid audio response", 502);
   }
 
-  const audioResponse = await fetch(audioUrl);
+  const audioResponse = await fetch(audioUrl, {
+    signal: AbortSignal.timeout(AUDIO_DOWNLOAD_TIMEOUT_MS),
+  });
   if (!audioResponse.ok) {
     throw new TtsError("XTTS fallback audio download failed", 502);
   }

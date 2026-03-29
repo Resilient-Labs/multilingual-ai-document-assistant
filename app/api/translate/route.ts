@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { MAX_TRANSLATE_CHARS } from "@/lib/constants";
+import { MAX_TRANSLATE_CHARS, DEEPL_TIMEOUT_MS } from "@/lib/constants";
 import { DEEPL_API_KEY } from "@/lib/env";
 import { DEEPL_LANG_MAP } from "@/lib/languages";
 
@@ -54,6 +54,7 @@ export async function POST(request: Request) {
         source_lang: "EN",
         target_lang: deeplTarget,
       }),
+      signal: AbortSignal.timeout(DEEPL_TIMEOUT_MS),
     });
 
     if (!deeplRes.ok) {
@@ -69,7 +70,13 @@ export async function POST(request: Request) {
     const translatedText: string = deeplData.translations?.[0]?.text ?? "";
 
     return NextResponse.json({ translatedText });
-  } catch {
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      return NextResponse.json(
+        { error: "Translation request timed out" },
+        { status: 504 }
+      );
+    }
     return NextResponse.json({ error: "Translation failed" }, { status: 500 });
   }
 }

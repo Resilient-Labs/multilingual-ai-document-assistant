@@ -17,6 +17,14 @@ export const MAX_ASK_QUESTION_CHARS = 1_000;
 export const MAX_ASK_CONTEXT_CHARS = 50_000;
 export const MAX_SAFETY_CHARS = 50_000;
 
+/** Outbound HTTP timeouts (ms) — prevent indefinite hangs on third-party APIs. */
+export const DEEPL_TIMEOUT_MS = 10_000;
+export const OPENROUTER_TIMEOUT_MS = 30_000;
+export const DEEPGRAM_TIMEOUT_MS = 15_000;
+export const REPLICATE_META_TIMEOUT_MS = 10_000;
+export const REPLICATE_RUN_TIMEOUT_MS = 90_000;
+export const AUDIO_DOWNLOAD_TIMEOUT_MS = 30_000;
+
 /** Allowed MIME types for upload */
 export const ALLOWED_MIME_TYPES = [
   "application/pdf",

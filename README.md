@@ -241,6 +241,7 @@ app/
   api/
     documents/extract  # Canonical extraction endpoint (OCR + text extraction)
     documents/upload   # Deprecated wrapper → delegates to /extract
+    health            # Readiness/liveness probe for load balancers and monitors
     ask               # Stateless: RAG (client sends context)
     summarize         # Stateless: summary (client sends fullText)
     safety            # Stateless: risk flags (client sends text)
@@ -269,6 +270,7 @@ All endpoints are **stateless**. Client sends data; backend processes and return
 |----------|--------|------|-------------|
 | `/api/documents/extract` | POST | `FormData` (files[] or file) | **Canonical** extraction endpoint — OCR, return normalized entity-ready JSON |
 | `/api/documents/upload` | POST | `FormData` (file) | **Deprecated** — thin wrapper that delegates to `/extract`. Will be removed after 2026-06-27. |
+| `/api/health` | GET, HEAD | None | Health/readiness probe. Returns `200` when ready and `503` when required configuration is missing. |
 | /api/translate	| POST	| `{ text, targetLang }` |	Translation via DeepL |
 | /api/tts	| POST | `{ text, targetLang, gender, spanishAccent? }`	| TTS via provider router (Deepgram/XTTS/MiniMax) |
 | `/api/ask` | POST | `{ question, context? }` or `{ question, chunks? }` | RAG answer |
