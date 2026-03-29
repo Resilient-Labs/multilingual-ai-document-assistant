@@ -1,4 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+vi.mock("@/lib/env", () => ({
+  DEEPL_API_KEY: "test-key",
+}));
+
 import { POST } from "./route";
 
 function createMockRequest(body: unknown): Request {
@@ -8,15 +13,8 @@ function createMockRequest(body: unknown): Request {
 }
 
 describe("POST /api/translate", () => {
-  const originalEnv = process.env.DEEPL_API_KEY;
-
-  beforeEach(() => {
-    process.env.DEEPL_API_KEY = "test-key";
-  });
-
   afterEach(() => {
     vi.restoreAllMocks();
-    process.env.DEEPL_API_KEY = originalEnv;
   });
 
   it("returns 400 when text is missing", async () => {

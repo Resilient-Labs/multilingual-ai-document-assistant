@@ -1,4 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/env", () => ({
+  DEEPGRAM_API_KEY: "test-key",
+  REPLICATE_API_TOKEN: "test-token",
+  MINIMAX_REPLICATE_MODEL: "minimax/speech-02-turbo",
+  MINIMAX_FEMININE_VOICE_ID: "Wise_Woman",
+  MINIMAX_MASCULINE_VOICE_ID: "Deep_Voice_Man",
+  MINIMAX_AUDIO_FORMAT: "mp3",
+  XTTS_REPLICATE_MODEL: "lucataco/xtts-v2",
+  XTTS_SPEAKER_WAV_URL: "https://example.com/female.wav",
+}));
+
 import {
   getTtsProvider,
 } from "@/lib/tts/router";

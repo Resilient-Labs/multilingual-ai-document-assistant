@@ -1,8 +1,7 @@
 import { resolveAuraModel } from "@/lib/tts/deepgram-voices";
 import type { Gender, SpanishAccent, TtsSynthesisResult } from "@/lib/tts/types";
 import { TtsError } from "@/lib/tts/types";
-
-const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY;
+import { DEEPGRAM_API_KEY } from "@/lib/env";
 
 interface DeepgramInput {
   text: string;
@@ -14,10 +13,6 @@ interface DeepgramInput {
 export async function synthesizeWithDeepgram(
   input: DeepgramInput
 ): Promise<TtsSynthesisResult> {
-  if (!DEEPGRAM_API_KEY) {
-    throw new TtsError("Deepgram TTS is not configured", 503);
-  }
-
   const model = resolveAuraModel(
     input.targetLang,
     input.gender,

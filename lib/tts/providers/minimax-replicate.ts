@@ -1,15 +1,13 @@
 import Replicate from "replicate";
 import type { Gender, TtsSynthesisResult } from "@/lib/tts/types";
 import { TtsError } from "@/lib/tts/types";
-
-const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
-const MINIMAX_REPLICATE_MODEL =
-  process.env.MINIMAX_REPLICATE_MODEL ?? "minimax/speech-02-turbo";
-const MINIMAX_FEMININE_VOICE_ID =
-  process.env.MINIMAX_FEMININE_VOICE_ID ?? "Wise_Woman";
-const MINIMAX_MASCULINE_VOICE_ID =
-  process.env.MINIMAX_MASCULINE_VOICE_ID ?? "Deep_Voice_Man";
-const MINIMAX_AUDIO_FORMAT = process.env.MINIMAX_AUDIO_FORMAT ?? "mp3";
+import {
+  REPLICATE_API_TOKEN,
+  MINIMAX_REPLICATE_MODEL,
+  MINIMAX_FEMININE_VOICE_ID,
+  MINIMAX_MASCULINE_VOICE_ID,
+  MINIMAX_AUDIO_FORMAT,
+} from "@/lib/env";
 
 type ReplicateModelRef = `${string}/${string}` | `${string}/${string}:${string}`;
 
@@ -96,10 +94,6 @@ export async function synthesizeWithMinimaxReplicate(input: {
   targetLang: string;
   gender: Gender;
 }): Promise<TtsSynthesisResult> {
-  if (!REPLICATE_API_TOKEN) {
-    throw new TtsError("MiniMax TTS is not configured", 503);
-  }
-
   const replicate = new Replicate({ auth: REPLICATE_API_TOKEN });
   const modelRef = await resolveModelRef();
 

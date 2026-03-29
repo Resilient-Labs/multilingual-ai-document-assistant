@@ -1,4 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+
+vi.mock('@/lib/env', () => ({
+  OPEN_ROUTER_API_TOKEN: 'test-token',
+}))
+
 import { POST } from './route'
 import type { SafetyAnalysisResponse } from '@/types'
 
@@ -34,17 +39,14 @@ function createSuccessfulFetchMock(flags: Record<string, unknown>) {
 
 describe('POST /api/safety', () => {
   const originalFetch = globalThis.fetch
-  const originalEnv = process.env.OPEN_ROUTER_API_TOKEN
 
   beforeEach(() => {
-    process.env.OPEN_ROUTER_API_TOKEN = 'test-token'
     globalThis.fetch = vi.fn() as typeof fetch
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
     globalThis.fetch = originalFetch
-    process.env.OPEN_ROUTER_API_TOKEN = originalEnv
   })
 
   describe('validation', () => {
@@ -193,18 +195,6 @@ describe('POST /api/safety', () => {
   })
 
   describe('error handling', () => {
-    it('returns 500 when OPEN_ROUTER_API_TOKEN is unset', async () => {
-      process.env.OPEN_ROUTER_API_TOKEN = ''
-
-      const request = createMockRequest({ fullText: 'Some text' })
-      const response = await POST(request)
-      const body = await response.json()
-
-      expect(response.status).toBe(500)
-      expect(body.error).toContain('not configured')
-      expect(body.code).toBe('CONFIG_ERROR')
-    })
-
     it('returns 500 when OpenRouter returns invalid JSON in content', async () => {
       ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,

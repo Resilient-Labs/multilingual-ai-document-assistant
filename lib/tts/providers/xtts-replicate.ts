@@ -2,12 +2,11 @@ import Replicate from "replicate";
 import { mapToXttsLanguage } from "@/lib/tts/xtts-language-map";
 import type { TtsSynthesisResult } from "@/lib/tts/types";
 import { TtsError } from "@/lib/tts/types";
-
-const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
-const XTTS_REPLICATE_MODEL = process.env.XTTS_REPLICATE_MODEL ?? "lucataco/xtts-v2";
-const XTTS_SPEAKER_WAV_URL =
-  process.env.XTTS_SPEAKER_WAV_URL ??
-  "https://raw.githubusercontent.com/lucataco/cog-xtts-v2/main/female.wav";
+import {
+  REPLICATE_API_TOKEN,
+  XTTS_REPLICATE_MODEL,
+  XTTS_SPEAKER_WAV_URL,
+} from "@/lib/env";
 type ReplicateModelRef = `${string}/${string}` | `${string}/${string}:${string}`;
 let resolvedModelRef: ReplicateModelRef | null = null;
 
@@ -75,10 +74,6 @@ export async function synthesizeWithXttsReplicate(input: {
   text: string;
   targetLang: string;
 }): Promise<TtsSynthesisResult> {
-  if (!REPLICATE_API_TOKEN) {
-    throw new TtsError("XTTS fallback is not configured", 503);
-  }
-
   const language = mapToXttsLanguage(input.targetLang);
   const replicate = new Replicate({ auth: REPLICATE_API_TOKEN });
   const modelRef = await resolveModelRef();

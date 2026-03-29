@@ -1,37 +1,11 @@
 import { NextResponse } from "next/server";
 import { MAX_TRANSLATE_CHARS } from "@/lib/constants";
-
-/**
- * Maps the app's language codes to DeepL v2 target language codes.
- * Source language is always EN per product requirements.
- * Full list: https://developers.deepl.com/docs/resources/supported-languages
- */
-const DEEPL_LANG_MAP: Record<string, string> = {
-  en: "EN-US",
-  es: "ES",
-  fr: "FR",
-  de: "DE",
-  zh: "ZH-HANS",
-  "zh-TW": "ZH-HANT",
-  ja: "JA",
-  ko: "KO",
-  pt: "PT-PT",
-  it: "IT",
-  ru: "RU",
-  ar: "AR",
-  hi: "HI",
-  nl: "NL",
-  pl: "PL",
-  sv: "SV",
-  tr: "TR",
-  vi: "VI",
-};
-
-// DEEPL_API_KEY — set in .env.local
-const DEEPL_API_KEY = process.env.DEEPL_API_KEY;
+import { DEEPL_API_KEY } from "@/lib/env";
+import { DEEPL_LANG_MAP } from "@/lib/languages";
 
 /**
  * POST /api/translate
+ * Source language is always EN per product requirements.
  * Body: { text: string, targetLang: string }
  * Returns: { translatedText: string }
  */
@@ -66,13 +40,6 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: `Unsupported target language: ${targetLang}` },
         { status: 400 }
-      );
-    }
-
-    if (!DEEPL_API_KEY) {
-      return NextResponse.json(
-        { error: "Translation service is not configured" },
-        { status: 503 }
       );
     }
 

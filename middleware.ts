@@ -9,6 +9,10 @@ import {
   isMutatingMethod,
   shouldFailClosedForRateLimit,
 } from "@/lib/api-security";
+import {
+  UPSTASH_REDIS_REST_URL,
+  UPSTASH_REDIS_REST_TOKEN,
+} from "@/lib/env";
 
 const MAX_REQUESTS_PER_WINDOW = 10;
 const CSRF_BOOTSTRAP_PATH = "/api/csrf";
@@ -20,8 +24,8 @@ const CSRF_BOOTSTRAP_PATH = "/api/csrf";
 function buildRateLimiter() {
   return new Ratelimit({
     redis: new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL!,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+      url: UPSTASH_REDIS_REST_URL,
+      token: UPSTASH_REDIS_REST_TOKEN,
     }),
     limiter: Ratelimit.slidingWindow(MAX_REQUESTS_PER_WINDOW, "60 s"),
     analytics: true,

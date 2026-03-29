@@ -25,30 +25,9 @@ import { TtsPlaybackVisual } from "@/components/features/tts/TtsPlaybackVisual";
 import { VoiceFilterDialog } from "@/components/features/tts/VoiceFilterDialog";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useReadAloud } from "@/hooks/useReadAloud";
+import { LANGUAGE_LABELS } from "@/lib/languages";
 import { isDeepgramLanguage } from "@/lib/tts/deepgram-voices";
 import type { Gender, SpanishAccent } from "@/lib/tts/types";
-
-const LANGUAGE_LABELS: Record<string, string> = {
-  auto: "Detected",
-  en: "English",
-  es: "Spanish",
-  fr: "French",
-  de: "German",
-  zh: "Chinese (Simplified)",
-  "zh-TW": "Chinese (Traditional)",
-  ja: "Japanese",
-  ko: "Korean",
-  pt: "Portuguese",
-  it: "Italian",
-  ru: "Russian",
-  ar: "Arabic",
-  hi: "Hindi",
-  nl: "Dutch",
-  pl: "Polish",
-  sv: "Swedish",
-  tr: "Turkish",
-  vi: "Vietnamese",
-};
 
 export default function TranslatePage() {
   const params = useParams();

@@ -10,29 +10,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { LANGUAGES } from "@/lib/languages";
 import { cn } from "@/lib/utils";
 
-export const LANGUAGES = [
-  { code: "auto", label: "Detect language" },
-  { code: "en", label: "English" },
-  { code: "es", label: "Spanish" },
-  { code: "fr", label: "French" },
-  { code: "de", label: "German" },
-  { code: "zh", label: "Chinese (Simplified)" },
-  { code: "zh-TW", label: "Chinese (Traditional)" },
-  { code: "ja", label: "Japanese" },
-  { code: "ko", label: "Korean" },
-  { code: "pt", label: "Portuguese" },
-  { code: "it", label: "Italian" },
-  { code: "ru", label: "Russian" },
-  { code: "ar", label: "Arabic" },
-  { code: "hi", label: "Hindi" },
-  { code: "nl", label: "Dutch" },
-  { code: "pl", label: "Polish" },
-  { code: "sv", label: "Swedish" },
-  { code: "tr", label: "Turkish" },
-  { code: "vi", label: "Vietnamese" },
-];
+export { LANGUAGES };
 
 const TARGET_LANGUAGES = LANGUAGES.filter((l) => l.code !== "auto");
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { MAX_SAFETY_CHARS } from "@/lib/constants"
+import { OPEN_ROUTER_API_TOKEN } from "@/lib/env"
 import { promises as fs } from "fs"
 import { join } from "path"
 import {
@@ -233,14 +234,6 @@ export async function POST(request: Request) {
     )
   }
 
-  const openRouterApiToken = process.env.OPEN_ROUTER_API_TOKEN
-  if (!openRouterApiToken) {
-    return NextResponse.json(
-      { error: "Safety check not configured", code: "CONFIG_ERROR" },
-      { status: 500 },
-    )
-  }
-
   let prompt: string
   try {
     prompt = await fs.readFile(SYSTEM_PROMPT_PATH, "utf-8")
@@ -259,7 +252,7 @@ export async function POST(request: Request) {
     res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${openRouterApiToken}`,
+        Authorization: `Bearer ${OPEN_ROUTER_API_TOKEN}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
