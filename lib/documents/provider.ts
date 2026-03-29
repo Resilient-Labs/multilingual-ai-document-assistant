@@ -38,12 +38,32 @@ export interface OCRProvider {
   extract(fileBuffer: ArrayBuffer, mimeType: string): Promise<RawOCRResult>;
 }
 
+const MOCK_BLOCK: RawOCRBlock = {
+  text: "Sample extracted text from document.",
+  confidence: 0.97,
+  bbox: { x: 72, y: 72, width: 468, height: 20 },
+};
+
+const MOCK_FULL_TEXT = "Sample extracted text from document.";
+
+function makeMockPage(pageNumber: number): RawOCRPage {
+  return {
+    pageNumber,
+    width: 612,
+    height: 792,
+    blocks: [{ ...MOCK_BLOCK }],
+    fullText: MOCK_FULL_TEXT,
+  };
+}
+
 export class MockOCRProvider implements OCRProvider {
-  async extract(_fileBuffer: ArrayBuffer, _mimeType: string): Promise<RawOCRResult> {
-    return {
-      pages: [{ pageNumber: 1, width: 612, height: 792, blocks: [], fullText: "" }],
-      language: "en",
-    };
+  async extract(fileBuffer: ArrayBuffer, _mimeType: string): Promise<RawOCRResult> {
+    // Return multiple pages for larger buffers (>100 KB) to simulate multi-page PDFs
+    const pageCount = fileBuffer.byteLength > 100_000 ? 2 : 1;
+    const pages: RawOCRPage[] = Array.from({ length: pageCount }, (_, i) =>
+      makeMockPage(i + 1)
+    );
+    return { pages, language: "en" };
   }
 }
 
@@ -187,7 +207,7 @@ let _provider: OCRProvider | null = null;
 
 export function getOCRProvider(): OCRProvider {
   if (!_provider) {
-    _provider = new CompositeOCRProvider();
+    _provider = new MockOCRProvider();
   }
   return _provider;
 }

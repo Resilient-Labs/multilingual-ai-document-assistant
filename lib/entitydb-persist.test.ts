@@ -30,6 +30,7 @@ vi.mock("@/lib/entitydb", () => ({
   getEntityDB: vi.fn(() => ({
     dbPromise: Promise.resolve(mockDb),
   })),
+  insertChunk: vi.fn().mockResolvedValue(undefined),
 }));
 
 import {

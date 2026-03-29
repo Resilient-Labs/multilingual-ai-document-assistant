@@ -385,4 +385,14 @@ When `isSubmitting` is `true`, the button renders only `<Spinner />` with no vis
 
 ---
 
+## Recent Debug Fixes (Current Branch)
+
+| Debug Item | Status | Evidence |
+|---|---|---|
+| #3 · No timeout / AbortSignal on outbound fetch calls | Fixed | Added `AbortSignal.timeout()` to every outbound `fetch` and `replicate.run()` call. Timeout constants centralised in `lib/constants.ts` (`DEEPL_TIMEOUT_MS` 10 s · `OPENROUTER_TIMEOUT_MS` 30 s · `DEEPGRAM_TIMEOUT_MS` 15 s · `REPLICATE_META_TIMEOUT_MS` 10 s · `REPLICATE_RUN_TIMEOUT_MS` 90 s · `AUDIO_DOWNLOAD_TIMEOUT_MS` 30 s). API routes now catch `TimeoutError` and return HTTP 504 instead of hanging indefinitely. Files changed: `app/api/translate/route.ts`, `app/api/safety/route.ts`, `lib/tts/providers/deepgram.ts`, `lib/tts/providers/xtts-replicate.ts`, `lib/tts/providers/minimax-replicate.ts`. |
+| #4 · `/api/documents/extract` outer `catch` swallowed exceptions without logging | Fixed | `app/api/documents/extract/route.ts` now logs unexpected errors in the outer `catch` before returning `internalError(...)`. |
+| #5 · No health/readiness endpoint | Fixed | Added `app/api/health/route.ts` with `GET` and `HEAD`; returns `200` when ready and `503` when required configuration is missing. |
+
+---
+
 *Individual reports: [`principal.md`](../individual/principal.md) · [`security.md`](../individual/security.md) · [`devops.md`](../individual/devops.md) · [`a11y.md`](../individual/a11y.md)*
