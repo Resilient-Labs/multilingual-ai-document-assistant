@@ -39,9 +39,38 @@ export interface OCRProvider {
 }
 
 export class MockOCRProvider implements OCRProvider {
-  async extract(_fileBuffer: ArrayBuffer, _mimeType: string): Promise<RawOCRResult> {
+  async extract(fileBuffer: ArrayBuffer, mimeType: string): Promise<RawOCRResult> {
+    const pageCount =
+      mimeType === "application/pdf" && fileBuffer.byteLength >= 100_000 ? 2 : 1;
+
+    const pages: RawOCRPage[] = Array.from({ length: pageCount }, (_, pageIndex) => {
+      const pageNumber = pageIndex + 1;
+      const width = 612;
+      const height = 792;
+      const blocks: RawOCRBlock[] = [
+        {
+          text: `Mock OCR text page ${pageNumber}`,
+          confidence: 0.99,
+          bbox: { x: 48, y: 72, width: 220, height: 24 },
+        },
+        {
+          text: `Reference ${pageNumber}`,
+          confidence: 0.96,
+          bbox: { x: 48, y: 112, width: 160, height: 20 },
+        },
+      ];
+
+      return {
+        pageNumber,
+        width,
+        height,
+        blocks,
+        fullText: blocks.map((block) => block.text).join("\n"),
+      };
+    });
+
     return {
-      pages: [{ pageNumber: 1, width: 612, height: 792, blocks: [], fullText: "" }],
+      pages,
       language: "en",
     };
   }

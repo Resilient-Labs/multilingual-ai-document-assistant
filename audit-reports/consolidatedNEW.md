@@ -84,6 +84,36 @@ Commit `aca812b` also adds Cursor audit command templates, debug log snapshots, 
 4. Many rapid `POST /api/documents/extract` calls → 429 after threshold within the window.
 5. `POST /api/documents/upload` → same behavior as extract + deprecation headers.
 
+### Post-verification update (2026-03-30)
+
+Follow-up validation was run against the broader commit window `09f36063760fd12014dbcb78d8d8a1e039733627` → `f074c1de51388f1d66743e84a7eea23bdfdc402f`.
+
+**What was run**
+
+- `npm test`
+- `npm run typecheck`
+- `npm run build`
+- Snyk code scan at medium severity threshold
+
+**Final result**
+
+- `npm test` passed: **12/12** files, **105/105** tests
+- `npm run typecheck` passed
+- `npm run build` passed
+- Snyk code scan found **0** issues
+
+**Fixes required to reach green**
+
+- `lib/documents/provider.ts` — `MockOCRProvider` was returning empty OCR output; it was updated to return realistic mock pages, blocks, bounding boxes, and full text so provider and extract-route tests reflect actual downstream normalization behavior.
+- `lib/documents/validation.test.ts`
+- `app/api/documents/extract/route.test.ts`
+
+The two test files above were also updated to use a truly unsupported MIME type (`application/octet-stream`) for invalid-type assertions, because `text/plain` is now intentionally supported by `ALLOWED_MIME_TYPES` and `DocumentTextProvider`.
+
+**Non-blocking note**
+
+- The build still emits existing `no-console` warnings in a few API/TTS files, but these do not fail typecheck, tests, or production build output.
+
 ### Files worth a close review
 
 - `lib/chunking.ts`, `lib/entitydb-persist.ts`, `lib/entitydb.ts` (`insertChunk` / `queryChunks`)

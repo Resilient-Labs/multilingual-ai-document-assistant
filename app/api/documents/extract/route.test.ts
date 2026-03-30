@@ -97,7 +97,7 @@ describe("POST /api/documents/extract", () => {
 
   describe("invalid file type", () => {
     it("returns 400 for unsupported file type", async () => {
-      const file = createMockFile("test.txt", "text/plain", 1024);
+      const file = createMockFile("test.bin", "application/octet-stream", 1024);
       const formData = new FormData();
       formData.append("file", file);
       const request = createMockRequest(formData);
