@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       messages: [{ role: "user", content: question }],
     });
 
-    return result.toDataStreamResponse();
+    return result.toUIMessageStreamResponse();
   } catch {
     return NextResponse.json(
       { error: "Question answering failed" },
