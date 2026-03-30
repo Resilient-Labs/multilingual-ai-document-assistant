@@ -1,4 +1,3 @@
-import fetch from "node-fetch";
 import { promises as fs } from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
@@ -15,6 +14,89 @@ const SUMMARIZATION_PROMPT_PATH = path.join(
   process.cwd(),
   "app/api/summarize/summarizationPrompt.txt"
 );
+
+// guardrails 
+
+const MAX_TEXT_LENGTH = 100_000;
+
+type SensitiveMatch = {
+  type: string;
+  label: string;
+};
+
+const SENSITIVE_PATTERNS: Array<{
+  type: string;
+  label: string;
+  pattern: RegExp;
+}> = [
+  {
+    type: "ssn",
+    label: "Social Security Number (SSN)",
+    // Matches XXX-XX-XXXX, XXX XX XXXX, or 9 consecutive digits
+    pattern: /\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b/,
+  },
+  {
+    type: "credit_card",
+    label: "Credit or Debit Card Number",
+    // Matches 16-digit card numbers with optional spaces/dashes between groups
+    pattern: /\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b/,
+  },
+  {
+    type: "phone",
+    label: "Phone Number",
+    // Matches US/international phone formats: (555) 555-5555, +1 555.555.5555, etc.
+    pattern: /\b(?:\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}\b/,
+  },
+  {
+    type: "email",
+    label: "Email Address",
+    pattern: /\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b/,
+  },
+  {
+    type: "credential",
+    label: "Password or API Key",
+    // Matches patterns like "password: abc123", "api_key=xyz", "token: ..."
+    pattern:
+      /(?:password|passwd|pwd|api[_\s]?key|secret|bearer|token)\s*[:=]\s*\S{4,}/i,
+  },
+  {
+    type: "bank_account",
+    label: "Bank Account or Routing Number",
+    // Matches explicit account/routing number labels followed by digits
+    pattern:
+      /\b(?:account|routing|acct)[\s_\-]?(?:number|num|no\.?|#)?\s*[:=]?\s*\d{8,17}\b/i,
+  },
+  {
+    type: "passport",
+    label: "Passport Number",
+    // Matches common passport formats: letter(s) followed by 6-9 digits
+    pattern: /\b[A-Z]{1,2}\d{6,9}\b/,
+  },
+  {
+    type: "drivers_license",
+    label: "Driver's License Number",
+    // Matches a label followed by an alphanumeric ID
+    pattern:
+      /\b(?:driver['s]*\s*licen[sc]e|dl|d\.l\.)\s*(?:number|num|no\.?|#)?\s*[:=]?\s*[A-Z0-9]{5,15}\b/i,
+  },
+];
+
+/**
+ Scans text for sensitive PII patterns. Returns every category detected.
+ Uses per-category deduplification so each type appears at most once.
+ 
+ */
+function detectSensitiveInfo(text: string): SensitiveMatch[] {
+  const found: SensitiveMatch[] = [];
+  for (const { type, label, pattern } of SENSITIVE_PATTERNS) {
+    if (pattern.test(text)) {
+      found.push({ type, label });
+    }
+  }
+  return found;
+}
+
+// ---------------------------------------------------------------------------
 
 type SummarizeRequestBody = {
   fullText?: unknown;
@@ -58,6 +140,30 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // -- Guardrail: length cap --------------------------------------------------
+    if (trimmed.length > MAX_TEXT_LENGTH) {
+      return NextResponse.json(
+        {
+          error: `Text exceeds the maximum allowed length of ${MAX_TEXT_LENGTH.toLocaleString()} characters. Please shorten your document before summarizing.`,
+        },
+        { status: 422 }
+      );
+    }
+
+    // -- Guardrail: sensitive information detection ----------------------------
+    const sensitiveMatches = detectSensitiveInfo(trimmed);
+    if (sensitiveMatches.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Submission blocked: your document appears to contain sensitive personal information. Please remove it before summarizing.",
+          detectedTypes: sensitiveMatches,
+        },
+        { status: 422 }
+      );
+    }
+    // --------------------------------------------------------------------------
 
     const apiKey = process.env.HF_TOKEN;
     if (!apiKey) {
