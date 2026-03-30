@@ -98,6 +98,85 @@ export class TesseractOCRProvider implements OCRProvider {
   }
 }
 
+/**
+ * Extracts text from PDF, DOCX, DOC, and TXT files.
+ * Returns a single-page RawOCRResult with the full text and no bounding boxes.
+ */
+export class DocumentTextProvider implements OCRProvider {
+  private static readonly DOCX_MIME =
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  private static readonly DOC_MIME = "application/msword";
+
+  async extract(fileBuffer: ArrayBuffer, mimeType: string): Promise<RawOCRResult> {
+    const text = await this.extractText(fileBuffer, mimeType);
+    return {
+      pages: [
+        {
+          pageNumber: 1,
+          width: 612,
+          height: 792,
+          blocks: text.trim().length > 0
+            ? [{ text: text.trim(), confidence: 1, bbox: { x: 0, y: 0, width: 612, height: 792 } }]
+            : [],
+          fullText: text,
+        },
+      ],
+      language: "en",
+    };
+  }
+
+  private async extractText(buf: ArrayBuffer, mime: string): Promise<string> {
+    if (mime === "text/plain") {
+      return new TextDecoder().decode(buf);
+    }
+
+    if (mime === "application/pdf") {
+      const { extractText } = await import("unpdf");
+      const result = await extractText(new Uint8Array(buf));
+      return Array.isArray(result.text) ? result.text.join("\n\n") : String(result.text);
+    }
+
+    if (mime === DocumentTextProvider.DOCX_MIME) {
+      const mammoth = await import("mammoth");
+      const result = await mammoth.default.extractRawText({ buffer: Buffer.from(buf) });
+      return result.value;
+    }
+
+    if (mime === DocumentTextProvider.DOC_MIME) {
+      const WordExtractor = (await import("word-extractor")).default;
+      const extractor = new WordExtractor();
+      const doc = await extractor.extract(Buffer.from(buf));
+      return doc.getBody();
+    }
+
+    throw new Error(`DocumentTextProvider: unsupported MIME type "${mime}"`);
+  }
+}
+
+/**
+ * Routes extraction to the appropriate provider based on MIME type.
+ * Images → TesseractOCRProvider, documents → DocumentTextProvider.
+ */
+export class CompositeOCRProvider implements OCRProvider {
+  private imageProvider: OCRProvider;
+  private textProvider: OCRProvider;
+
+  constructor(
+    imageProvider?: OCRProvider,
+    textProvider?: OCRProvider
+  ) {
+    this.imageProvider = imageProvider ?? new TesseractOCRProvider();
+    this.textProvider = textProvider ?? new DocumentTextProvider();
+  }
+
+  async extract(fileBuffer: ArrayBuffer, mimeType: string): Promise<RawOCRResult> {
+    if (mimeType.startsWith("image/")) {
+      return this.imageProvider.extract(fileBuffer, mimeType);
+    }
+    return this.textProvider.extract(fileBuffer, mimeType);
+  }
+}
+
 export function normalizeBlockBbox(
   rawBbox: { x: number; y: number; width: number; height: number },
   pageWidth: number,
