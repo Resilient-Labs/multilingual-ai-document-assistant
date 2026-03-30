@@ -28,6 +28,7 @@ import { persistOCRToEntityDB } from "@/lib/entitydb-persist";
 import type { OCRResult } from "@/types";
 import { chunkText } from "@/lib/chunking";
 import { insertChunk } from "@/lib/entitydb";
+import { MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 
 const HEIC_BRANDS = ["heic", "heix", "hevc", "hevx", "heis", "heim", "mif1", "msf1"];
 
@@ -227,7 +228,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     maxFiles: 1,
-    maxSize: 10 * 1024 * 1024,
+    maxSize: MAX_FILE_SIZE_BYTES,
     accept: {
       "application/pdf": [".pdf"],
       "application/msword": [".doc"],
@@ -309,8 +310,18 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     ? ocrProgress
     : "Translate document";
 
-  const ErrorMessage = error && (
-    <div className="rounded-2xl border border-destructive/40 bg-destructive/5 text-destructive p-4 text-sm">
+  const ErrorMessage = (
+    <div
+      role="alert"
+      aria-live="assertive"
+      aria-atomic="true"
+      className={cn(
+        "rounded-2xl border p-4 text-sm",
+        error
+          ? "border-destructive/40 bg-destructive/5 text-destructive"
+          : "hidden"
+      )}
+    >
       {error}
     </div>
   );
