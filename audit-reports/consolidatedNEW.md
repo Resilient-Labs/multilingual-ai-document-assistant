@@ -9,6 +9,20 @@ This section documents what landed on that branch. It is aligned with the **Chun
 
 This work delivers a **text chunking path for RAG**: `chunkText()` lives under `lib/`, runs at persist time, and each chunk is stored via **`insertChunk()`** so EntityDB can embed and serve semantic search. The same commits also **align upload/extraction with the canonical `/api/documents/extract` route**, add **rate limiting** for CPU-heavy extraction, **refactor the upload UI** into a hook plus shared language control, fix **client vs server max file size**, and improve **upload error announcement** for assistive tech.
 
+### Top 5 Must-Fix Items
+
+The following issues were flagged 🔴 High severity across the Principal Engineer, Security, and DevOps audits run against this commit range (`09f36063..f074c1de`). Full details in `audit-reports/AUDIT-2026-03-30-1244/consolidated/CONSOLIDATED.md`.
+
+| # | Severity | File(s) | Issue | Fix |
+|---|----------|---------|-------|-----|
+| 1 | 🔴 High | `lib/documents/provider.ts` | **MockOCRProvider is the production default.** `getOCRProvider()` always falls back to `MockOCRProvider`, which returns empty text. No production code calls `setOCRProvider()` — only tests do. Every document upload silently produces empty OCR output in production. | Change the default to `new CompositeOCRProvider()`, or throw a configuration error when no provider is set. Restrict `MockOCRProvider` to `NODE_ENV === 'test'` only. |
+| 2 | 🔴 High | `app/api/documents/upload/route.ts`, `middleware.ts` | **No authentication on upload/extract routes.** Neither `/api/documents/upload` nor `/api/documents/extract` checks user identity. Any unauthenticated request from the internet can submit arbitrary files and trigger OCR processing, exhausting compute/API quotas. | Add a session check at the top of the POST handler: `const session = await getServerSession(authOptions); if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });` |
+| 3 | 🔴 High | `middleware.ts` | **Rate limiter is broken in production on two fronts.** (a) `x-forwarded-for` is fully attacker-controllable — any client can spoof a fresh IP on every request and bypass the 15-req/min limit entirely. (b) The in-memory `Map` resets on every serverless cold start, making the limit silently ineffective at scale. The Map also has no eviction, causing a memory leak under many unique IPs. | Use the platform-provided `req.ip` (Vercel) or validate proxy depth. Replace the Map with a distributed atomic counter (e.g., `@upstash/ratelimit` with Vercel KV or Redis). |
+| 4 | 🔴 High | `hooks/useDocumentUpload.ts` | **God hook (≥7 responsibilities) with silent fire-and-forget embedding.** `useDocumentUpload.submit` orchestrates logging, client OCR, HEIC decoding, server upload, entity DB persistence, text chunking/vector insertion, session storage, and navigation in one 152-line function. Chunking/embedding failures only surface as `console.error` after the user navigates away, leaving documents silently non-queryable for RAG. | Extract `useImageOCR` and `useDocumentPersistence` sub-hooks. Await or queue the chunking/embedding step with retry logic and a user-visible failure notification. |
+| 5 | 🟡 Medium | `lib/documents/provider.ts` | **Tesseract hard-codes `"eng"` in a multilingual app.** `TesseractOCRProvider` always calls `createWorker("eng")`. The app supports 19 languages, but Arabic, Chinese, Japanese, Korean, Hindi, and others will produce near-empty or garbled OCR. `sourceLang` from the client is never forwarded to the server OCR provider. | Add an optional `language` parameter to `OCRProvider.extract` (or the constructor), map UI language codes to Tesseract language codes, and propagate `sourceLang` through the call chain. |
+
+---
+
 ### Ticket alignment (audit “Top 5”)
 
 | Audit item | What shipped in this range |

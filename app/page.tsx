@@ -126,7 +126,7 @@ export default function Page() {
         <div className="w-full max-w-2xl">
           <h2 className="text-3xl font-bold font-display mb-2">Upload a document</h2>
           <p className="text-base text-muted-foreground mb-8">
-            Supports PDF, DOC, DOCX, TXT, and images up to 10 MB.
+            Supports PDF, DOC, DOCX, TXT, and images up to 4.5 MB.
           </p>
           <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
             <UploadForm />
