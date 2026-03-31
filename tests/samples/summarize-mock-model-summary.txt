@@ -1,0 +1,23 @@
+1. Document Purpose (Clear Overview)
+
+This notice is a sample Explanation of Benefits (EOB). It walks the member through one processed claim: who provided care, how network status affects pricing, what the plan paid, and what steps to take if something looks wrong.
+
+2. Detailed Summary
+
+The document describes a single preventive visit—an annual wellness appointment—at an in-network primary care clinic on March 15, 2024. It lists sample member and plan labels, then gives claim timing (received and processed dates). It explains that the billed charge is higher than the plan’s allowed amount because network agreements produce discounted pricing before benefits apply. The plan paid a stated amount toward covered charges and notes that preventive care is often covered in full when criteria are met, though the member could still be in a deductible phase or subject to other adjustments. It warns that copays, coinsurance, or provider bills may still apply and that pending claims can change totals later. Finally, it outlines internal and possible external appeals and tells the member where to find definitions and how to get help.
+
+3. Vocabulary Explanations
+
+• **Explanation of Benefits (EOB):** A statement from the health plan that explains what was billed, what the plan covers, and what it paid. It is not itself a bill from the doctor’s office.
+
+• **Allowed amount:** The maximum dollar figure your plan recognizes for a covered service after network discounts. The plan’s payment is often based on this number rather than the full billed charge.
+
+• **Coinsurance:** Your share of costs after the plan pays its portion, usually a percentage of the allowed amount rather than a flat fee.
+
+• **Copayment (copay):** A fixed amount you pay for a covered visit or service, defined in your benefit booklet.
+
+• **Deductible:** The amount you pay out of pocket each plan year before the plan begins paying its share for certain services, except for categories that are covered before the deductible is met.
+
+• **In-network:** Providers who contract with your plan and agree to negotiated rates. Using in-network care usually costs less than going out of network.
+
+• **Preventive care:** Services intended to prevent illness or catch problems early, such as many routine screenings and annual wellness visits when billed appropriately.
