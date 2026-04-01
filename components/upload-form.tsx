@@ -26,6 +26,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { logDocumentSubmission } from "@/app/actions/logging";
 import { persistOCRToEntityDB } from "@/lib/entitydb-persist";
 import type { OCRResult } from "@/types";
+import { chunkText } from "@/lib/chunking";
+import { insertChunk } from "@/lib/entitydb";
 
 const HEIC_BRANDS = ["heic", "heix", "hevc", "hevx", "heis", "heim", "mif1", "msf1"];
 
@@ -190,6 +192,19 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
           file,
         });
       }
+
+      setOcrProgress("Preparing document for Q&A…");
+
+      Promise.resolve().then(async () => {
+        try {
+          const chunks = chunkText(fullText);
+          for (const chunk of chunks) {
+            await insertChunk(chunk.text, { docId, chunkId: chunk.id });
+          }
+        } catch (err) {
+          console.error("[chunking] Failed to embed chunks:", err);
+        }
+      });
 
       sessionStorage.setItem(
         `translate-${docId}`,
