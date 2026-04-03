@@ -1,0 +1,66 @@
+import { test, expect } from "@playwright/test";
+import {
+  seedTranslateSession,
+  TEST_DOC_ID,
+  TEST_SESSION,
+} from "./helpers/session";
+
+// ─────────────────────────────────────────
+// FLOW: Translate Page — session hydration, layout, navigation
+// AUDIT COVERAGE: PRINCIPAL MED-1 (sessionStorage transport),
+//   A11Y MED (page title, aria-labels)
+// ─────────────────────────────────────────
+
+test.describe("Translate Page", () => {
+  test("TRANS-01: shows 'Session expired' when no sessionStorage data", async ({
+    page,
+  }) => {
+    await page.goto(`/translate/${TEST_DOC_ID}`);
+
+    await expect(page.getByText("Session expired")).toBeVisible();
+    await expect(
+      page.getByText("No document data found. Please upload your document again."),
+    ).toBeVisible();
+  });
+
+  test("TRANS-02: 'Back to upload' button navigates to home page", async ({
+    page,
+  }) => {
+    await page.goto(`/translate/${TEST_DOC_ID}`);
+
+    await page.getByRole("button", { name: /back to upload/i }).click();
+    await page.waitForURL("/");
+  });
+
+  test("TRANS-03: loads and displays original document from sessionStorage", async ({
+    page,
+  }) => {
+    await seedTranslateSession(page);
+    await page.goto(`/translate/${TEST_DOC_ID}`);
+
+    const originalTextarea = page.getByLabel("Original document text");
+    await expect(originalTextarea).toBeVisible();
+    await expect(originalTextarea).toHaveValue(TEST_SESSION.fullText);
+  });
+
+  test("TRANS-04: header shows filename and language pair", async ({
+    page,
+  }) => {
+    await seedTranslateSession(page);
+    await page.goto(`/translate/${TEST_DOC_ID}`);
+
+    await expect(page.getByText(TEST_SESSION.filename)).toBeVisible();
+    await expect(page.getByText("English")).toBeVisible();
+    await expect(page.getByText("Spanish")).toBeVisible();
+  });
+
+  test("TRANS-05: translation failure shows error alert", async ({ page }) => {
+    await seedTranslateSession(page);
+    await page.goto(`/translate/${TEST_DOC_ID}`);
+
+    // /api/translate route does not exist on this branch — the fetch 404s
+    await expect(page.getByText("Translation failed")).toBeVisible({
+      timeout: 15_000,
+    });
+  });
+});

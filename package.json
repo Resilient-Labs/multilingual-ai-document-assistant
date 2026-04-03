@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "next lint",
     "format": "npx prettier --check",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "npx playwright test",
+    "test:headed": "npx playwright test --headed --project=chromium",
+    "test:report": "npx playwright show-report"
   },
   "dependencies": {
     "@babycommando/entity-db": "github:babycommando/entity-db",
@@ -40,6 +43,7 @@
     "vaul": "^1.1.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/node": "^20.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
