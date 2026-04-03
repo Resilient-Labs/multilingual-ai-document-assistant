@@ -20,7 +20,7 @@ export interface AskTabProps {
   className?: string;
 }
 
-export function AskTab({ fullText, className }: AskTabProps) {
+export function AskTab({ docId, fullText, className }: AskTabProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
