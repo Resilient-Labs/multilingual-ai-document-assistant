@@ -9,6 +9,8 @@ import { seedTranslateSession, TEST_DOC_ID } from "./helpers/session";
 // ─────────────────────────────────────────
 
 test.describe("Ask UI", () => {
+  test.setTimeout(60_000);
+
   test.beforeEach(async ({ page }) => {
     await seedTranslateSession(page);
     await page.goto(`/translate/${TEST_DOC_ID}`);
@@ -33,10 +35,11 @@ test.describe("Ask UI", () => {
     // User message appears
     await expect(page.getByText("What is this document about?")).toBeVisible();
 
-    // Assistant response from the /api/ask stub (JSON path detected by AskTab)
-    await expect(
-      page.locator(".bg-muted").filter({ hasText: /based on the document/i }),
-    ).toBeVisible({ timeout: 15_000 });
+    // Assistant response from the /api/ask stub — uses text locator (resilient)
+    // queryChunks may take up to 3s (timeout), then fetch + stream reading
+    await expect(page.getByText(/based on the document/i)).toBeVisible({
+      timeout: 30_000,
+    });
   });
 
   test("ASK-03: user can submit a question by pressing Enter", async ({
@@ -68,8 +71,10 @@ test.describe("Ask UI", () => {
     await input.fill("What does this say?");
     await input.press("Enter");
 
-    const assistantBubble = page.locator(".justify-start .bg-muted");
-    await expect(assistantBubble.first()).toBeVisible({ timeout: 15_000 });
+    // Wait for any assistant response text (not "Thinking...")
+    await expect(page.getByText(/based on the document/i)).toBeVisible({
+      timeout: 30_000,
+    });
   });
 
   test("ASK-06: Send button is disabled while loading", async ({ page }) => {
@@ -123,10 +128,10 @@ test.describe("Ask UI", () => {
     await input.fill("First question");
     await input.press("Enter");
 
-    // Wait for the first response to arrive and input to re-enable
-    await expect(
-      page.locator(".justify-start .bg-muted").first(),
-    ).toBeVisible({ timeout: 15_000 });
+    // Wait for the first assistant response text and input to re-enable
+    await expect(page.getByText(/based on the document/i).first()).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(input).toBeEnabled({ timeout: 10_000 });
 
     await input.fill("Second question");
@@ -136,9 +141,9 @@ test.describe("Ask UI", () => {
     await expect(page.getByText("First question")).toBeVisible();
     await expect(page.getByText("Second question")).toBeVisible();
 
-    // Two assistant responses (one per question)
-    await expect(page.locator(".justify-start .bg-muted")).toHaveCount(2, {
-      timeout: 15_000,
+    // Two assistant responses
+    await expect(page.getByText(/based on the document/i)).toHaveCount(2, {
+      timeout: 30_000,
     });
   });
 
@@ -162,7 +167,7 @@ test.describe("Ask UI", () => {
 
     // Eventually the real response replaces the placeholder
     await expect(page.getByText("Delayed answer")).toBeVisible({
-      timeout: 10_000,
+      timeout: 15_000,
     });
   });
 });

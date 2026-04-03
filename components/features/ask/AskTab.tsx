@@ -43,7 +43,12 @@ export function AskTab({ docId, fullText, className }: AskTabProps) {
 
     let chunks: string[];
     try {
-      const results = await queryChunks(question, { limit: 5 });
+      const results = await Promise.race([
+        queryChunks(question, { limit: 5 }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("queryChunks timeout")), 3000),
+        ),
+      ]);
       chunks = results.length > 0 ? results.map((r) => r.text) : [fullText];
     } catch {
       chunks = [fullText];

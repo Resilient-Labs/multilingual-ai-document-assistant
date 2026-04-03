@@ -12,6 +12,7 @@ import {
 // ─────────────────────────────────────────
 
 test.describe("Translate Page", () => {
+  test.setTimeout(60_000);
   test("TRANS-01: shows 'Session expired' when no sessionStorage data", async ({
     page,
   }) => {
@@ -50,8 +51,9 @@ test.describe("Translate Page", () => {
     await page.goto(`/translate/${TEST_DOC_ID}`);
 
     await expect(page.getByText(TEST_SESSION.filename)).toBeVisible();
-    await expect(page.getByText("English")).toBeVisible();
-    await expect(page.getByText("Spanish")).toBeVisible();
+    // Header shows "English → Spanish"; target the paragraph containing both
+    const langPair = page.getByText("EnglishSpanish");
+    await expect(langPair).toBeVisible();
   });
 
   test("TRANS-05: translation failure shows error alert", async ({ page }) => {

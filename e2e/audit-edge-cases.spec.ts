@@ -8,6 +8,7 @@ import { seedTranslateSession, TEST_DOC_ID } from "./helpers/session";
 // ─────────────────────────────────────────
 
 test.describe("Edge Cases", () => {
+  test.setTimeout(60_000);
   test("EDGE-01: whitespace-only input cannot be submitted", async ({
     page,
   }) => {

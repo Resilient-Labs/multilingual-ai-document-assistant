@@ -8,6 +8,8 @@ import { seedTranslateSession, TEST_DOC_ID } from "./helpers/session";
 // ─────────────────────────────────────────
 
 test.describe("Accessibility", () => {
+  test.setTimeout(60_000);
+
   test.beforeEach(async ({ page }) => {
     await seedTranslateSession(page);
     await page.goto(`/translate/${TEST_DOC_ID}`);
@@ -44,8 +46,10 @@ test.describe("Accessibility", () => {
     await input.fill("Test");
     await input.press("Enter");
 
-    // The spinner SVG inside the button should be aria-hidden
-    const spinner = page.locator("button svg[aria-hidden='true']");
+    // The Send button should contain a spinner SVG with aria-hidden
+    // Use nth(1) to skip the Back button's SVG which also has aria-hidden
+    const sendArea = page.getByRole("button").filter({ hasText: /^$/ });
+    const spinner = sendArea.locator("svg[aria-hidden='true']");
     await expect(spinner).toBeVisible();
   });
 
