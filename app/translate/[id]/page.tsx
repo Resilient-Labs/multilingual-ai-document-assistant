@@ -34,6 +34,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { TtsPlaybackVisual } from "@/components/features/tts/TtsPlaybackVisual";
 import { isDeepgramLanguage } from "@/lib/tts/deepgram-voices";
 import type { Gender, SpanishAccent } from "@/lib/tts/types";
+import { AskTab } from "@/components/features/ask/AskTab";
 
 interface TranslateSession {
   fullText: string;
@@ -408,6 +409,10 @@ export default function TranslatePage() {
               )}
             </CardContent>
           </Card>
+
+          {session && (
+            <AskTab docId={id} fullText={session.fullText} />
+          )}
         </div>
       </main>
 
