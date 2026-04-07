@@ -10,3 +10,6 @@ tsconfig.tsbuildinfo
 playwright-report/
 test-results/
 e2e/.auth/
+*.traineddata
+logs/
+.vscode

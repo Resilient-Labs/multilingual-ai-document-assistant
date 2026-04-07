@@ -1,0 +1,2 @@
+{"sessionId":"3e973d","location":"audit-accessibility.spec.ts:A11Y-05","message":"alert elements found","data":{"count":1,"filteredCount":1},"timestamp":1774312913516}
+{"sessionId":"3e973d","location":"audit-error-handling.spec.ts:ERR-02","message":"alert elements found","data":{"count":0,"filteredCount":0},"timestamp":1774312915838}
