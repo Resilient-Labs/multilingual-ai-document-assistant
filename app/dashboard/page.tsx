@@ -17,10 +17,11 @@ import {
 import { DetectTab } from "@/components/features/detect/DetectTab"
 import { DocumentTabs } from "@/components/features/tabs-layout/DocumentTabs"
 import { AskTab } from "@/components/features/ask/AskTab"
-
+import { useDocumentSession } from "@/hooks/useDocumentSession"
 export default function Page() {
 
   const isMobile = useIsMobile()
+  const { data } = useDocumentSession()
 
   return (<>
     {isMobile ? (
@@ -108,7 +109,10 @@ export default function Page() {
           <div className="flex-1">
             <DocumentTabs
               detectContent={<DetectTab />}
-              askContent={<AskTab />}
+              askContent={<AskTab
+                docId={data?.document.id ?? ""}
+                fullText={data?.ocr.fullText ?? ""}
+                />}
               className="w-[400px]"
             />
           </div>
