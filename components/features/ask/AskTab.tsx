@@ -49,7 +49,10 @@ export function AskTab({ docId, fullText, className }: AskTabProps) {
           setTimeout(() => reject(new Error("queryChunks timeout")), 3000),
         ),
       ]);
-      chunks = results.length > 0 ? results.map((r) => r.text) : [fullText];
+      // Filter results to only include chunks for the current document via docId
+      // This is important to avoid mixing chunks from different documents
+      const scopedResults = results.filter((r) => r.docId === docId);
+      chunks = scopedResults.length > 0 ? scopedResults.map((r) => r.text) : [fullText];
     } catch {
       chunks = [fullText];
     }
@@ -120,7 +123,7 @@ export function AskTab({ docId, fullText, className }: AskTabProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, fullText]);
+  }, [input, isLoading, fullText, docId]);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter" && !e.shiftKey) {

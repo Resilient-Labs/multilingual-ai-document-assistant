@@ -21,6 +21,7 @@ export function TtsPlaybackVisual({
         type="button"
         className="mt-2 text-xs underline"
         onClick={() => audioRef.current?.play()}
+        data-audio-url={audioUrl}
       >
         Play
       </button>
