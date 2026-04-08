@@ -12,6 +12,32 @@
 
 import { EntityDB } from "@babycommando/entity-db";
 
+/**
+ * Internal interface and helper for raw IDB access, bypassing the embedding
+ * pipeline. Used by getChatHistory to read records without generating vectors.
+ * Mirrors the pattern in entitydb-persist.ts and useDocumentSession.ts.
+ */
+
+interface EntityDBInternal {
+  dbPromise: Promise<{
+    transaction(
+      store: string,
+      mode: "readonly" | "readwrite"
+    ): {
+      objectStore(name: string): {
+        getAll(): Promise<Array<Record<string, unknown>>>;
+        add(value: object): Promise<IDBValidKey>;
+      };
+    };
+  }>;
+}
+
+function getIdb(): Promise<EntityDBInternal["dbPromise"] extends Promise<infer T> ? T : never> {
+  const entityDB: EntityDB = getEntityDB();
+  const internal = entityDB as unknown as EntityDBInternal;
+  return internal.dbPromise;
+}
+
 const VECTOR_PATH = "document-assistant";
 const EMBEDDING_MODEL = "Xenova/all-MiniLM-L6-v2";
 
@@ -65,4 +91,57 @@ export async function queryChunks(
     chunkId: r.chunkId,
     similarity: r.similarity,
   }));
+}
+
+export const CHAT_MESSAGE_ENTITY_KEY = "chat_message" as const;
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: number;
+}
+
+/**
+ * Persist a chat message into EntityDB. Triggers embedding generation so
+ * the message content is searchable via queryChunks.
+ */
+export async function insertChatMessage(
+  docId: string,
+  message: Pick<ChatMessage, "role" | "content">
+): Promise<void> {
+  const db = getEntityDB();
+  await db.insert({
+    text: message.content,
+    entityKey: CHAT_MESSAGE_ENTITY_KEY,
+    docId,
+    role: message.role,
+    timestamp: Date.now(),
+  });
+}
+
+/**
+ * Retrieve all persisted chat messages for a document, sorted by timestamp ascending.
+ * Uses raw IDB access to bypass the embedding pipeline.
+ */
+export async function getChatHistory(docId: string): Promise<ChatMessage[]> {
+  if (typeof window === "undefined") {
+    return [];
+  }
+  const db = await getIdb();
+  const tx = db.transaction("vectors", "readonly");
+  const store = tx.objectStore("vectors");
+  const records = await store.getAll();
+
+  return records
+    .filter(
+      (r) =>
+        r["entityKey"] === CHAT_MESSAGE_ENTITY_KEY &&
+        r["docId"] === docId
+    )
+    .sort((a, b) => ((a["timestamp"] as number) ?? 0) - ((b["timestamp"] as number) ?? 0))
+    .map((r) => ({
+      role: r["role"] as ChatMessage["role"],
+      content: r["text"] as string,
+      timestamp: r["timestamp"] as number,
+    }));
 }

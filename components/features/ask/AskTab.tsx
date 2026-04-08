@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { queryChunks } from "@/lib/entitydb";
+import { useChatHistory } from "@/hooks/useChatHistory";
 import { cn } from "@/lib/utils";
 
-interface Message {
+interface PendingMessage {
   role: "user" | "assistant";
   content: string;
 }
@@ -21,16 +22,19 @@ export interface AskTabProps {
 }
 
 export function AskTab({ docId, fullText, className }: AskTabProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const chatHistory = useChatHistory(docId);
+  const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const displayMessages = [...chatHistory.messages, ...pendingMessages];
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [chatHistory.messages, pendingMessages]);
 
   const handleSubmit = useCallback(async () => {
     const question = input.trim();
@@ -38,7 +42,10 @@ export function AskTab({ docId, fullText, className }: AskTabProps) {
 
     setInput("");
     setError(null);
-    setMessages((prev) => [...prev, { role: "user", content: question }]);
+    setPendingMessages([
+      { role: "user", content: question },
+      { role: "assistant", content: "" },
+    ]);
     setIsLoading(true);
 
     let chunks: string[];
@@ -56,9 +63,6 @@ export function AskTab({ docId, fullText, className }: AskTabProps) {
     } catch {
       chunks = [fullText];
     }
-
-    // Append a placeholder assistant message to stream tokens into
-    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
     try {
       const res = await fetch("/api/ask", {
@@ -96,34 +100,34 @@ export function AskTab({ docId, fullText, className }: AskTabProps) {
           // Not complete JSON yet — treat as streaming tokens
         }
 
-        setMessages((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { role: "assistant", content: displayText };
-          return updated;
-        });
+        setPendingMessages([
+          { role: "user", content: question },
+          { role: "assistant", content: displayText },
+        ]);
       }
 
       // Final parse attempt after stream closes
+      let finalContent = accumulated;
       try {
         const parsed = JSON.parse(accumulated) as { answer?: string };
         if (parsed.answer !== undefined) {
-          setMessages((prev) => {
-            const updated = [...prev];
-            updated[updated.length - 1] = { role: "assistant", content: parsed.answer! };
-            return updated;
-          });
+          finalContent = parsed.answer;
         }
       } catch {
         // Already streamed as raw tokens — nothing to do
       }
+
+      // Persist both messages, then clear pending so they render via chatHistory
+      await chatHistory.addMessage("user", question);
+      await chatHistory.addMessage("assistant", finalContent);
+      setPendingMessages([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
-      // Remove the empty placeholder on error
-      setMessages((prev) => prev.slice(0, -1));
+      setPendingMessages([]);
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, fullText, docId]);
+  }, [input, isLoading, fullText, docId, chatHistory.addMessage]);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -141,15 +145,20 @@ export function AskTab({ docId, fullText, className }: AskTabProps) {
       <CardContent className="flex flex-col gap-4">
         {/* Message list */}
         <div className="flex max-h-80 min-h-[120px] flex-col gap-3 overflow-y-auto pr-1">
-          {messages.length === 0 && (
+          {chatHistory.loading ? (
+            <span className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Spinner className="size-3" aria-hidden="true" />
+              Loading history...
+            </span>
+          ) : displayMessages.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Ask a question about the document above.
             </p>
-          )}
+          ) : null}
 
-          {messages.map((msg, i) => {
+          {!chatHistory.loading && displayMessages.map((msg, i) => {
             const isAssistant = msg.role === "assistant";
-            const isLastAssistant = isAssistant && i === messages.length - 1 && isLoading;
+            const isLastAssistant = isAssistant && i === displayMessages.length - 1 && isLoading;
 
             return (
               <div
