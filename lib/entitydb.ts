@@ -12,6 +12,12 @@
 
 import { EntityDB } from "@babycommando/entity-db";
 
+/**
+ * Internal interface and helper for raw IDB access, bypassing the embedding
+ * pipeline. Used by getChatHistory to read records without generating vectors.
+ * Mirrors the pattern in entitydb-persist.ts and useDocumentSession.ts.
+ */
+
 interface EntityDBInternal {
   dbPromise: Promise<{
     transaction(
