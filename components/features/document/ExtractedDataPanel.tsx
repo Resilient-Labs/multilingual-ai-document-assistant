@@ -1,126 +1,112 @@
-"use client";
+'use client'
 
-import { useEffect, useState } from "react";
-import { useDocumentSession } from "@/hooks/useDocumentSession";
-import type { CanonicalDocument } from "@/types/CanonicalDocument";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-} from "@/components/ui/card";
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-} from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import {
-  Alert,
-  AlertTitle,
-  AlertDescription,
-} from "@/components/ui/alert";
-import { Spinner } from "@/components/ui/spinner";
-import { Progress } from "@/components/ui/progress";
+import { useEffect, useState } from 'react'
+import { useDocumentSession } from '@/hooks/useDocumentSession'
+import type { CanonicalDocument } from '@/types/CanonicalDocument'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { Spinner } from '@/components/ui/spinner'
+import { Progress } from '@/components/ui/progress'
 
 function formatDate(timestamp: number): string {
   return new Date(timestamp).toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 export type JobStatus =
-  | "upload/received"
-  | "processing"
-  | "new_doc_processed"
-  | "post_persist"
-  | "file_selected"
-  | "error";
+  | 'upload/received'
+  | 'processing'
+  | 'new_doc_processed'
+  | 'post_persist'
+  | 'file_selected'
+  | 'error'
 
 export const JOB_STATUS_PROGRESS: Record<JobStatus, number> = {
-  "upload/received": 15,
+  'upload/received': 15,
   processing: 55,
   new_doc_processed: 80,
   post_persist: 95,
   file_selected: 100,
   error: 0,
-};
+}
 
 export const JOB_STATUS_LABEL: Record<JobStatus, string> = {
-  "upload/received": "Upload received…",
-  processing: "Processing document…",
-  new_doc_processed: "Finalising extraction…",
-  post_persist: "Saving results…",
-  file_selected: "Ready",
-  error: "An error occurred",
-};
+  'upload/received': 'Upload received…',
+  processing: 'Processing document…',
+  new_doc_processed: 'Finalising extraction…',
+  post_persist: 'Saving results…',
+  file_selected: 'Ready',
+  error: 'An error occurred',
+}
 
 function buildInitialFieldValues(
-  candidates: CanonicalDocument["fieldCandidates"]
+  candidates: CanonicalDocument['fieldCandidates']
 ): Record<string, string> {
-  return Object.fromEntries(candidates.map((fc) => [fc.id, fc.value]));
+  return Object.fromEntries(candidates.map((fc) => [fc.id, fc.value]))
 }
 
 export interface ExtractedDataPanelProps {
-  sessionId?: string;
-  jobStatus?: JobStatus;
+  sessionId?: string
+  jobStatus?: JobStatus
 }
 
 export function ExtractedDataPanel({
   sessionId,
-  jobStatus = "file_selected",
+  jobStatus = 'file_selected',
 }: ExtractedDataPanelProps): React.ReactElement {
-  const { data, loading, error } = useDocumentSession(sessionId);
+  const { data, loading, error } = useDocumentSession(sessionId)
 
-  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
-  const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
+  const [isSubmitted, setIsSubmitted] = useState<boolean>(false)
+  const [validationError, setValidationError] = useState<string | null>(null)
 
-  const isReady = jobStatus === "file_selected";
-  const isJobError = jobStatus === "error";
+  const isReady = jobStatus === 'file_selected'
+  const isJobError = jobStatus === 'error'
 
   useEffect(() => {
     if (data) {
-      setFieldValues(buildInitialFieldValues(data.fieldCandidates));
-      setIsSubmitted(false);
-      setValidationError(null);
+      setFieldValues(buildInitialFieldValues(data.fieldCandidates))
+      setIsSubmitted(false)
+      setValidationError(null)
     }
-  }, [data]);
+  }, [data])
 
   function handleTabChange(): void {
-    setIsSubmitted(false);
-    setValidationError(null);
+    setIsSubmitted(false)
+    setValidationError(null)
   }
 
   function handleFieldChange(candidateId: string, value: string): void {
-    setFieldValues((prev) => ({ ...prev, [candidateId]: value }));
-    setValidationError(null);
-    setIsSubmitted(false);
+    setFieldValues((prev) => ({ ...prev, [candidateId]: value }))
+    setValidationError(null)
+    setIsSubmitted(false)
   }
 
   function handleSubmit(): void {
-    if (!data) return;
+    if (!data) return
 
     const allFilled = data.fieldCandidates.every((fc) => {
-      const value = fieldValues[fc.id];
-      return !!value && value.trim() !== "";
-    });
+      const value = fieldValues[fc.id]
+      return !!value && value.trim() !== ''
+    })
 
     if (!allFilled) {
-      setValidationError("All fields must be filled before submitting.");
-      return;
+      setValidationError('All fields must be filled before submitting.')
+      return
     }
 
-    setValidationError(null);
-    setIsSubmitted(true);
+    setValidationError(null)
+    setIsSubmitted(true)
   }
 
   return (
@@ -236,11 +222,11 @@ export function ExtractedDataPanel({
               ) : (
                 <div className="flex flex-col gap-4">
                   {data.fieldCandidates.map((fc) => {
-                    const fieldId = `candidate-field-${fc.id}`;
-                    const value = fieldValues[fc.id];
+                    const fieldId = `candidate-field-${fc.id}`
+                    const value = fieldValues[fc.id]
                     const isEmpty =
                       validationError !== null &&
-                      (!value || value.trim() === "");
+                      (!value || value.trim() === '')
 
                     return (
                       <div key={fc.id} className="flex flex-col gap-1.5">
@@ -248,29 +234,26 @@ export function ExtractedDataPanel({
                         <Input
                           id={fieldId}
                           type="text"
-                          value={value ?? ""}
+                          value={value ?? ''}
                           onChange={(e) =>
                             handleFieldChange(fc.id, e.target.value)
                           }
-                          className={isEmpty ? "border-destructive" : ""}
+                          className={isEmpty ? 'border-destructive' : ''}
                           aria-invalid={isEmpty}
                           aria-describedby={
-                            isEmpty ? "form-validation-error" : undefined
+                            isEmpty ? 'form-validation-error' : undefined
                           }
                           placeholder="Enter value…"
                         />
                       </div>
-                    );
+                    )
                   })}
                 </div>
               )}
 
               <div aria-live="polite">
                 {validationError && (
-                  <Alert
-                    variant="destructive"
-                    id="form-validation-error"
-                  >
+                  <Alert variant="destructive" id="form-validation-error">
                     <AlertTitle>Incomplete form</AlertTitle>
                     <AlertDescription>{validationError}</AlertDescription>
                   </Alert>
@@ -300,5 +283,5 @@ export function ExtractedDataPanel({
         )}
       </CardContent>
     </Card>
-  );
+  )
 }

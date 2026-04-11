@@ -11,10 +11,10 @@ import { NextResponse } from "next/server";
  */
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const question = body?.question as string | undefined;
-    const context = body?.context as string | undefined;
-    const chunks = body?.chunks as string[] | undefined;
+    const body = await request.json()
+    const question = body?.question as string | undefined
+    const context = body?.context as string | undefined
+    const chunks = body?.chunks as string[] | undefined
 
     if (!question) {
       return NextResponse.json(
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const contextText = context ?? chunks?.join("\n\n") ?? "";
+    const contextText = context ?? chunks?.join('\n\n') ?? ''
 
     const systemPrompt = contextText
       ? `You are a helpful document assistant. Answer the user's question using ONLY the provided document context. If the context doesn't contain enough information to answer, say so clearly. Do not make up information.\n\nDocument context:\n\n${contextText}`

@@ -1,143 +1,146 @@
-"use client";
+'use client'
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Spinner } from "@/components/ui/spinner";
-import { queryChunks } from "@/lib/entitydb";
-import { useChatHistory } from "@/hooks/useChatHistory";
-import { cn } from "@/lib/utils";
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { Spinner } from '@/components/ui/spinner'
+import { queryChunks } from '@/lib/entitydb'
+import { useChatHistory } from '@/hooks/useChatHistory'
+import { cn } from '@/lib/utils'
 
 interface PendingMessage {
-  role: "user" | "assistant";
-  content: string;
+  role: 'user' | 'assistant'
+  content: string
 }
 
 export interface AskTabProps {
-  docId: string;
-  fullText: string;
-  className?: string;
+  docId: string
+  fullText: string
+  className?: string
 }
 
 export function AskTab({ docId, fullText, className }: AskTabProps) {
-  const chatHistory = useChatHistory(docId);
-  const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const chatHistory = useChatHistory(docId)
+  const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([])
+  const [input, setInput] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const displayMessages = [...chatHistory.messages, ...pendingMessages];
+  const displayMessages = [...chatHistory.messages, ...pendingMessages]
 
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatHistory.messages, pendingMessages]);
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatHistory.messages, pendingMessages])
 
   const handleSubmit = useCallback(async () => {
-    const question = input.trim();
-    if (!question || isLoading) return;
+    const question = input.trim()
+    if (!question || isLoading) return
 
-    setInput("");
-    setError(null);
+    setInput('')
+    setError(null)
     setPendingMessages([
-      { role: "user", content: question },
-      { role: "assistant", content: "" },
-    ]);
-    setIsLoading(true);
+      { role: 'user', content: question },
+      { role: 'assistant', content: '' },
+    ])
+    setIsLoading(true)
 
-    let chunks: string[];
+    let chunks: string[]
     try {
       const results = await Promise.race([
         queryChunks(question, { limit: 5 }),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("queryChunks timeout")), 3000),
+          setTimeout(() => reject(new Error('queryChunks timeout')), 3000)
         ),
-      ]);
+      ])
       // Filter results to only include chunks for the current document via docId
       // This is important to avoid mixing chunks from different documents
-      const scopedResults = results.filter((r) => r.docId === docId);
-      chunks = scopedResults.length > 0 ? scopedResults.map((r) => r.text) : [fullText];
+      const scopedResults = results.filter((r) => r.docId === docId)
+      chunks =
+        scopedResults.length > 0 ? scopedResults.map((r) => r.text) : [fullText]
     } catch {
-      chunks = [fullText];
+      chunks = [fullText]
     }
 
     try {
-      const res = await fetch("/api/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question, chunks }),
-      });
+      })
 
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error((errData as { error?: string }).error ?? "Request failed");
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(
+          (errData as { error?: string }).error ?? 'Request failed'
+        )
       }
 
       if (!res.body) {
-        throw new Error("No response body");
+        throw new Error('No response body')
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let accumulated = "";
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let accumulated = ''
 
       while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        accumulated += decoder.decode(value, { stream: true });
+        const { done, value } = await reader.read()
+        if (done) break
+        accumulated += decoder.decode(value, { stream: true })
 
         // Try to detect JSON (non-streaming) response from current API
-        let displayText = accumulated;
+        let displayText = accumulated
         try {
-          const parsed = JSON.parse(accumulated) as { answer?: string };
+          const parsed = JSON.parse(accumulated) as { answer?: string }
           if (parsed.answer !== undefined) {
-            displayText = parsed.answer;
+            displayText = parsed.answer
           }
         } catch {
           // Not complete JSON yet — treat as streaming tokens
         }
 
         setPendingMessages([
-          { role: "user", content: question },
-          { role: "assistant", content: displayText },
-        ]);
+          { role: 'user', content: question },
+          { role: 'assistant', content: displayText },
+        ])
       }
 
       // Final parse attempt after stream closes
-      let finalContent = accumulated;
+      let finalContent = accumulated
       try {
-        const parsed = JSON.parse(accumulated) as { answer?: string };
+        const parsed = JSON.parse(accumulated) as { answer?: string }
         if (parsed.answer !== undefined) {
-          finalContent = parsed.answer;
+          finalContent = parsed.answer
         }
       } catch {
         // Already streamed as raw tokens — nothing to do
       }
 
       // Persist both messages, then clear pending so they render via chatHistory
-      await chatHistory.addMessage("user", question);
-      await chatHistory.addMessage("assistant", finalContent);
-      setPendingMessages([]);
+      await chatHistory.addMessage('user', question)
+      await chatHistory.addMessage('assistant', finalContent)
+      setPendingMessages([])
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-      setPendingMessages([]);
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+      setPendingMessages([])
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  }, [input, isLoading, fullText, docId, chatHistory.addMessage]);
+  }, [input, isLoading, fullText, docId, chatHistory.addMessage])
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      void handleSubmit();
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      void handleSubmit()
     }
   }
 
   return (
-    <Card className={cn("flex w-full flex-col overflow-hidden", className)}>
+    <Card className={cn('flex w-full flex-col overflow-hidden', className)}>
       <CardHeader>
         <CardTitle>Ask about this document</CardTitle>
       </CardHeader>
@@ -156,38 +159,40 @@ export function AskTab({ docId, fullText, className }: AskTabProps) {
             </p>
           ) : null}
 
-          {!chatHistory.loading && displayMessages.map((msg, i) => {
-            const isAssistant = msg.role === "assistant";
-            const isLastAssistant = isAssistant && i === displayMessages.length - 1 && isLoading;
+          {!chatHistory.loading &&
+            displayMessages.map((msg, i) => {
+              const isAssistant = msg.role === 'assistant'
+              const isLastAssistant =
+                isAssistant && i === displayMessages.length - 1 && isLoading
 
-            return (
-              <div
-                key={i}
-                className={cn(
-                  "flex",
-                  isAssistant ? "justify-start" : "justify-end"
-                )}
-              >
+              return (
                 <div
+                  key={i}
                   className={cn(
-                    "max-w-[85%] rounded-lg px-3 py-2 text-sm",
-                    isAssistant
-                      ? "bg-muted text-foreground"
-                      : "bg-primary text-primary-foreground"
+                    'flex',
+                    isAssistant ? 'justify-start' : 'justify-end'
                   )}
                 >
-                  {isLastAssistant && msg.content === "" ? (
-                    <span className="flex items-center gap-2 text-muted-foreground">
-                      <Spinner className="size-3" aria-hidden="true" />
-                      Thinking...
-                    </span>
-                  ) : (
-                    msg.content
-                  )}
+                  <div
+                    className={cn(
+                      'max-w-[85%] rounded-lg px-3 py-2 text-sm',
+                      isAssistant
+                        ? 'bg-muted text-foreground'
+                        : 'bg-primary text-primary-foreground'
+                    )}
+                  >
+                    {isLastAssistant && msg.content === '' ? (
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        <Spinner className="size-3" aria-hidden="true" />
+                        Thinking...
+                      </span>
+                    ) : (
+                      msg.content
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              )
+            })}
 
           <div ref={bottomRef} />
         </div>
@@ -217,10 +222,14 @@ export function AskTab({ docId, fullText, className }: AskTabProps) {
             disabled={isLoading || !input.trim()}
             className="shrink-0"
           >
-            {isLoading ? <Spinner className="size-4" aria-hidden="true" /> : "Send"}
+            {isLoading ? (
+              <Spinner className="size-4" aria-hidden="true" />
+            ) : (
+              'Send'
+            )}
           </Button>
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }

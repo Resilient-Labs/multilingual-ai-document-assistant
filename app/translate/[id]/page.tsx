@@ -1,26 +1,13 @@
-"use client";
+'use client'
 
-import { useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import {
-  ArrowLeftIcon,
-  ArrowRightIcon,
-  Volume2Icon,
-} from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/components/ui/alert";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
+import { useEffect, useRef, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { ArrowLeftIcon, ArrowRightIcon, Volume2Icon } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 import {
   Dialog,
   DialogContent,
@@ -28,188 +15,191 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { TtsPlaybackVisual } from "@/components/features/tts/TtsPlaybackVisual";
-import { isDeepgramLanguage } from "@/lib/tts/deepgram-voices";
-import type { Gender, SpanishAccent } from "@/lib/tts/types";
-import { AskTab } from "@/components/features/ask/AskTab";
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { TtsPlaybackVisual } from '@/components/features/tts/TtsPlaybackVisual'
+import { isDeepgramLanguage } from '@/lib/tts/deepgram-voices'
+import type { Gender, SpanishAccent } from '@/lib/tts/types'
+import { TranslateSummary } from '@/components/features/summary/translate-summary'
+import { AskTab } from '@/components/features/ask/AskTab'
 
 interface TranslateSession {
-  fullText: string;
-  filename: string;
-  sourceLang: string;
-  targetLang: string;
+  fullText: string
+  filename: string
+  sourceLang: string
+  targetLang: string
 }
 
 const LANGUAGE_LABELS: Record<string, string> = {
-  auto: "Detected",
-  en: "English",
-  es: "Spanish",
-  fr: "French",
-  de: "German",
-  zh: "Chinese (Simplified)",
-  "zh-TW": "Chinese (Traditional)",
-  ja: "Japanese",
-  ko: "Korean",
-  pt: "Portuguese",
-  it: "Italian",
-  ru: "Russian",
-  ar: "Arabic",
-  hi: "Hindi",
-  nl: "Dutch",
-  pl: "Polish",
-  sv: "Swedish",
-  tr: "Turkish",
-  vi: "Vietnamese",
-};
+  auto: 'Detected',
+  en: 'English',
+  es: 'Spanish',
+  fr: 'French',
+  de: 'German',
+  zh: 'Chinese (Simplified)',
+  'zh-TW': 'Chinese (Traditional)',
+  ja: 'Japanese',
+  ko: 'Korean',
+  pt: 'Portuguese',
+  it: 'Italian',
+  ru: 'Russian',
+  ar: 'Arabic',
+  hi: 'Hindi',
+  nl: 'Dutch',
+  pl: 'Polish',
+  sv: 'Swedish',
+  tr: 'Turkish',
+  vi: 'Vietnamese',
+}
 
 const SPANISH_ACCENTS: Array<{ label: string; value: SpanishAccent }> = [
-  { label: "Argentine", value: "argentine" },
-  { label: "Colombian", value: "colombian" },
-  { label: "Latin American", value: "latin-american" },
-  { label: "Mexican", value: "mexican" },
-  { label: "Peninsular", value: "peninsular" },
-];
+  { label: 'Argentine', value: 'argentine' },
+  { label: 'Colombian', value: 'colombian' },
+  { label: 'Latin American', value: 'latin-american' },
+  { label: 'Mexican', value: 'mexican' },
+  { label: 'Peninsular', value: 'peninsular' },
+]
 
 export default function TranslatePage() {
-  const params = useParams();
-  const router = useRouter();
-  const id = Array.isArray(params.id) ? params.id[0] : (params.id ?? "");
+  const params = useParams()
+  const router = useRouter()
+  const id = Array.isArray(params.id) ? params.id[0] : (params.id ?? '')
 
-  const [session, setSession] = useState<TranslateSession | null>(null);
-  const [sessionMissing, setSessionMissing] = useState(false);
-  const [translatedText, setTranslatedText] = useState<string | null>(null);
-  const [translateLoading, setTranslateLoading] = useState(false);
-  const [translateError, setTranslateError] = useState<string | null>(null);
-  const [isReadAloudOpen, setIsReadAloudOpen] = useState(false);
-  const [ttsLoading, setTtsLoading] = useState(false);
-  const [ttsError, setTtsError] = useState<string | null>(null);
-  const [ttsAudioUrl, setTtsAudioUrl] = useState<string | null>(null);
-  const [voiceGender, setVoiceGender] = useState<Gender>("feminine");
+  const [session, setSession] = useState<TranslateSession | null>(null)
+  const [sessionMissing, setSessionMissing] = useState(false)
+  const [translatedText, setTranslatedText] = useState<string | null>(null)
+  const [translateLoading, setTranslateLoading] = useState(false)
+  const [translateError, setTranslateError] = useState<string | null>(null)
+  const [isReadAloudOpen, setIsReadAloudOpen] = useState(false)
+  const [ttsLoading, setTtsLoading] = useState(false)
+  const [ttsError, setTtsError] = useState<string | null>(null)
+  const [ttsAudioUrl, setTtsAudioUrl] = useState<string | null>(null)
+  const [voiceGender, setVoiceGender] = useState<Gender>('feminine')
   const [spanishAccent, setSpanishAccent] =
-    useState<SpanishAccent>("latin-american");
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+    useState<SpanishAccent>('latin-american')
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
-    if (!id) return;
-    const raw = sessionStorage.getItem(`translate-${id}`);
+    if (!id) return
+    const raw = sessionStorage.getItem(`translate-${id}`)
     if (!raw) {
-      setSessionMissing(true);
-      return;
+      setSessionMissing(true)
+      return
     }
     try {
-      const parsed: TranslateSession = JSON.parse(raw);
-      setSession(parsed);
+      const parsed: TranslateSession = JSON.parse(raw)
+      setSession(parsed)
     } catch {
-      setSessionMissing(true);
+      setSessionMissing(true)
     }
-  }, [id]);
+  }, [id])
 
   useEffect(() => {
-    if (!session) return;
+    if (!session) return
 
     async function runTranslation() {
-      setTranslateLoading(true);
-      setTranslateError(null);
+      setTranslateLoading(true)
+      setTranslateError(null)
       try {
-        const res = await fetch("/api/translate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        const res = await fetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             text: session!.fullText,
             targetLang: session!.targetLang,
           }),
-        });
+        })
 
-        const data = await res.json();
+        const data = await res.json()
 
         if (!res.ok) {
-          throw new Error(data.error ?? "Translation failed");
+          throw new Error(data.error ?? 'Translation failed')
         }
 
-        setTranslatedText(data.translatedText);
+        setTranslatedText(data.translatedText)
       } catch (err) {
         setTranslateError(
-          err instanceof Error ? err.message : "Translation failed"
-        );
+          err instanceof Error ? err.message : 'Translation failed'
+        )
       } finally {
-        setTranslateLoading(false);
+        setTranslateLoading(false)
       }
     }
 
-    runTranslation();
-  }, [session]);
+    runTranslation()
+  }, [session])
 
   useEffect(() => {
     return () => {
       if (ttsAudioUrl) {
-        URL.revokeObjectURL(ttsAudioUrl);
+        URL.revokeObjectURL(ttsAudioUrl)
       }
-    };
-  }, [ttsAudioUrl]);
+    }
+  }, [ttsAudioUrl])
 
   useEffect(() => {
-    if (!ttsAudioUrl || !audioRef.current) return;
+    if (!ttsAudioUrl || !audioRef.current) return
 
     const maybePlay = async () => {
       try {
-        await audioRef.current?.play();
+        await audioRef.current?.play()
       } catch {
-        setTtsError("Audio is ready. Tap Play in AI Read Aloud to start playback.");
+        setTtsError(
+          'Audio is ready. Tap Play in AI Read Aloud to start playback.'
+        )
       }
-    };
+    }
 
-    void maybePlay();
-  }, [ttsAudioUrl]);
+    void maybePlay()
+  }, [ttsAudioUrl])
 
   async function handleReadAloudGenerate() {
-    if (!translatedText || !session) return;
+    if (!translatedText || !session) return
 
-    setTtsLoading(true);
-    setTtsError(null);
+    setTtsLoading(true)
+    setTtsError(null)
     try {
-      const response = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: translatedText,
           targetLang: session.targetLang,
-          gender: showGenderFilter ? voiceGender : "feminine",
-          spanishAccent: session.targetLang === "es" ? spanishAccent : undefined,
+          gender: showGenderFilter ? voiceGender : 'feminine',
+          spanishAccent:
+            session.targetLang === 'es' ? spanishAccent : undefined,
         }),
-      });
+      })
 
       if (!response.ok) {
-        let errorMessage = "Read Aloud failed";
+        let errorMessage = 'Read Aloud failed'
         try {
-          const data = await response.json();
-          errorMessage = data.error ?? errorMessage;
+          const data = await response.json()
+          errorMessage = data.error ?? errorMessage
         } catch {
           // Keep fallback message when response body is not JSON.
         }
-        throw new Error(errorMessage);
+        throw new Error(errorMessage)
       }
 
-
-      const audioBlob = await response.blob();
+      const audioBlob = await response.blob()
       if (audioBlob.size === 0) {
-        throw new Error("Generated audio was empty. Please try again.");
+        throw new Error('Generated audio was empty. Please try again.')
       }
 
-      const nextAudioUrl = URL.createObjectURL(audioBlob);
+      const nextAudioUrl = URL.createObjectURL(audioBlob)
       setTtsAudioUrl((currentUrl) => {
         if (currentUrl) {
-          URL.revokeObjectURL(currentUrl);
+          URL.revokeObjectURL(currentUrl)
         }
-        return nextAudioUrl;
-      });
-      setIsReadAloudOpen(false);
+        return nextAudioUrl
+      })
+      setIsReadAloudOpen(false)
     } catch (err) {
-      setTtsError(err instanceof Error ? err.message : "Read Aloud failed");
+      setTtsError(err instanceof Error ? err.message : 'Read Aloud failed')
     } finally {
-      setTtsLoading(false);
+      setTtsLoading(false)
     }
   }
 
@@ -225,7 +215,7 @@ export default function TranslatePage() {
           </Alert>
           <Button
             variant="outline"
-            onClick={() => router.push("/")}
+            onClick={() => router.push('/')}
             className="w-fit gap-2"
           >
             <ArrowLeftIcon className="size-4" />
@@ -233,28 +223,28 @@ export default function TranslatePage() {
           </Button>
         </div>
       </div>
-    );
+    )
   }
 
   const sourceLangLabel = session
     ? (LANGUAGE_LABELS[session.sourceLang] ?? session.sourceLang)
-    : "";
+    : ''
   const targetLangLabel = session
     ? (LANGUAGE_LABELS[session.targetLang] ?? session.targetLang)
-    : "";
+    : ''
   const showGenderFilter = session
     ? isDeepgramLanguage(session.targetLang)
-    : false;
-  const showSpanishAccentFilter = session?.targetLang === "es";
-  const hasVoiceFilters = showGenderFilter || showSpanishAccentFilter;
+    : false
+  const showSpanishAccentFilter = session?.targetLang === 'es'
+  const hasVoiceFilters = showGenderFilter || showSpanishAccentFilter
 
   function handleReadAloudClick() {
     if (hasVoiceFilters) {
-      setIsReadAloudOpen(true);
-      return;
+      setIsReadAloudOpen(true)
+      return
     }
 
-    void handleReadAloudGenerate();
+    void handleReadAloudGenerate()
   }
 
   return (
@@ -264,7 +254,7 @@ export default function TranslatePage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => router.push("/")}
+            onClick={() => router.push('/')}
             className="-ml-2 gap-2 text-muted-foreground"
           >
             <ArrowLeftIcon className="size-4" />
@@ -338,68 +328,69 @@ export default function TranslatePage() {
                 </Alert>
               )}
 
-              {!translateLoading && !translateError && translatedText !== null && (
-                <>
-                  <Textarea
-                    readOnly
-                    value={translatedText}
-                    className="min-h-[120px] max-h-64 resize-none overflow-y-auto"
-                    aria-label="Translated text"
-                  />
+              {!translateLoading &&
+                !translateError &&
+                translatedText !== null && (
+                  <>
+                    <Textarea
+                      readOnly
+                      value={translatedText}
+                      className="min-h-[120px] max-h-64 resize-none overflow-y-auto"
+                      aria-label="Translated text"
+                    />
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="gap-2"
-                      onClick={handleReadAloudClick}
-                      disabled={ttsLoading}
-                    >
-                      {ttsLoading && !hasVoiceFilters ? (
-                        <Spinner className="size-4" aria-hidden="true" />
-                      ) : (
-                        <Volume2Icon className="size-4" />
-                      )}
-                      {ttsLoading && !hasVoiceFilters
-                        ? "Generating audio..."
-                        : "Read Aloud"}
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="gap-2"
+                        onClick={handleReadAloudClick}
+                        disabled={ttsLoading}
+                      >
+                        {ttsLoading && !hasVoiceFilters ? (
+                          <Spinner className="size-4" aria-hidden="true" />
+                        ) : (
+                          <Volume2Icon className="size-4" />
+                        )}
+                        {ttsLoading && !hasVoiceFilters
+                          ? 'Generating audio...'
+                          : 'Read Aloud'}
+                      </Button>
+                    </div>
 
-                  </div>
-
-                  {ttsLoading && !hasVoiceFilters && (
-                    <p className="text-xs text-muted-foreground">
-                      Generating audio for {targetLangLabel}. This can take a few
-                      seconds.
-                    </p>
-                  )}
-
-                  <div className="grid gap-2">
-                    {ttsAudioUrl && translatedText && (
-                      <TtsPlaybackVisual
-                        audioRef={audioRef}
-                        audioUrl={ttsAudioUrl}
-                        text={translatedText}
-                      />
-                    )}
-                    <audio
-                      ref={audioRef}
-                      src={ttsAudioUrl ?? undefined}
-                      className="sr-only"
-                      preload="metadata"
-                      aria-hidden="true"
-                      tabIndex={-1}
-                    >
-                      Your browser does not support audio playback.
-                    </audio>
-                    {!ttsAudioUrl && (
+                    {ttsLoading && !hasVoiceFilters && (
                       <p className="text-xs text-muted-foreground">
-                        No audio generated yet. Click Read Aloud.
+                        Generating audio for {targetLangLabel}. This can take a
+                        few seconds.
                       </p>
                     )}
-                  </div>
-                </>
-              )}
+
+                    <div className="grid gap-2">
+                      {ttsAudioUrl && translatedText && (
+                        <TtsPlaybackVisual
+                          audioRef={audioRef}
+                          audioUrl={ttsAudioUrl}
+                          text={translatedText}
+                        />
+                      )}
+                      <audio
+                        ref={audioRef}
+                        src={ttsAudioUrl ?? undefined}
+                        className="sr-only"
+                        preload="metadata"
+                        aria-hidden="true"
+                        tabIndex={-1}
+                      >
+                        Your browser does not support audio playback.
+                      </audio>
+                      {!ttsAudioUrl && (
+                        <p className="text-xs text-muted-foreground">
+                          No audio generated yet. Click Read Aloud.
+                        </p>
+                      )}
+                    </div>
+                  </>
+                )}
 
               {!translateLoading && !translateError && ttsError && (
                 <Alert variant="destructive">
@@ -409,14 +400,22 @@ export default function TranslatePage() {
               )}
             </CardContent>
           </Card>
-
-          {session && (
-            <AskTab docId={id} fullText={session.fullText} />
+          {/* Summary */}
+          {translatedText && (
+            <TranslateSummary
+              translatedText={translatedText}
+              targetLangLabel={targetLangLabel}
+            />
           )}
+
+          {session && <AskTab docId={id} fullText={session.fullText} />}
         </div>
       </main>
 
-      <Dialog open={isReadAloudOpen && hasVoiceFilters} onOpenChange={setIsReadAloudOpen}>
+      <Dialog
+        open={isReadAloudOpen && hasVoiceFilters}
+        onOpenChange={setIsReadAloudOpen}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Read Aloud voice settings</DialogTitle>
@@ -486,11 +485,11 @@ export default function TranslatePage() {
               className="gap-2"
             >
               {ttsLoading && <Spinner className="size-4" aria-hidden="true" />}
-              {ttsLoading ? "Generating..." : "Start"}
+              {ttsLoading ? 'Generating...' : 'Start'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
-  );
+  )
 }

@@ -57,8 +57,16 @@ interface SafetyAnalysisResponse {
     headline: string
     severityLabel: string
     summary: string | null // always null from API; client may merge Team 2 Summary
-    primaryActions: Array<{ label: string; type: 'phone' | 'url' | 'info'; value?: string }>
-    resources: Array<{ label: string; type: 'phone' | 'url' | 'info'; value?: string }> // url + phone subset
+    primaryActions: Array<{
+      label: string
+      type: 'phone' | 'url' | 'info'
+      value?: string
+    }>
+    resources: Array<{
+      label: string
+      type: 'phone' | 'url' | 'info'
+      value?: string
+    }> // url + phone subset
     disclaimer: string
   }
 }
@@ -70,12 +78,12 @@ interface SafetyAnalysisResponse {
 
 Curated links live in `lib/data/safetyResources.json` and are selected by **`normalizeCategoryToBucket`** in `@/lib/safetyRecommendations` (re-exported from `@/lib/safetyNextSteps`). Model **`category`** strings are matched with substring heuristics (e.g. lease/rental → **housing**, medical/Medicare → **medical**, court/summons → **legal**, IRS/debt/bank → **financial**); anything else → **general**.
 
-| Bucket    | Typical model categories (examples)                          |
+| Bucket    | Typical model categories (examples)                           |
 | --------- | ------------------------------------------------------------- |
 | housing   | Lease Agreement, eviction/rental wording                      |
 | financial | IRS Tax Notice, Debt Collection, Bank Statement, utility bill |
-| medical   | Medical Bill, EOB, hospital                                     |
-| legal     | Court Summons, subpoena                                         |
+| medical   | Medical Bill, EOB, hospital                                   |
+| legal     | Court Summons, subpoena                                       |
 | general   | Unknown, Promotional, no match                                |
 
 **Urgent prefix:** For **`severity`** `high` or `urgent`, an informational lead-in step is prepended (deadlines and keeping copies). See `urgentPrefix` in the JSON bank.
@@ -138,11 +146,11 @@ const { flags, presentation, loading, error } = useSafetyAnalysis(
 
 ## For Downstream Consumers
 
-| Teammate                | Use case                               | Fields to use                                              |
-| ----------------------- | -------------------------------------- | ---------------------------------------------------------- |
-| **Naima** (next steps)  | Curated actions (server rule engine)   | `flags.nextSteps`, `flags.category`, `flags.severity`, `flags.confidence`, `flags.legitimacy` |
-| **Justin** (confidence) | Confidence in UI / persistence         | `flags.confidence`, `flags.riskLevel`                     |
-| **Brandi** (results UI) | Structured display                     | `presentation` (headline, severityLabel, primaryActions, resources, disclaimer) plus `flags` as needed |
+| Teammate                | Use case                             | Fields to use                                                                                          |
+| ----------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| **Naima** (next steps)  | Curated actions (server rule engine) | `flags.nextSteps`, `flags.category`, `flags.severity`, `flags.confidence`, `flags.legitimacy`          |
+| **Justin** (confidence) | Confidence in UI / persistence       | `flags.confidence`, `flags.riskLevel`                                                                  |
+| **Brandi** (results UI) | Structured display                   | `presentation` (headline, severityLabel, primaryActions, resources, disclaimer) plus `flags` as needed |
 
 **Category reference:** See `SAFETY_DOCUMENT_CATEGORIES` in `@/lib/safetyConstants` for the list of document types the model may return.
 

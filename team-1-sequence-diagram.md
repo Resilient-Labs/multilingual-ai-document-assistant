@@ -11,11 +11,11 @@ Stateless OCR extraction endpoint. Accepts document files, validates them, runs 
 
 **Constraints:**
 
-| Constraint | Value |
-|------------|-------|
-| Max file size | 4.5 MB per file |
-| Max files per request | 10 |
-| Allowed MIME types | `application/pdf`, `image/jpeg`, `image/png`, `image/webp` |
+| Constraint            | Value                                                      |
+| --------------------- | ---------------------------------------------------------- |
+| Max file size         | 4.5 MB per file                                            |
+| Max files per request | 10                                                         |
+| Allowed MIME types    | `application/pdf`, `image/jpeg`, `image/png`, `image/webp` |
 
 **Example request:**
 
@@ -32,51 +32,52 @@ curl -X POST http://localhost:3000/api/documents/extract \
 ```typescript
 interface ExtractionResponse {
   document: {
-    id: string;           // e.g. "doc_abc123"
-    filename: string;
-    mimeType: string;
-    sizeBytes: number;
-    createdAt: number;    // Unix timestamp
-  };
+    id: string // e.g. "doc_abc123"
+    filename: string
+    mimeType: string
+    sizeBytes: number
+    createdAt: number // Unix timestamp
+  }
   ocr: {
-    documentId: string;
-    fullText: string;
+    documentId: string
+    fullText: string
     blocks: Array<{
-      id: string;         // e.g. "block_xyz789"
-      documentId: string;
-      text: string;
-      confidence?: number;
-      page?: number;
-      bbox?: {            // Normalized 0-1 coordinates
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-      };
-    }>;
-    language?: string;
-  };
+      id: string // e.g. "block_xyz789"
+      documentId: string
+      text: string
+      confidence?: number
+      page?: number
+      bbox?: {
+        // Normalized 0-1 coordinates
+        x: number
+        y: number
+        width: number
+        height: number
+      }
+    }>
+    language?: string
+  }
   files: Array<{
-    fileIndex: number;
-    filename: string;
-    mimeType: string;
-    sizeBytes: number;
+    fileIndex: number
+    filename: string
+    mimeType: string
+    sizeBytes: number
     pages: Array<{
-      pageNumber: number;
-      width: number;
-      height: number;
-      blocks: OCRBlock[];
-    }>;
-  }>;
+      pageNumber: number
+      width: number
+      height: number
+      blocks: OCRBlock[]
+    }>
+  }>
   fieldCandidates: Array<{
-    id: string;           // e.g. "field_def456"
-    documentId: string;
-    blockId?: string;
-    key: string;
-    value: string;
-    confidence?: number;
-  }>;
-  extractedAt: number;    // Unix timestamp
+    id: string // e.g. "field_def456"
+    documentId: string
+    blockId?: string
+    key: string
+    value: string
+    confidence?: number
+  }>
+  extractedAt: number // Unix timestamp
 }
 ```
 
@@ -84,9 +85,15 @@ interface ExtractionResponse {
 
 ```typescript
 interface ExtractionErrorResponse {
-  error: string;
-  code: "NO_FILES" | "INVALID_FILE_TYPE" | "FILE_TOO_LARGE" | "TOO_MANY_FILES" | "OCR_FAILURE" | "INTERNAL_ERROR";
-  details?: Record<string, unknown>;
+  error: string
+  code:
+    | 'NO_FILES'
+    | 'INVALID_FILE_TYPE'
+    | 'FILE_TOO_LARGE'
+    | 'TOO_MANY_FILES'
+    | 'OCR_FAILURE'
+    | 'INTERNAL_ERROR'
+  details?: Record<string, unknown>
 }
 ```
 

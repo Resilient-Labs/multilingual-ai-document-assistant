@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { generateDocumentId } from "@/lib/documentId";
+import { NextResponse } from 'next/server'
+import { generateDocumentId } from '@/lib/documentId'
 import {
   parseAndValidateFiles,
   getOCRProvider,
@@ -12,10 +12,10 @@ import {
   tooManyFilesError,
   ocrFailureError,
   internalError,
-} from "@/lib/documents";
-import { MAX_FILE_SIZE_BYTES, MAX_FILES_PER_REQUEST } from "@/lib/constants";
-import type { ExtractionResponse } from "@/types";
-import type { RawOCRResult } from "@/lib/documents/provider";
+} from '@/lib/documents'
+import { MAX_FILE_SIZE_BYTES, MAX_FILES_PER_REQUEST } from '@/lib/constants'
+import type { ExtractionResponse } from '@/types'
+import type { RawOCRResult } from '@/lib/documents/provider'
 
 /**
  * POST /api/documents/extract
@@ -37,55 +37,58 @@ import type { RawOCRResult } from "@/lib/documents/provider";
  */
 export async function POST(request: Request) {
   try {
-    const validationResult = await parseAndValidateFiles(request);
+    const validationResult = await parseAndValidateFiles(request)
 
     if (!validationResult.success) {
-      const { error } = validationResult;
+      const { error } = validationResult
 
       switch (error.type) {
-        case "NO_FILES":
-          return noFilesError();
-        case "INVALID_FILE_TYPE":
+        case 'NO_FILES':
+          return noFilesError()
+        case 'INVALID_FILE_TYPE':
           return invalidFileTypeError(
-            error.details.filename ?? "unknown",
-            error.details.mimeType ?? "unknown"
-          );
-        case "FILE_TOO_LARGE":
+            error.details.filename ?? 'unknown',
+            error.details.mimeType ?? 'unknown'
+          )
+        case 'FILE_TOO_LARGE':
           return fileTooLargeError(
-            error.details.filename ?? "unknown",
+            error.details.filename ?? 'unknown',
             error.details.sizeBytes ?? 0,
             error.details.maxBytes ?? MAX_FILE_SIZE_BYTES
-          );
-        case "TOO_MANY_FILES":
+          )
+        case 'TOO_MANY_FILES':
           return tooManyFilesError(
             error.details.count ?? 0,
             error.details.maxFiles ?? MAX_FILES_PER_REQUEST
-          );
+          )
         default:
-          return errorResponse(error.message, "INTERNAL_ERROR", 400);
+          return errorResponse(error.message, 'INTERNAL_ERROR', 400)
       }
     }
 
-    const { files: validatedFiles } = validationResult;
-    const documentId = generateDocumentId();
-    const ocrProvider = getOCRProvider();
+    const { files: validatedFiles } = validationResult
+    const documentId = generateDocumentId()
+    const ocrProvider = getOCRProvider()
 
-    const rawResults: RawOCRResult[] = [];
+    const rawResults: RawOCRResult[] = []
 
     for (const validatedFile of validatedFiles) {
       try {
-        const buffer = await validatedFile.file.arrayBuffer();
-        const rawResult = await ocrProvider.extract(buffer, validatedFile.mimeType);
-        rawResults.push(rawResult);
+        const buffer = await validatedFile.file.arrayBuffer()
+        const rawResult = await ocrProvider.extract(
+          buffer,
+          validatedFile.mimeType
+        )
+        rawResults.push(rawResult)
       } catch (err) {
         const message =
           err instanceof Error
             ? err.message
-            : typeof err === "string"
+            : typeof err === 'string'
               ? err
-              : JSON.stringify(err) ?? "Unknown OCR error";
-        console.error("[OCR] extraction failed:", err);
-        return ocrFailureError(message, { filename: validatedFile.filename });
+              : (JSON.stringify(err) ?? 'Unknown OCR error')
+        console.error('[OCR] extraction failed:', err)
+        return ocrFailureError(message, { filename: validatedFile.filename })
       }
     }
 
@@ -93,9 +96,9 @@ export async function POST(request: Request) {
       documentId,
       validatedFiles,
       rawResults
-    );
+    )
 
-    const fieldCandidates = extractFieldCandidates(documentId, ocr.blocks);
+    const fieldCandidates = extractFieldCandidates(documentId, ocr.blocks)
 
     const response: ExtractionResponse = {
       document,
@@ -103,10 +106,10 @@ export async function POST(request: Request) {
       files,
       fieldCandidates,
       extractedAt: Date.now(),
-    };
+    }
 
-    return NextResponse.json(response);
+    return NextResponse.json(response)
   } catch {
-    return internalError("Extraction failed");
+    return internalError('Extraction failed')
   }
 }
