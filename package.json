@@ -9,8 +9,12 @@
     "lint": "next lint",
     "format": "npx prettier --check",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:e2e": "npx playwright test",
+    "test:e2e:headed": "npx playwright test --headed --project=chromium",
+    "test:report": "npx playwright show-report",
+    "test": "npm run test:unit && npm run test:e2e"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.48",
@@ -52,6 +56,7 @@
     "word-extractor": "^1.0.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/node": "^20.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",

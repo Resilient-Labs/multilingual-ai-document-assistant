@@ -22,6 +22,7 @@ import { TtsPlaybackVisual } from '@/components/features/tts/TtsPlaybackVisual'
 import { isDeepgramLanguage } from '@/lib/tts/deepgram-voices'
 import type { Gender, SpanishAccent } from '@/lib/tts/types'
 import { TranslateSummary } from '@/components/features/summary/translate-summary'
+import { AskTab } from '@/components/features/ask/AskTab'
 
 interface TranslateSession {
   fullText: string
@@ -401,11 +402,13 @@ export default function TranslatePage() {
           </Card>
           {/* Summary */}
           {translatedText && (
-          <TranslateSummary
-            translatedText={translatedText}
-            targetLangLabel={targetLangLabel}
-          />
+            <TranslateSummary
+              translatedText={translatedText}
+              targetLangLabel={targetLangLabel}
+            />
           )}
+
+          {session && <AskTab docId={id} fullText={session.fullText} />}
         </div>
       </main>
 
