@@ -1,32 +1,32 @@
-import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { ExtractedDataPanel } from "@/components/features/document/ExtractedDataPanel";
+import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
+import { ExtractedDataPanel } from '@/components/features/document/ExtractedDataPanel'
 
 interface DocumentPageProps {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string }>
 }
 
 export async function generateMetadata({
   params,
 }: DocumentPageProps): Promise<Metadata> {
-  const { id } = await params;
+  const { id } = await params
 
-  if (!id || id.trim() === "") return {};
+  if (!id || id.trim() === '') return {}
 
   return {
     title: `Document ${id} — AI Document Translator`,
     description: `View extracted data and complete fields for document ${id}.`,
     alternates: { canonical: `/document/${id}` },
-  };
+  }
 }
 
 export default async function DocumentPage({
   params,
 }: DocumentPageProps): Promise<React.ReactElement> {
-  const { id } = await params;
+  const { id } = await params
 
-  if (!id || id.trim() === "") {
-    notFound();
+  if (!id || id.trim() === '') {
+    notFound()
   }
 
   return (
@@ -40,5 +40,5 @@ export default async function DocumentPage({
         </p>
       </div>
     </div>
-  );
+  )
 }

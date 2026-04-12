@@ -1,7 +1,11 @@
 import raw from '@/lib/data/safetyResources.json'
 import type { RiskNextStep, SafetyResourceBucket } from '@/types'
 
-type StepJson = { label: string; type: 'phone' | 'url' | 'info'; value?: string }
+type StepJson = {
+  label: string
+  type: 'phone' | 'url' | 'info'
+  value?: string
+}
 
 function asSteps(s: StepJson[]): RiskNextStep[] {
   return s.map((x) =>

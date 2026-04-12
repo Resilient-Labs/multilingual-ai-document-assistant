@@ -11,8 +11,9 @@ Prompt received from parent agent:
 > You are an audit worker sub-agent.
 >
 > Task:
-> 1) Read the role instruction file: .cursor/commands/audit-dry.md
-> 2) Follow that role's audit logic against scope: src/
+>
+> 1. Read the role instruction file: .cursor/commands/audit-dry.md
+> 2. Follow that role's audit logic against scope: src/
 >    The src/ directory contains 35 files including:
 >    - src/app/layout.tsx, src/app/page.tsx, src/app/globals.css
 >    - src/app/dashboard/page.tsx, src/app/documents/[documentId]/page.tsx
@@ -23,16 +24,16 @@ Prompt received from parent agent:
 >    - src/components/upload-dialog.tsx, src/components/version-history.tsx
 >    - src/components/ui/ (avatar, badge, button, card, dialog, dropdown-menu, input, label, select, separator, sonner, table, tabs, textarea, tooltip)
 >    - src/lib/utils.ts, src/middleware.ts
-> 3) Do not edit source files. Do not add inline comments.
-> 4) Produce findings as markdown and save to: audit-reports/AUDIT-2026-02-19-1200-patterns.md
-> 5) Return a concise summary in this format:
+> 3. Do not edit source files. Do not add inline comments.
+> 4. Produce findings as markdown and save to: audit-reports/AUDIT-2026-02-19-1200-patterns.md
+> 5. Return a concise summary in this format:
 >    role: Patterns Auditor
 >    high: [N]
 >    medium: [N]
 >    low: [N]
 >    report: audit-reports/AUDIT-2026-02-19-1200-patterns.md
-> 6) Create a worker execution trace at: .cursor/debug-logs/2026-02-19-1200-patterns-execution.md
-> 7) In that trace, include:
+> 6. Create a worker execution trace at: .cursor/debug-logs/2026-02-19-1200-patterns-execution.md
+> 7. In that trace, include:
 >    - ## Received Context (echo the exact prompt you received)
 >    - ## Files Read (list each file path touched)
 >    - ## Execution Steps (ordered decisions/findings)
@@ -65,6 +66,7 @@ Prompt received from parent agent:
 21. `src/middleware.ts`
 
 UI component files globbed (15 files listed, not read in detail as they are standard shadcn/ui primitives):
+
 - `src/components/ui/avatar.tsx` through `src/components/ui/tooltip.tsx`
 
 ---

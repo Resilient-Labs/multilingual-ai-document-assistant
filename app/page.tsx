@@ -1,33 +1,43 @@
-"use client";
+'use client'
 
-import Image from "next/image";
-import { GlobeIcon, MessageSquareIcon, ShieldCheckIcon, UploadCloudIcon } from "lucide-react";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { UploadForm } from "@/components/upload-form";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import Image from 'next/image'
+import {
+  GlobeIcon,
+  MessageSquareIcon,
+  ShieldCheckIcon,
+  UploadCloudIcon,
+} from 'lucide-react'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { UploadForm } from '@/components/upload-form'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 
 const NAV_TABS = [
-  { value: "upload", label: "Upload", icon: UploadCloudIcon },
-  { value: "translate", label: "Translate", icon: GlobeIcon },
-  { value: "detect", label: "Detect", icon: ShieldCheckIcon },
-  { value: "ask", label: "Ask", icon: MessageSquareIcon },
-];
+  { value: 'upload', label: 'Upload', icon: UploadCloudIcon },
+  { value: 'translate', label: 'Translate', icon: GlobeIcon },
+  { value: 'detect', label: 'Detect', icon: ShieldCheckIcon },
+  { value: 'ask', label: 'Ask', icon: MessageSquareIcon },
+]
 
 export default function Page() {
-  const isMobile = useIsMobile();
+  const isMobile = useIsMobile()
 
   /* ── Mobile ─────────────────────────────────────────────────────── */
   if (isMobile) {
     return (
       <section className="flex flex-col h-[100dvh] bg-background overflow-hidden">
         <header className="shrink-0 px-5 pt-6 pb-3">
-          <h1 className="text-xl font-bold font-display">AI Document Translator</h1>
+          <h1 className="text-xl font-bold font-display">
+            AI Document Translator
+          </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Upload a document to translate and analyze easy!
           </p>
         </header>
 
-        <Tabs defaultValue="upload" className="flex flex-col flex-1 overflow-hidden gap-0">
+        <Tabs
+          defaultValue="upload"
+          className="flex flex-col flex-1 overflow-hidden gap-0"
+        >
           <main className="flex-1 overflow-auto px-4 pb-2">
             <TabsContent value="upload" className="h-full mt-0">
               <UploadForm mobile />
@@ -71,7 +81,7 @@ export default function Page() {
           </footer>
         </Tabs>
       </section>
-    );
+    )
   }
 
   /* ── Desktop ─────────────────────────────────────────────────────── */
@@ -88,14 +98,17 @@ export default function Page() {
               height={44}
               className="rounded-full"
             />
-            <span className="font-bold text-base font-display">Resilient Labs</span>
+            <span className="font-bold text-base font-display">
+              Resilient Labs
+            </span>
           </div>
 
           <h1 className="text-4xl font-bold font-display leading-tight mb-4">
             Breaking Language Barriers
           </h1>
           <p className="text-muted-foreground text-base leading-relaxed mb-10">
-            Upload any document and translate it instantly into your language of choice with AI-powered accuracy.
+            Upload any document and translate it instantly into your language of
+            choice with AI-powered accuracy.
           </p>
 
           <ul className="flex flex-col gap-4 text-sm text-muted-foreground">
@@ -119,12 +132,20 @@ export default function Page() {
       <div className="flex flex-1 flex-col items-center justify-center px-6 py-12 lg:px-16">
         {/* Logo shown on md screens where left panel is hidden */}
         <div className="lg:hidden flex items-center gap-3 mb-8 self-start">
-          <Image src="/logo.svg" alt="Resilient Labs" width={36} height={36} className="rounded-full" />
+          <Image
+            src="/logo.svg"
+            alt="Resilient Labs"
+            width={36}
+            height={36}
+            className="rounded-full"
+          />
           <span className="font-bold font-display">Resilient Labs</span>
         </div>
 
         <div className="w-full max-w-2xl">
-          <h2 className="text-3xl font-bold font-display mb-2">Upload a document</h2>
+          <h2 className="text-3xl font-bold font-display mb-2">
+            Upload a document
+          </h2>
           <p className="text-base text-muted-foreground mb-8">
             Supports PDF, DOC, DOCX, TXT, and images up to 10 MB.
           </p>
@@ -134,5 +155,5 @@ export default function Page() {
         </div>
       </div>
     </div>
-  );
+  )
 }

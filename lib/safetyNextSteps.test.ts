@@ -23,7 +23,9 @@ describe('normalizeCategoryToBucket', () => {
     expect(normalizeCategoryToBucket('Medical Bill')).toBe('medical')
     expect(normalizeCategoryToBucket('Lease Agreement')).toBe('housing')
     expect(normalizeCategoryToBucket('Court Summons')).toBe('legal')
-    expect(normalizeCategoryToBucket('Debt Collection Letter')).toBe('financial')
+    expect(normalizeCategoryToBucket('Debt Collection Letter')).toBe(
+      'financial'
+    )
     expect(normalizeCategoryToBucket('Unknown')).toBe('general')
   })
 })
@@ -32,9 +34,9 @@ describe('getNextSteps', () => {
   it('returns medical templates for medium severity without urgent lead-in', () => {
     const steps = getNextSteps('Medical Bill', 'medium')
     expect(steps.length).toBe(2)
-    expect(steps.some((s) => s.type === 'url' && s.value?.includes('medicare'))).toBe(
-      true
-    )
+    expect(
+      steps.some((s) => s.type === 'url' && s.value?.includes('medicare'))
+    ).toBe(true)
   })
 
   it('prepends urgency guidance for high and urgent', () => {

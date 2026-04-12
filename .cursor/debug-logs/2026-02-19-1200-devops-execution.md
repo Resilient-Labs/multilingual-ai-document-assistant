@@ -1,7 +1,7 @@
 # Worker Execution Trace: DevOps Auditor
 
 **Worker:** audit-devops  
-**Timestamp:** 2026-02-19T12:00  
+**Timestamp:** 2026-02-19T12:00
 
 ---
 
@@ -12,8 +12,9 @@ Exact prompt received:
 > You are an audit worker sub-agent.
 >
 > Task:
-> 1) Read the role instruction file: .cursor/commands/audit-devops.md
-> 2) Follow that role's audit logic against scope: src/
+>
+> 1. Read the role instruction file: .cursor/commands/audit-devops.md
+> 2. Follow that role's audit logic against scope: src/
 >    The src/ directory contains 35 files including:
 >    - src/app/layout.tsx, src/app/page.tsx, src/app/globals.css
 >    - src/app/dashboard/page.tsx, src/app/documents/[documentId]/page.tsx
@@ -24,17 +25,17 @@ Exact prompt received:
 >    - src/components/upload-dialog.tsx, src/components/version-history.tsx
 >    - src/components/ui/ (avatar, badge, button, card, dialog, dropdown-menu, input, label, select, separator, sonner, table, tabs, textarea, tooltip)
 >    - src/lib/utils.ts, src/middleware.ts
->    Also examine project root files: package.json, next.config.*, tsconfig.json, Dockerfile, docker-compose.*, .env*, convex/ directory, etc.
-> 3) Do not edit source files. Do not add inline comments.
-> 4) Produce findings as markdown and save to: audit-reports/AUDIT-2026-02-19-1200-devops.md
-> 5) Return a concise summary in this format:
+>      Also examine project root files: package.json, next.config._, tsconfig.json, Dockerfile, docker-compose._, .env\*, convex/ directory, etc.
+> 3. Do not edit source files. Do not add inline comments.
+> 4. Produce findings as markdown and save to: audit-reports/AUDIT-2026-02-19-1200-devops.md
+> 5. Return a concise summary in this format:
 >    role: DevOps Engineer
 >    high: [N]
 >    medium: [N]
 >    low: [N]
 >    report: audit-reports/AUDIT-2026-02-19-1200-devops.md
-> 6) Create a worker execution trace at: .cursor/debug-logs/2026-02-19-1200-devops-execution.md
-> 7) In that trace, include:
+> 6. Create a worker execution trace at: .cursor/debug-logs/2026-02-19-1200-devops-execution.md
+> 7. In that trace, include:
 >    - ## Received Context (echo the exact prompt you received)
 >    - ## Files Read (list each file path touched)
 >    - ## Execution Steps (ordered decisions/findings)
@@ -45,6 +46,7 @@ Exact prompt received:
 ## Files Read
 
 ### Root Configuration
+
 1. `.cursor/commands/audit-devops.md` — role instructions
 2. `package.json` — dependencies and scripts
 3. `next.config.ts` — Next.js configuration
@@ -54,6 +56,7 @@ Exact prompt received:
 7. `.gitignore` — git ignore rules
 
 ### Source — App Pages
+
 8. `src/app/layout.tsx` — root layout
 9. `src/app/page.tsx` — landing page
 10. `src/app/dashboard/page.tsx` — dashboard
@@ -64,6 +67,7 @@ Exact prompt received:
 15. `src/app/globals.css` — global styles
 
 ### Source — Components
+
 16. `src/components/providers.tsx` — Clerk/Convex providers
 17. `src/components/navbar.tsx` — navigation bar
 18. `src/components/upload-dialog.tsx` — file upload dialog
@@ -74,10 +78,12 @@ Exact prompt received:
 23. `src/components/role-badge.tsx` — role badge component
 
 ### Source — Lib/Middleware
+
 24. `src/lib/utils.ts` — utility functions
 25. `src/middleware.ts` — Next.js middleware (Clerk auth)
 
 ### Convex Backend
+
 26. `convex/schema.ts` — database schema
 27. `convex/documents.ts` — document CRUD
 28. `convex/teams.ts` — team CRUD + members
@@ -90,6 +96,7 @@ Exact prompt received:
 35. `convex/lib/permissions.ts` — permission helpers
 
 ### Infrastructure (checked for existence)
+
 36. `Dockerfile` — NOT FOUND
 37. `docker-compose.*` — NOT FOUND
 38. `src/app/api/**` — NOT FOUND (no API routes)

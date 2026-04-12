@@ -87,6 +87,7 @@ Task:
 ## Execution Steps
 
 ### Step 1: Read role instruction file
+
 - Read `.cursor/commands/audit-principal.md`
 - Extracted 5 audit checklist dimensions: Architecture & Design, Code Quality, React/Next.js Specific, Node.js Specific, Tech Debt Signals
 - Noted severity key: High (must fix), Medium (fix or ticket), Low (optional)
@@ -94,40 +95,48 @@ Task:
 - Noted override from task: do NOT add inline comments, do NOT edit source files; produce markdown report instead
 
 ### Step 2: Read all source files (batch 1 — pages and components)
+
 - Read 13 files in parallel: layout, page, globals.css, dashboard, documents/[documentId], sign-in, sign-up, teams/new, teams/[teamId], teams/[teamId]/settings, navbar, providers, document-table
 
 ### Step 3: Read remaining custom components
+
 - Read 5 files in parallel: member-manager, role-badge, team-card, upload-dialog, version-history
 - Read 2 utility files: lib/utils.ts, middleware.ts
 
 ### Step 4: Discover and read UI primitives
+
 - Glob `src/components/ui/*.tsx` → found 15 files
 - Read all 15 UI component files in parallel
 - Confirmed all are standard shadcn/ui primitives; no custom logic to audit except sonner.tsx (uses `useTheme`)
 
 ### Step 5: Architecture & Design analysis
+
 - Identified TeamPage as God component (310 lines, 6+ responsibilities) → **H1**
 - Identified no error boundary pattern across the app → **H4**
 - Identified VersionDownloadButton N+1 query pattern → **M8**
 - Identified full client-side page rendering with no SC composition → **M6**
 
 ### Step 6: Code Quality analysis
+
 - Identified missing null/not-found handling for queries → **H2**
 - Identified repeated unsafe `as Id<>` casts → **M3**
 - Identified native `window.confirm()` UX inconsistency → **M4**
 - Identified env var non-null assertion without validation → **M7**
 
 ### Step 7: React/Next.js Specific analysis
+
 - Identified Sonner Toaster / next-themes ThemeProvider mismatch → **H3**
 - Identified deprecated Clerk `afterSignOutUrl` → **M5**
 - Cross-referenced with Architecture findings (M6, M8)
 
 ### Step 8: Node.js Specific analysis
+
 - Reviewed middleware.ts — correct Clerk middleware pattern, no issues
 - ENV validation issue already captured in M7
 - No streaming or sync-operation concerns found
 
 ### Step 9: Tech Debt Signals analysis
+
 - Identified duplicated file upload orchestration → **M1**
 - Identified duplicated `formatFileSize` → **M2**
 - Identified duplicated `Role` type → **L1**
@@ -135,11 +144,13 @@ Task:
 - `handleCreateDocument` in TeamPage: 52 lines, 3 sequential API calls — already captured as part of H1
 
 ### Step 10: Cross-referencing and deduplication
+
 - Verified no duplicate findings across dimensions
 - Confirmed all findings are independent and actionable
 - Classified: 4 High, 8 Medium, 2 Low
 
 ### Step 11: Write audit report
+
 - Wrote `audit-reports/AUDIT-2026-02-19-1200-principal.md`
 - Included summary table, detailed findings with file/line references, and clean file list
 

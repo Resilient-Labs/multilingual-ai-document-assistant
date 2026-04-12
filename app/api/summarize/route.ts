@@ -1,7 +1,7 @@
-import fetch from "node-fetch";
-import { promises as fs } from "fs";
-import path from "path";
-import { NextResponse } from "next/server";
+import fetch from 'node-fetch'
+import { promises as fs } from 'fs'
+import path from 'path'
+import { NextResponse } from 'next/server'
 
 /**
  * POST /api/summarize
@@ -13,100 +13,97 @@ import { NextResponse } from "next/server";
 
 const SUMMARIZATION_PROMPT_PATH = path.join(
   process.cwd(),
-  "app/api/summarize/summarizationPrompt.txt"
-);
+  'app/api/summarize/summarizationPrompt.txt'
+)
 
 type SummarizeRequestBody = {
-  fullText?: unknown;
-};
+  fullText?: unknown
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return typeof value === 'object' && value !== null
 }
 
 export async function POST(request: Request) {
   try {
-    let body: unknown;
+    let body: unknown
     try {
-      body = await request.json();
+      body = await request.json()
     } catch {
-      return NextResponse.json(
-        { error: "Invalid JSON body" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
 
     if (!isRecord(body)) {
       return NextResponse.json(
-        { error: "Invalid request body" },
+        { error: 'Invalid request body' },
         { status: 400 }
-      );
+      )
     }
 
-    const { fullText } = body as SummarizeRequestBody;
-    if (typeof fullText !== "string") {
+    const { fullText } = body as SummarizeRequestBody
+    if (typeof fullText !== 'string') {
       return NextResponse.json(
-        { error: "fullText must be a string" },
+        { error: 'fullText must be a string' },
         { status: 400 }
-      );
+      )
     }
 
-    const trimmed = fullText.trim();
+    const trimmed = fullText.trim()
     if (trimmed.length === 0) {
       return NextResponse.json(
-        { error: "fullText is required and cannot be empty" },
+        { error: 'fullText is required and cannot be empty' },
         { status: 400 }
-      );
+      )
     }
 
-    const apiKey = process.env.HF_TOKEN;
+    const apiKey = process.env.HF_TOKEN
     if (!apiKey) {
       return NextResponse.json(
-        { error: "Server misconfiguration: HF_TOKEN api key is not set" },
+        { error: 'Server misconfiguration: HF_TOKEN api key is not set' },
         { status: 500 }
-      );
+      )
     }
 
-    let systemInstruction: string;
+    let systemInstruction: string
     try {
-      systemInstruction = await fs.readFile(SUMMARIZATION_PROMPT_PATH, "utf8");
+      systemInstruction = await fs.readFile(SUMMARIZATION_PROMPT_PATH, 'utf8')
     } catch {
       return NextResponse.json(
-        { error: "Failed to read summarization prompt" },
+        { error: 'Failed to read summarization prompt' },
         { status: 500 }
-      );
+      )
     }
 
-    let response;
+    let response
     try {
       response = await fetch(
-        "https://router.huggingface.co/v1/chat/completions",
+        'https://router.huggingface.co/v1/chat/completions',
         {
-          method: "POST",
+          method: 'POST',
           headers: {
             Authorization: `Bearer ${process.env.HF_TOKEN}`,
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: "meta-llama/Llama-3.1-8B-Instruct:cheapest",
+            model: 'meta-llama/Llama-3.1-8B-Instruct:cheapest',
             messages: [
               {
-                role: "system",
+                role: 'system',
                 content: systemInstruction,
               },
               {
-                role: "user",
+                role: 'user',
                 content: trimmed,
               },
             ],
           }),
         }
-      );
+      )
     } catch {
       return NextResponse.json(
-        { error: "Summarization failed: API error" },
+        { error: 'Summarization failed: API error' },
         { status: 500 }
-      );
+      )
     }
 
     const data = (await response.json()) as {
@@ -115,16 +112,13 @@ export async function POST(request: Request) {
     const summary = data.choices?.[0]?.message?.content
     if (!summary) {
       return NextResponse.json(
-        { error: "No summary generated" },
+        { error: 'No summary generated' },
         { status: 500 }
-      );
+      )
     }
 
-    return NextResponse.json({ summary });
+    return NextResponse.json({ summary })
   } catch {
-    return NextResponse.json(
-      { error: "Summarization failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Summarization failed' }, { status: 500 })
   }
 }
