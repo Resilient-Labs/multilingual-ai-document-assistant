@@ -42,12 +42,25 @@ function jsonRequest(body: unknown): Request {
   })
 }
 
+function hfResponse(
+  payload: { choices?: { message?: { content?: string } }[] } & Record<
+    string,
+    unknown
+  >
+) {
+  const text = JSON.stringify(payload)
+  return {
+    ok: true,
+    status: 200,
+    text: async () => text,
+    json: async () => payload,
+  } as unknown as Awaited<ReturnType<typeof fetch>>
+}
+
 const hfJson = (summary: string = MOCK_MODEL_SUMMARY_TEXT) =>
-  ({
-    json: async () => ({
-      choices: [{ message: { content: summary } }],
-    }),
-  }) as Awaited<ReturnType<typeof fetch>>
+  hfResponse({
+    choices: [{ message: { content: summary } }],
+  })
 
 describe('POST /api/summarize', () => {
   const fetchMock = vi.fn()
@@ -95,6 +108,23 @@ describe('POST /api/summarize', () => {
     }
     const system = body.messages.find((m) => m.role === 'system')
     expect(system?.content).toBe('SYSTEM_PROMPT_FROM_FILE')
+  })
+
+  it('appends output-language directive when outputLanguage is not English', async () => {
+    readFileMock.mockResolvedValue('BASE_PROMPT')
+    await POST(
+      jsonRequest({
+        fullText: SAMPLE_DOCUMENT_TEXT,
+        outputLanguage: 'es',
+      })
+    )
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as {
+      messages: { role: string; content: string }[]
+    }
+    const system = body.messages.find((m) => m.role === 'system')
+    expect(system?.content.startsWith('BASE_PROMPT')).toBe(true)
+    expect(system?.content).toMatch(/Language requirement/i)
+    expect(system?.content).toMatch(/Spanish/i)
   })
 
   it('rejects bad requests (invalid JSON, missing string, empty)', async () => {
@@ -146,9 +176,9 @@ describe('POST /api/summarize', () => {
     fetchMock.mockRejectedValueOnce(new Error('network'))
     expect((await POST(jsonRequest({ fullText: shortDoc }))).status).toBe(500)
 
-    fetchMock.mockResolvedValueOnce({
-      json: async () => ({ choices: [] }),
-    } as Awaited<ReturnType<typeof fetch>>)
+    fetchMock.mockResolvedValueOnce(
+      hfResponse({ choices: [] }) as Awaited<ReturnType<typeof fetch>>
+    )
     expect((await POST(jsonRequest({ fullText: shortDoc }))).status).toBe(500)
   })
 })

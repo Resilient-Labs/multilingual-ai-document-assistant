@@ -1,4 +1,3 @@
-import fetch from 'node-fetch'
 import { promises as fs } from 'fs'
 import path from 'path'
 import { NextResponse } from 'next/server'
@@ -8,7 +7,10 @@ import { NextResponse } from 'next/server'
  * Team 2: Stateless. Client sends fullText. Backend returns summary.
  * Server stores nothing.
  *
- * Body: { fullText: string }
+ * Body: { fullText: string, outputLanguage?: string }
+ *
+ * When `outputLanguage` is a non-English BCP-47 code (e.g. `es`, `zh-TW`), the
+ * model is instructed to write the full summary in that language.
  */
 
 const SUMMARIZATION_PROMPT_PATH = path.join(
@@ -101,6 +103,23 @@ function detectSensitiveInfo(text: string): SensitiveMatch[] {
 
 type SummarizeRequestBody = {
   fullText?: unknown
+  outputLanguage?: unknown
+}
+
+/** Extra system text so the summary matches the translate UI language (not English-only). */
+function outputLanguageDirective(code: string): string {
+  const trimmed = code.trim()
+  if (!trimmed || trimmed === 'auto') return ''
+  const tag = trimmed.replace(/_/g, '-')
+  if (tag === 'en' || tag.startsWith('en-')) return ''
+  let label: string
+  try {
+    label =
+      new Intl.DisplayNames(['en'], { type: 'language' }).of(tag) ?? tag
+  } catch {
+    label = tag
+  }
+  return `\n\nLanguage requirement: Write your entire response (including section headings, bullet points, formatting labels, and vocabulary definitions) in ${label}. Do not use English except when quoting unavoidable proper nouns from the source text.`
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -123,7 +142,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const { fullText } = body as SummarizeRequestBody
+    const { fullText, outputLanguage } = body as SummarizeRequestBody
     if (typeof fullText !== 'string') {
       return NextResponse.json(
         { error: 'fullText must be a string' },
@@ -181,6 +200,16 @@ export async function POST(request: Request) {
       )
     }
 
+    const langSuffix =
+      typeof outputLanguage === 'string'
+        ? outputLanguageDirective(outputLanguage)
+        : ''
+    const systemContent = systemInstruction + langSuffix
+
+    const model =
+      process.env.HF_SUMMARIZE_MODEL?.trim() ||
+      'meta-llama/Llama-3.1-8B-Instruct:cheapest'
+
     let response
     try {
       response = await fetch(
@@ -192,11 +221,11 @@ export async function POST(request: Request) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'meta-llama/Llama-3.1-8B-Instruct:cheapest',
+            model,
             messages: [
               {
                 role: 'system',
-                content: systemInstruction,
+                content: systemContent,
               },
               {
                 role: 'user',
@@ -213,13 +242,48 @@ export async function POST(request: Request) {
       )
     }
 
-    const data = (await response.json()) as {
+    const raw = await response.text()
+    let data: {
       choices?: { message?: { content?: string } }[]
+      error?: unknown
+      message?: unknown
     }
+    try {
+      data = JSON.parse(raw) as typeof data
+    } catch {
+      return NextResponse.json(
+        {
+          error: 'Summarization failed: invalid response from provider',
+          details: raw.slice(0, 500),
+        },
+        { status: 502 }
+      )
+    }
+
+    if (!response.ok) {
+      const detail =
+        typeof data.error === 'string'
+          ? data.error
+          : typeof data.message === 'string'
+            ? data.message
+            : raw.slice(0, 500)
+      return NextResponse.json(
+        {
+          error: 'Summarization provider request failed',
+          details: detail,
+          providerStatus: response.status,
+        },
+        { status: 502 }
+      )
+    }
+
     const summary = data.choices?.[0]?.message?.content
     if (!summary) {
       return NextResponse.json(
-        { error: 'No summary generated' },
+        {
+          error: 'No summary generated',
+          details: data.error ?? data.message ?? null,
+        },
         { status: 500 }
       )
     }
