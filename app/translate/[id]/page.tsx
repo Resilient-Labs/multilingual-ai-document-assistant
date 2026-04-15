@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeftIcon, ArrowRightIcon, Volume2Icon } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,6 +23,7 @@ import { isDeepgramLanguage } from '@/lib/tts/deepgram-voices'
 import type { Gender, SpanishAccent } from '@/lib/tts/types'
 import { TranslateSummary } from '@/components/features/summary/translate-summary'
 import { AskTab } from '@/components/features/ask/AskTab'
+import { cn } from '@/lib/utils'
 
 interface TranslateSession {
   fullText: string
@@ -79,6 +80,23 @@ export default function TranslatePage() {
   const [spanishAccent, setSpanishAccent] =
     useState<SpanishAccent>('latin-american')
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const originalDocTextareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const jumpToSource = useCallback(
+    (range: { charStart: number; matchLen: number }) => {
+      const el = originalDocTextareaRef.current
+      if (!el) return
+      el.focus({ preventScroll: true })
+      const start = Math.max(0, Math.min(range.charStart, el.value.length))
+      const end = Math.max(
+        start,
+        Math.min(start + Math.max(0, range.matchLen), el.value.length)
+      )
+      el.setSelectionRange(start, end)
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    },
+    []
+  )
 
   useEffect(() => {
     if (!id) return
@@ -276,23 +294,30 @@ export default function TranslatePage() {
         </div>
       </header>
 
-      <main className="flex-1 px-6 py-8">
-        <div className="mx-auto flex max-w-2xl flex-col gap-6">
+      <main className="min-w-0 flex-1 px-6 py-8">
+        <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-6">
           {/* Original document */}
-          <Card className="flex w-full flex-col overflow-hidden">
+          <Card className="flex w-full min-w-0 flex-col overflow-hidden">
             <CardHeader>
               <CardTitle>Original Document</CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-col gap-4 overflow-y-auto">
+            <CardContent className="flex min-w-0 flex-col gap-4 overflow-y-auto">
               {!session ? (
                 <div className="flex items-center justify-center py-8">
                   <Spinner className="size-6" aria-label="Loading document" />
                 </div>
               ) : (
-                <Textarea
+                <textarea
+                  ref={originalDocTextareaRef}
+                  id="ask-original-document"
                   readOnly
                   value={session.fullText}
-                  className="min-h-[120px] max-h-64 resize-none overflow-y-auto"
+                  className={cn(
+                    'block min-h-16 min-w-0 w-full max-w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base transition-colors outline-none md:text-sm dark:bg-input/30',
+                    'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
+                    'min-h-[120px] max-h-64 resize-none overflow-y-auto',
+                    'cursor-default'
+                  )}
                   aria-label="Original document text"
                 />
               )}
@@ -300,7 +325,7 @@ export default function TranslatePage() {
           </Card>
 
           {/* Translation */}
-          <Card className="flex w-full flex-col overflow-hidden">
+          <Card className="flex w-full min-w-0 flex-col overflow-hidden">
             <CardHeader>
               <CardTitle>
                 Translation
@@ -311,7 +336,7 @@ export default function TranslatePage() {
                 )}
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-col gap-4 overflow-y-auto">
+            <CardContent className="flex min-w-0 flex-col gap-4 overflow-y-auto">
               {translateLoading && (
                 <div className="flex items-center justify-center py-8">
                   <Spinner
@@ -335,7 +360,7 @@ export default function TranslatePage() {
                     <Textarea
                       readOnly
                       value={translatedText}
-                      className="min-h-[120px] max-h-64 resize-none overflow-y-auto"
+                      className="min-h-[120px] max-h-64 min-w-0 resize-none overflow-y-auto"
                       aria-label="Translated text"
                     />
 
@@ -401,14 +426,23 @@ export default function TranslatePage() {
             </CardContent>
           </Card>
           {/* Summary */}
-          {translatedText && (
+          {translatedText && session && (
             <TranslateSummary
               translatedText={translatedText}
               targetLangLabel={targetLangLabel}
+              outputLanguage={session.targetLang}
             />
           )}
 
-          {session && <AskTab docId={id} fullText={session.fullText} />}
+          {session && (
+            <AskTab
+              docId={id}
+              fullText={session.fullText}
+              documentLanguage={session.sourceLang}
+              translationTargetLang={session.targetLang}
+              onJumpToSource={jumpToSource}
+            />
+          )}
         </div>
       </main>
 

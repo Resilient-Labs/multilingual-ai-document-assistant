@@ -10,11 +10,14 @@ import { Spinner } from '@/components/ui/spinner'
 interface TranslateSummaryProps {
   translatedText: string | null
   targetLangLabel: string
+  /** BCP-47 style code (e.g. `es`, `zh-TW`). Summary is generated in this language. */
+  outputLanguage?: string
 }
 
 export function TranslateSummary({
   translatedText,
   targetLangLabel,
+  outputLanguage,
 }: TranslateSummaryProps) {
   const [summary, setSummary] = useState<string | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
@@ -33,13 +36,27 @@ export function TranslateSummary({
         const res = await fetch('/api/summarize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fullText: translatedText }),
+          body: JSON.stringify({
+            fullText: translatedText,
+            ...(outputLanguage ? { outputLanguage } : {}),
+          }),
         })
 
-        const data = await res.json()
+        const data = (await res.json()) as {
+          error?: string
+          details?: string
+          summary?: string
+        }
 
-        if (!res.ok) throw new Error(data.error ?? 'Summary failed')
-        setSummary(data.summary)
+        if (!res.ok) {
+          const base = data.error ?? 'Summary failed'
+          const detail =
+            typeof data.details === 'string' && data.details.trim()
+              ? ` ${data.details.trim()}`
+              : ''
+          throw new Error(`${base}${detail}`)
+        }
+        setSummary(data.summary ?? null)
       } catch (err) {
         setSummaryError(err instanceof Error ? err.message : 'Summary failed')
       } finally {
@@ -48,10 +65,10 @@ export function TranslateSummary({
     }
 
     runSummary()
-  }, [translatedText])
+  }, [translatedText, outputLanguage])
 
   return (
-    <Card className="flex w-full flex-col overflow-hidden">
+    <Card className="flex w-full min-w-0 flex-col overflow-hidden">
       <CardHeader>
         <CardTitle>
           Summary
@@ -63,7 +80,7 @@ export function TranslateSummary({
         </CardTitle>
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-4 overflow-y-auto">
+      <CardContent className="flex min-w-0 flex-col gap-4 overflow-y-auto">
         {/* Loading */}
         {summaryLoading && (
           <div className="flex items-center justify-center py-8">
@@ -85,7 +102,7 @@ export function TranslateSummary({
             <Textarea
               readOnly
               value={summary}
-              className="min-h-[120px] max-h-64 resize-none overflow-y-auto"
+              className="min-h-[120px] max-h-64 min-w-0 resize-none overflow-y-auto"
               aria-label="Summary text"
             />
 
