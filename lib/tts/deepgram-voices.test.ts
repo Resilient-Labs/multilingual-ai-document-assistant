@@ -36,8 +36,12 @@ describe('getTtsProvider', () => {
     expect(getTtsProvider('auto')).toBe('coqui-local')
   })
 
+  it('routes Spanish and Vietnamese to local Coqui first', () => {
+    expect(getTtsProvider('es')).toBe('coqui-local')
+    expect(getTtsProvider('vi')).toBe('coqui-local')
+  })
+
   it('routes other Deepgram-supported languages to Deepgram', () => {
-    expect(getTtsProvider('es')).toBe('deepgram')
     expect(getTtsProvider('ja')).toBe('deepgram')
   })
 
@@ -47,8 +51,7 @@ describe('getTtsProvider', () => {
     expect(getTtsProvider('ko')).toBe('xtts')
   })
 
-  it('routes sv and vi to MiniMax preferred path', () => {
+  it('routes Swedish to MiniMax preferred path', () => {
     expect(getTtsProvider('sv')).toBe('minimax')
-    expect(getTtsProvider('vi')).toBe('minimax')
   })
 })

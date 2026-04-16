@@ -10,18 +10,19 @@ import type {
 } from '@/lib/tts/types'
 import { TtsError } from '@/lib/tts/types'
 
-const MINIMAX_PREFERRED_LANGUAGES = new Set(['sv', 'vi'])
+const LOCAL_COQUI_LANGS = new Set(['en', 'es', 'vi'])
+const MINIMAX_PREFERRED_LANGUAGES = new Set(['sv'])
 
 export function getTtsProvider(targetLang: string): TtsProvider {
   // 'auto' means the upload used "Detect language"; the app treats source docs as English.
   const lang = targetLang === 'auto' ? 'en' : targetLang
 
-  if (MINIMAX_PREFERRED_LANGUAGES.has(lang)) {
-    return 'minimax'
+  if (LOCAL_COQUI_LANGS.has(lang)) {
+    return 'coqui-local'
   }
 
-  if (lang === 'en') {
-    return 'coqui-local'
+  if (MINIMAX_PREFERRED_LANGUAGES.has(lang)) {
+    return 'minimax'
   }
 
   return isDeepgramLanguage(lang) ? 'deepgram' : 'xtts'
@@ -46,8 +47,14 @@ async function runProvider(
   return synthesizeWithMinimaxReplicate(payload)
 }
 
-function getFallbackChain(primaryProvider: TtsProvider): TtsProvider[] {
+function getFallbackChain(
+  primaryProvider: TtsProvider,
+  lang: string
+): TtsProvider[] {
   if (primaryProvider === 'coqui-local') {
+    if (lang === 'vi') {
+      return ['coqui-local', 'minimax', 'xtts']
+    }
     return ['coqui-local', 'deepgram', 'xtts']
   }
 
@@ -70,7 +77,10 @@ export async function synthesizeSpeech(
     targetLang: payload.targetLang === 'auto' ? 'en' : payload.targetLang,
   }
   const primaryProvider = getTtsProvider(normalizedPayload.targetLang)
-  const providers = getFallbackChain(primaryProvider)
+  const providers = getFallbackChain(
+    primaryProvider,
+    normalizedPayload.targetLang
+  )
   let lastError: unknown
 
   for (const provider of providers) {

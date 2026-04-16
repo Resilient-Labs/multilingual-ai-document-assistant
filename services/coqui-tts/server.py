@@ -20,21 +20,45 @@ import soundfile as sf
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from TTS.api import TTS
 
-MODEL_NAME = "tts_models/en/vctk/vits"
 HOST = "127.0.0.1"
 PORT = 5002
 DEFAULT_SPEAKER = os.environ.get("COQUI_DEFAULT_SPEAKER", "p228")
 
+MODELS: dict[str, str] = {
+    "en": os.environ.get("COQUI_TTS_EN_MODEL", "tts_models/en/vctk/vits"),
+    "es": os.environ.get("COQUI_TTS_ES_MODEL", "tts_models/es/css10/vits"),
+    "vi": os.environ.get("COQUI_TTS_VI_MODEL", "tts_models/vie/fairseq/vits"),
+}
+
 app = FastAPI(title="Local Coqui TTS", version="1.0.0")
-tts: TTS | None = None
+tts_instances: dict[str, TTS] = {}
 
 
 class SynthesizeRequest(BaseModel):
     text: str = Field(min_length=1)
     speaker_idx: str | None = None
+    language: str = "en"
+
+    @field_validator("language")
+    @classmethod
+    def normalize_language(cls, v: str) -> str:
+        key = (v or "en").strip().lower()
+        if key not in MODELS:
+            raise ValueError(f"Unsupported language: {v!r}. Use one of: {', '.join(sorted(MODELS))}.")
+        return key
+
+
+def get_tts(lang: str) -> TTS:
+    if lang not in MODELS:
+        raise HTTPException(status_code=400, detail=f"Unsupported language: {lang}")
+    if lang not in tts_instances:
+        model_name = MODELS[lang]
+        print(f"[coqui-tts] loading model for {lang}: {model_name}")
+        tts_instances[lang] = TTS(model_name=model_name, progress_bar=False).to("cpu")
+    return tts_instances[lang]
 
 
 def get_speakers(model: TTS) -> list[str]:
@@ -67,33 +91,27 @@ def resolve_sample_rate(model: TTS) -> int:
     return 22050
 
 
-@app.on_event("startup")
-async def load_model() -> None:
-    global tts
-    tts = TTS(model_name=MODEL_NAME, progress_bar=False).to("cpu")
-
-
 @app.get("/health")
-async def health() -> dict[str, str]:
+async def health() -> dict[str, Any]:
     return {
-        "status": "ok" if tts is not None else "loading",
-        "model": MODEL_NAME,
+        "status": "ok",
         "device": "cpu",
+        "loaded_languages": sorted(tts_instances.keys()),
+        "supported_languages": sorted(MODELS.keys()),
     }
 
 
 @app.get("/speakers")
 async def speakers() -> dict[str, list[str]]:
-    if tts is None:
-        raise HTTPException(status_code=503, detail="Model not loaded")
-    return {"speakers": get_speakers(tts)}
+    model = get_tts("en")
+    return {"speakers": get_speakers(model)}
 
 
 def split_sentences(text: str) -> list[str]:
     """Split text into sentences suitable for VITS synthesis (~200 chars each)."""
     # Normalise whitespace and strip bullet/special lead chars
     text = re.sub(r"[\r\n]+", " ", text)
-    text = re.sub(r"[•·‣▪▸►]+", "", text)
+    text = re.sub(r"[\u2022\u00b7\u2023\u25aa\u25b8\u25ba]+", "", text)
     text = re.sub(r"\s{2,}", " ", text).strip()
 
     # Split on sentence-ending punctuation
@@ -118,11 +136,9 @@ def split_sentences(text: str) -> list[str]:
 
 @app.post("/synthesize")
 async def synthesize(payload: SynthesizeRequest) -> Response:
-    if tts is None:
-        raise HTTPException(status_code=503, detail="Model not loaded")
-
-    speaker = payload.speaker_idx or DEFAULT_SPEAKER
-    sample_rate = resolve_sample_rate(tts)
+    lang = payload.language
+    model = get_tts(lang)
+    sample_rate = resolve_sample_rate(model)
     sentences = split_sentences(payload.text)
 
     if not sentences:
@@ -133,7 +149,11 @@ async def synthesize(payload: SynthesizeRequest) -> Response:
     audio_parts: list[Any] = []
     for sentence in sentences:
         try:
-            wav = tts.tts(text=sentence, speaker=speaker)
+            if lang == "en":
+                speaker = payload.speaker_idx or DEFAULT_SPEAKER
+                wav = model.tts(text=sentence, speaker=speaker)
+            else:
+                wav = model.tts(text=sentence)
             audio_parts.append(np.array(wav, dtype=np.float32))
         except Exception as error:
             # Skip individual sentences that fail rather than aborting everything

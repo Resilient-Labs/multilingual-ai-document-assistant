@@ -19,6 +19,8 @@ import { TtsPlaybackVisual } from '@/components/features/tts/TtsPlaybackVisual'
 import { isDeepgramLanguage } from '@/lib/tts/deepgram-voices'
 import type { Gender, SpanishAccent } from '@/lib/tts/types'
 
+const LOCAL_SINGLE_VOICE_LANGS = new Set(['es', 'vi'])
+
 const SPANISH_ACCENTS: Array<{ label: string; value: SpanishAccent }> = [
   { label: 'Argentine', value: 'argentine' },
   { label: 'Colombian', value: 'colombian' },
@@ -49,8 +51,10 @@ export function ReadAloudPanel({
     useState<SpanishAccent>('latin-american')
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
-  const showGenderFilter = isDeepgramLanguage(language)
-  const showSpanishAccentFilter = language === 'es'
+  const showGenderFilter =
+    isDeepgramLanguage(language) && !LOCAL_SINGLE_VOICE_LANGS.has(language)
+  const showSpanishAccentFilter =
+    language === 'es' && !LOCAL_SINGLE_VOICE_LANGS.has(language)
   const hasVoiceFilters = showGenderFilter || showSpanishAccentFilter
   const isReadAloudDisabled = disabled || text.trim().length === 0
 

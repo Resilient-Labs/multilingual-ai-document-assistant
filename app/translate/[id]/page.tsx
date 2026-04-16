@@ -20,6 +20,8 @@ interface TranslateSession {
   targetLang: string
 }
 
+const TRANSLATION_READ_ALOUD_LANGS = new Set(['es', 'vi'])
+
 const LANGUAGE_LABELS: Record<string, string> = {
   auto: 'Detected',
   en: 'English',
@@ -256,11 +258,13 @@ export default function TranslatePage() {
                       className="min-h-[120px] max-h-64 min-w-0 resize-none overflow-y-auto"
                       aria-label="Translated text"
                     />
-                    <ReadAloudPanel
-                      text={translatedText}
-                      language={session.targetLang}
-                      labelSuffix={targetLangLabel}
-                    />
+                    {TRANSLATION_READ_ALOUD_LANGS.has(session.targetLang) && (
+                      <ReadAloudPanel
+                        text={translatedText}
+                        language={session.targetLang}
+                        labelSuffix={targetLangLabel}
+                      />
+                    )}
                   </>
                 )}
             </CardContent>

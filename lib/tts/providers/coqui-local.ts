@@ -7,7 +7,14 @@ const COQUI_TTS_FEMININE_SPEAKER =
 const COQUI_TTS_MASCULINE_SPEAKER =
   process.env.COQUI_TTS_MASCULINE_SPEAKER ?? 'p226'
 
-const MODEL_NAME = 'tts_models/en/vctk/vits'
+const LOCAL_COQUI_LANGS = new Set(['en', 'es', 'vi'])
+
+const LOCAL_COQUI_MODEL_BY_LANG: Record<string, string> = {
+  en: 'tts_models/en/vctk/vits',
+  es: 'tts_models/es/css10/vits',
+  vi: 'tts_models/vie/fairseq/vits',
+}
+
 const SYNTH_TIMEOUT_MS = 60_000
 
 function normalizeBaseUrl(url: string): string {
@@ -46,14 +53,21 @@ export async function synthesizeWithCoquiLocal(input: {
   targetLang: string
   gender: Gender
 }): Promise<TtsSynthesisResult> {
-  if (input.targetLang !== 'en') {
-    throw new TtsError('Local Coqui TTS is only configured for English', 503)
+  const lang = input.targetLang === 'auto' ? 'en' : input.targetLang
+  if (!LOCAL_COQUI_LANGS.has(lang)) {
+    throw new TtsError('Local Coqui TTS does not support this language', 503)
   }
 
-  const speaker_idx =
-    input.gender === 'masculine'
-      ? COQUI_TTS_MASCULINE_SPEAKER
-      : COQUI_TTS_FEMININE_SPEAKER
+  const body: { text: string; language: string; speaker_idx?: string } = {
+    text: input.text,
+    language: lang,
+  }
+  if (lang === 'en') {
+    body.speaker_idx =
+      input.gender === 'masculine'
+        ? COQUI_TTS_MASCULINE_SPEAKER
+        : COQUI_TTS_FEMININE_SPEAKER
+  }
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), SYNTH_TIMEOUT_MS)
@@ -64,7 +78,7 @@ export async function synthesizeWithCoquiLocal(input: {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: input.text, speaker_idx }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       }
     )
@@ -86,7 +100,7 @@ export async function synthesizeWithCoquiLocal(input: {
       audio: audioBuffer,
       contentType: response.headers.get('content-type') ?? 'audio/wav',
       provider: 'coqui-local',
-      model: MODEL_NAME,
+      model: LOCAL_COQUI_MODEL_BY_LANG[lang] ?? LOCAL_COQUI_MODEL_BY_LANG.en,
     }
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
