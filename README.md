@@ -100,6 +100,14 @@ Optional/advanced TTS variables:
 - `MINIMAX_MASCULINE_VOICE_ID`
 - `MINIMAX_AUDIO_FORMAT`
 
+Local TTS (English) — start the Coqui sidecar instead of using a cloud API key:
+
+```bash
+cd services/coqui-tts && source .venv/bin/activate && python server.py
+```
+
+See [docs/local-tts-architecture.md](docs/local-tts-architecture.md) for full setup.
+
 No Redis or server storage is required. Add keys only when integrating external services.
 
 ### 4. Run the development server
@@ -157,7 +165,8 @@ npm run typecheck
 | Build fails                       | Run `npm ci` for a clean install, then `npm run build`                        |
 | EntityDB / Transformers.js errors | Check `next.config.js` has webpack aliases for `onnxruntime-node` and `sharp` |
 | Translation fails                 | Verify DEEPL_API_KEY is set                                                   |
-| Read Aloud fails                  | Verify DEEPGRAM_API_KEY and/or REPLICATE_API_TOKEN are set                    |
+| Read Aloud fails (English)        | Start the local Coqui sidecar (`services/coqui-tts/`). If the sidecar is offline, set `DEEPGRAM_API_KEY` as fallback. See [docs/local-tts-architecture.md](docs/local-tts-architecture.md). |
+| Read Aloud fails (other language) | Verify DEEPGRAM_API_KEY and/or REPLICATE_API_TOKEN are set                    |
 | Upload rejected around 5–10MB     | Backend limit is 4.5MB `(lib/constants.ts)`                                   |
 
 ### Key dependencies

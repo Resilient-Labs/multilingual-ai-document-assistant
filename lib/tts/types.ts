@@ -1,4 +1,4 @@
-export type TtsProvider = 'deepgram' | 'xtts' | 'minimax'
+export type TtsProvider = 'deepgram' | 'xtts' | 'minimax' | 'coqui-local'
 
 export type Gender = 'masculine' | 'feminine'
 
