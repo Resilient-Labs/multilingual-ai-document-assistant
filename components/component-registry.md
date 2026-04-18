@@ -75,10 +75,10 @@ Alphabetical inventory (55). Import from `@/components/ui/<name>`.
 |                |                                                                                                                                                                      |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Location**   | `components/features/tts/ReadAloudPanel.tsx`                                                                                                                         |
-| **Purpose**    | Complete Read Aloud shell. Manages TTS request lifecycle (loading, error, audio URL), shows a gender-picker dialog for supported languages, renders `TtsPlaybackVisual`. |
+| **Purpose**    | Complete Read Aloud shell. Manages TTS request lifecycle (loading, error, audio URL) via the HF Space backend (en/es/vi only). Shows a gender-picker dialog for English (VCTK multi-speaker); Spanish and Vietnamese generate with one click. |
 | **Props**      | `text: string`, `language: string`, `disabled?: boolean`, `labelSuffix?: string`                                                                                     |
 | **Built with** | Button, Dialog, RadioGroup, Alert, Spinner, `TtsPlaybackVisual`                                                                                                      |
-| **Usage**      | `app/translate/[id]/page.tsx` — once for the original doc (`language={session.sourceLang}`), once for the translation (`language={session.targetLang}`)               |
+| **Usage**      | `app/translate/[id]/page.tsx` — once for the original doc (gated by `TTS_SUPPORTED_LANGS.has(session.sourceLang)`), once for the translation (gated by `TTS_SUPPORTED_LANGS.has(session.targetLang)`) |
 
 ---
 

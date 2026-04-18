@@ -1,61 +1,66 @@
 import type { Gender, TtsSynthesisResult } from '@/lib/tts/types'
 import { TtsError } from '@/lib/tts/types'
 
-const COQUI_TTS_URL = process.env.COQUI_TTS_URL ?? 'http://127.0.0.1:5002'
+const HF_TTS_SPACE_URL = process.env.HF_TTS_SPACE_URL?.trim()
 const COQUI_TTS_FEMININE_SPEAKER =
   process.env.COQUI_TTS_FEMININE_SPEAKER ?? 'p228'
 const COQUI_TTS_MASCULINE_SPEAKER =
   process.env.COQUI_TTS_MASCULINE_SPEAKER ?? 'p226'
 
-const LOCAL_COQUI_LANGS = new Set(['en', 'es', 'vi'])
+const HF_SPACE_LANGS = new Set(['en', 'es', 'vi'])
 
-const LOCAL_COQUI_MODEL_BY_LANG: Record<string, string> = {
-  en: 'tts_models/en/vctk/vits',
-  es: 'tts_models/es/css10/vits',
-  vi: 'tts_models/vie/fairseq/vits',
+const HF_SPACE_MODEL_BY_LANG: Record<string, string> = {
+  en: 'Resilient-Coders/coqui-vctk-en',
+  es: 'Resilient-Coders/coqui-css10-es',
+  vi: 'Resilient-Coders/mms-tts-vie',
 }
 
-const SYNTH_TIMEOUT_MS = 60_000
+// Long timeout to absorb HF Space cold-starts (free tier sleeps after ~48h idle).
+const SYNTH_TIMEOUT_MS = 180_000
 
 function normalizeBaseUrl(url: string): string {
   return url.replace(/\/$/, '')
 }
 
-function isLocalCoquiUnavailable(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false
-  }
-
+function isHfSpaceUnavailable(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
   const message = error.message.toLowerCase()
   if (
     message.includes('econnrefused') ||
+    message.includes('enotfound') ||
     message.includes('fetch failed') ||
     message.includes('networkerror') ||
     message.includes('socket hang up')
   ) {
     return true
   }
-
   const cause = (error as Error & { cause?: unknown }).cause
   if (cause instanceof Error) {
     const code = (cause as NodeJS.ErrnoException).code
-    if (code === 'ECONNREFUSED' || code === 'ENOTFOUND') {
+    if (
+      code === 'ECONNREFUSED' ||
+      code === 'ENOTFOUND' ||
+      code === 'ETIMEDOUT'
+    ) {
       return true
     }
-    return isLocalCoquiUnavailable(cause)
+    return isHfSpaceUnavailable(cause)
   }
-
   return false
 }
 
-export async function synthesizeWithCoquiLocal(input: {
+export async function synthesizeWithHfSpace(input: {
   text: string
   targetLang: string
   gender: Gender
 }): Promise<TtsSynthesisResult> {
+  if (!HF_TTS_SPACE_URL) {
+    throw new TtsError('HF_TTS_SPACE_URL is not configured', 503)
+  }
+
   const lang = input.targetLang === 'auto' ? 'en' : input.targetLang
-  if (!LOCAL_COQUI_LANGS.has(lang)) {
-    throw new TtsError('Local Coqui TTS does not support this language', 503)
+  if (!HF_SPACE_LANGS.has(lang)) {
+    throw new TtsError('HF Space TTS does not support this language', 503)
   }
 
   const body: { text: string; language: string; speaker_idx?: string } = {
@@ -74,7 +79,7 @@ export async function synthesizeWithCoquiLocal(input: {
 
   try {
     const response = await fetch(
-      `${normalizeBaseUrl(COQUI_TTS_URL)}/synthesize`,
+      `${normalizeBaseUrl(HF_TTS_SPACE_URL)}/synthesize`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -85,29 +90,35 @@ export async function synthesizeWithCoquiLocal(input: {
 
     if (!response.ok) {
       const detail = await response.text()
+      if (response.status >= 500) {
+        throw new TtsError(
+          detail ? `HF Space TTS error: ${detail}` : 'HF Space TTS error',
+          503
+        )
+      }
       throw new TtsError(
-        detail ? `Local Coqui TTS error: ${detail}` : 'Local Coqui TTS error',
-        response.status >= 400 && response.status < 600 ? response.status : 502
+        detail ? `HF Space TTS error: ${detail}` : 'HF Space TTS error',
+        response.status
       )
     }
 
     const audioBuffer = await response.arrayBuffer()
     if (audioBuffer.byteLength === 0) {
-      throw new TtsError('Local Coqui TTS returned empty audio', 502)
+      throw new TtsError('HF Space TTS returned empty audio', 502)
     }
 
     return {
       audio: audioBuffer,
       contentType: response.headers.get('content-type') ?? 'audio/wav',
-      provider: 'coqui-local',
-      model: LOCAL_COQUI_MODEL_BY_LANG[lang] ?? LOCAL_COQUI_MODEL_BY_LANG.en,
+      provider: 'hf-space',
+      model: HF_SPACE_MODEL_BY_LANG[lang] ?? HF_SPACE_MODEL_BY_LANG.en,
     }
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new TtsError('Local Coqui TTS request timed out', 504)
+      throw new TtsError('HF Space TTS request timed out', 504)
     }
-    if (isLocalCoquiUnavailable(error)) {
-      throw new TtsError('Local Coqui TTS is not running', 503)
+    if (isHfSpaceUnavailable(error)) {
+      throw new TtsError('HF Space TTS is not running', 503)
     }
     throw error
   } finally {

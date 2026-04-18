@@ -16,18 +16,7 @@ import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
 import { TtsPlaybackVisual } from '@/components/features/tts/TtsPlaybackVisual'
-import { isDeepgramLanguage } from '@/lib/tts/deepgram-voices'
-import type { Gender, SpanishAccent } from '@/lib/tts/types'
-
-const LOCAL_SINGLE_VOICE_LANGS = new Set(['es', 'vi'])
-
-const SPANISH_ACCENTS: Array<{ label: string; value: SpanishAccent }> = [
-  { label: 'Argentine', value: 'argentine' },
-  { label: 'Colombian', value: 'colombian' },
-  { label: 'Latin American', value: 'latin-american' },
-  { label: 'Mexican', value: 'mexican' },
-  { label: 'Peninsular', value: 'peninsular' },
-]
+import type { Gender } from '@/lib/tts/types'
 
 type ReadAloudPanelProps = {
   text: string
@@ -47,15 +36,10 @@ export function ReadAloudPanel({
   const [ttsError, setTtsError] = useState<string | null>(null)
   const [ttsAudioUrl, setTtsAudioUrl] = useState<string | null>(null)
   const [voiceGender, setVoiceGender] = useState<Gender>('feminine')
-  const [spanishAccent, setSpanishAccent] =
-    useState<SpanishAccent>('latin-american')
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
-  const showGenderFilter =
-    isDeepgramLanguage(language) && !LOCAL_SINGLE_VOICE_LANGS.has(language)
-  const showSpanishAccentFilter =
-    language === 'es' && !LOCAL_SINGLE_VOICE_LANGS.has(language)
-  const hasVoiceFilters = showGenderFilter || showSpanishAccentFilter
+  const showGenderFilter = language === 'en'
+  const hasVoiceFilters = showGenderFilter
   const isReadAloudDisabled = disabled || text.trim().length === 0
 
   useEffect(() => {
@@ -93,7 +77,6 @@ export function ReadAloudPanel({
           text,
           targetLang: language,
           gender: showGenderFilter ? voiceGender : 'feminine',
-          spanishAccent: language === 'es' ? spanishAccent : undefined,
         }),
       })
 
@@ -222,27 +205,6 @@ export function ReadAloudPanel({
                     <RadioGroupItem value="masculine" id="voice-masculine" />
                     <span>Masculine</span>
                   </label>
-                </RadioGroup>
-              </div>
-            )}
-
-            {showSpanishAccentFilter && (
-              <div className="grid gap-2">
-                <Label>Accent</Label>
-                <RadioGroup
-                  value={spanishAccent}
-                  onValueChange={(value) => setSpanishAccent(value as SpanishAccent)}
-                  className="grid gap-2"
-                >
-                  {SPANISH_ACCENTS.map((accent) => (
-                    <label
-                      key={accent.value}
-                      className="flex items-center gap-2 rounded-md border border-border p-2"
-                    >
-                      <RadioGroupItem value={accent.value} id={accent.value} />
-                      <span>{accent.label}</span>
-                    </label>
-                  ))}
                 </RadioGroup>
               </div>
             )}

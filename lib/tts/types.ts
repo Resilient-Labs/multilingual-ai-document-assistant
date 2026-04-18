@@ -1,19 +1,11 @@
-export type TtsProvider = 'deepgram' | 'xtts' | 'minimax' | 'coqui-local'
+export type TtsProvider = 'hf-space'
 
 export type Gender = 'masculine' | 'feminine'
-
-export type SpanishAccent =
-  | 'argentine'
-  | 'colombian'
-  | 'latin-american'
-  | 'mexican'
-  | 'peninsular'
 
 export interface TtsRequestPayload {
   text: string
   targetLang: string
   gender: Gender
-  spanishAccent?: SpanishAccent
 }
 
 export interface TtsSynthesisResult {
