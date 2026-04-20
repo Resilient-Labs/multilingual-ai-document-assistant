@@ -8,10 +8,10 @@ import {
   ASK_CONFIDENCE_OVERLAP_MEDIUM,
 } from "@/lib/askConfidenceBands";
 
-if (!process.env.TOGETHER_API_KEY?.trim()) {
+if (!process.env.HF_TOKEN?.trim()) {
   /* eslint-disable no-console -- one-time module load diagnostic */
   console.error(
-    "[ask] startup check: TOGETHER_API_KEY is missing — POST /api/ask will return 503 until it is set in the environment.",
+    "[ask] startup check: HF_TOKEN is missing — POST /api/ask will return 503 until it is set in the environment.",
   );
   /* eslint-enable no-console */
 }
@@ -27,19 +27,17 @@ if (!process.env.TOGETHER_API_KEY?.trim()) {
  *    stream tokens back via the Vercel AI SDK UI message stream (`toUIMessageStreamResponse`).
  * 4. AskTab must parse that stream with `parseJsonEventStream` + `readUIMessageStream` (see AskTab).
  *
- * Model hosting (Research Conclusions + Sprint 3 handoff): Together AI + **Meta Llama** (OpenAI-compatible).
- * `meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo` is **dedicated-only** on Together after 2026-03-06 (no serverless).
- * **Default:** `meta-llama/Meta-Llama-3-8B-Instruct-Lite` — Meta **Llama 3** 8B, serverless on Together (~8K context). Closest handoff “8B Llama” without a dedicated endpoint (Llama **3.1** 8B differs; see below).
- * Together’s serverless catalog footnotes this model as deprecated; monitor [deprecations](https://docs.together.ai/docs/deprecations) and set `TOGETHER_MODEL` when migrating.
- * **Llama 3.1 8B on Together:** use a [dedicated endpoint](https://docs.together.ai/docs/dedicated-endpoints), then `TOGETHER_MODEL` (+ optional `TOGETHER_BASE_URL`).
- * **Larger serverless Llama:** e.g. `meta-llama/Llama-3.3-70B-Instruct-Turbo` via `TOGETHER_MODEL`.
- * We use `@ai-sdk/openai` (`createOpenAI`) against Together’s base URL.
+ * Model hosting (Ask only): **Hugging Face** OpenAI-compatible chat API (`@ai-sdk/openai` + `streamText`).
+ * Uses `HF_TOKEN` (same env as `/api/summarize` — do not duplicate keys in `.env.local`).
+ * Defaults: Inference Providers router base + org model on the Hub. Override with `HF_ASK_BASE_URL` / `HF_ASK_MODEL`
+ * (e.g. dedicated Inference Endpoint URL + its model id).
  */
-const DEFAULT_TOGETHER_BASE_URL = "https://api.together.xyz/v1";
-/** Meta Llama 3 8B Instruct Lite — Together serverless (see block comment). */
-const DEFAULT_TOGETHER_MODEL = "meta-llama/Meta-Llama-3-8B-Instruct-Lite";
+const DEFAULT_HF_ASK_BASE_URL = "https://router.huggingface.co/v1";
+/** Hub model id for Ask — Resilient-Coders snapshot (OpenAI-compatible router). */
+const DEFAULT_HF_ASK_MODEL =
+  "Resilient-Coders/Meta-Llama-3.1-8B-Instruct-Open-Router-2";
 
-// TODO [Karlee] — Baseline model & fine-tuning ticket: default `TOGETHER_MODEL` / base URL and OpenAI-compatible provider wiring
+// TODO [Karlee] — Baseline model & fine-tuning ticket: default `HF_ASK_MODEL` / base URL and OpenAI-compatible provider wiring
 // Model quality not yet validated against eval set
 // Fine-tuning decision pending Karlee's baseline eval results
 // Do not treat current output quality as production-ready until Karlee's gate is passed
@@ -52,19 +50,19 @@ const ASK_DOMAIN_LINE =
 // v1 draft — final behavior pending Zaria's prompt rules, schema validation,
 // input cleaning, output checking, refusal behavior, and domain restriction spec
 
-function getTogetherLanguageModel() {
-  const apiKey = process.env.TOGETHER_API_KEY;
+function getAskLanguageModel() {
+  const apiKey = process.env.HF_TOKEN;
   if (!apiKey?.trim()) {
     return null;
   }
   const baseURL =
-    process.env.TOGETHER_BASE_URL?.trim() || DEFAULT_TOGETHER_BASE_URL;
+    process.env.HF_ASK_BASE_URL?.trim() || DEFAULT_HF_ASK_BASE_URL;
   const provider = createOpenAI({
     apiKey,
     baseURL,
   });
   const modelId =
-    process.env.TOGETHER_MODEL?.trim() || DEFAULT_TOGETHER_MODEL;
+    process.env.HF_ASK_MODEL?.trim() || DEFAULT_HF_ASK_MODEL;
   return provider.chat(modelId);
 }
 
@@ -183,13 +181,13 @@ export async function POST(request: Request) {
     console.log("[ask] request received", requestLogPayload);
     /* eslint-enable no-console */
 
-    const model = getTogetherLanguageModel();
+    const model = getAskLanguageModel();
     if (!model) {
       const durationMs = Date.now() - started;
       /* eslint-disable no-console */
       console.error(
-        "[ask] together ai error:",
-        "Together API is not configured (missing TOGETHER_API_KEY)",
+        "[ask] inference error:",
+        "Hugging Face is not configured (missing HF_TOKEN)",
         "— latency:",
         durationMs,
         "ms",
@@ -198,7 +196,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Together API is not configured. Set TOGETHER_API_KEY (see .env.local.example).",
+            "Ask is not configured. Set HF_TOKEN (see .env.local.example).",
         },
         { status: 503 },
       );
@@ -208,7 +206,7 @@ export async function POST(request: Request) {
       const durationMs = Date.now() - started;
       /* eslint-disable no-console */
       console.error(
-        "[ask] together ai error:",
+        "[ask] inference error:",
         "question required",
         "— latency:",
         durationMs,
@@ -244,7 +242,7 @@ export async function POST(request: Request) {
     };
     assertAskLogHasNoRawTextPayload("stream_ok", successLogPayload);
     /* eslint-disable no-console */
-    console.log("[ask] together ai response ok — latency:", durationMs, "ms", successLogPayload);
+    console.log("[ask] inference response ok — latency:", durationMs, "ms", successLogPayload);
     /* eslint-enable no-console */
 
     try {
@@ -255,7 +253,7 @@ export async function POST(request: Request) {
         streamErr instanceof Error ? streamErr.message : String(streamErr);
       const streamLatency = Date.now() - started;
       console.error(
-        "[ask] together ai error:",
+        "[ask] inference error:",
         `toUIMessageStreamResponse failed: ${streamMsg}`,
         "— latency:",
         streamLatency,
@@ -272,7 +270,7 @@ export async function POST(request: Request) {
     const message = err instanceof Error ? err.message : String(err);
     const durationMs = Date.now() - started;
     console.error(
-      "[ask] together ai error:",
+      "[ask] inference error:",
       message,
       "— latency:",
       durationMs,

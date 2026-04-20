@@ -99,7 +99,7 @@ const ASK_PROMPT_PACK = {
       goToUploadTab: 'Go to Upload tab',
       privacyModalTitle: 'How your question is answered',
       privacyModalBody:
-        'Your question and selected document text are sent to our AI provider (Together AI) to generate an answer. We do not store your document on the server for this step. For sensitive topics (legal, medical, immigration), this tool does not replace a professional — see each answer’s reminders.',
+        'Your question and selected document text are sent to our AI provider (Hugging Face) to generate an answer. We do not store your document on the server for this step. For sensitive topics (legal, medical, immigration), this tool does not replace a professional — see each answer’s reminders.',
       privacyModalOk: 'OK — I understand',
       privacyBannerTitle: 'Privacy',
       privacyBannerBody:
@@ -168,7 +168,7 @@ const ASK_PROMPT_PACK = {
       goToUploadTab: 'Ir a la pestaña de carga',
       privacyModalTitle: 'Cómo se responde su pregunta',
       privacyModalBody:
-        'Su pregunta y el texto del documento seleccionado se envían a nuestro proveedor de IA (Together AI) para generar una respuesta. No guardamos su documento en el servidor en este paso. Para temas sensibles (legal, médico, inmigración), esta herramienta no sustituye a un profesional: revise los recordatorios de cada respuesta.',
+        'Su pregunta y el texto del documento seleccionado se envían a nuestro proveedor de IA (Hugging Face) para generar una respuesta. No guardamos su documento en el servidor en este paso. Para temas sensibles (legal, médico, inmigración), esta herramienta no sustituye a un profesional: revise los recordatorios de cada respuesta.',
       privacyModalOk: 'Entendido',
       privacyBannerTitle: 'Privacidad',
       privacyBannerBody:
@@ -834,7 +834,7 @@ export function AskTab({
           })
         )
 
-        // Provider failures (e.g. Together 402 billing) arrive as stream `error` chunks, not HTTP 4xx.
+        // Provider failures (e.g. HF 402 / quota) arrive as stream `error` chunks, not HTTP 4xx.
         // Without terminateOnError, the iterator completes and we commit empty assistant text.
         const messageStream = readUIMessageStream({
           stream: chunkStream,
