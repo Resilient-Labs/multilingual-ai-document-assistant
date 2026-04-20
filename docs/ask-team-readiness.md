@@ -1,6 +1,6 @@
 # Ask (Q&A) — internal team readiness
 
-Use this before demos, regression passes, or handing work to another squad. **Hiring partner / fellowship demos:** start with [`fellowship-partner-demo.md`](./fellowship-partner-demo.md) for the full presenter script and device guidance. Ask is **browser RAG + POST `/api/ask`** (see `AskTab.tsx` header comment and `app/api/ask/route.ts`).
+Use this before demos, regression passes, or handing work to another squad. **Hiring partner / fellowship demos:** start with [`fellowship-partner-demo.md`](./fellowship-partner-demo.md) for the full presenter script and device guidance. **Merge / demo tomorrow night:** use the checkbox-only sheet [`evaluations/ask-ship-checklist.md`](./evaluations/ask-ship-checklist.md). Ask is **browser RAG + POST `/api/ask`** (see `AskTab.tsx` header comment and `app/api/ask/route.ts`).
 
 ## Environment (required for a real answer)
 
@@ -62,10 +62,10 @@ Use this before you open or merge the PR so `main` stays clean.
 - [ ] **`npm run lint`** on touched paths (or full `lint` if your team requires it).
 - [ ] **Do not commit** `logs/` churn — `logs/` is in `.gitignore`; if `logs/logs.json` still appears as modified, it may be **tracked by mistake** (`git restore` it, or remove from the index in a follow-up so it stops reappearing).
 - [ ] **Do not commit** `.env.local** or secrets (already gitignored; double-check the PR diff).
-- [ ] **Stage `docs/`** (`ask-team-readiness.md`, `fellowship-partner-demo.md`, `evaluations/winnie-ask-handoff.md` if part of this branch) and new **`lib/`** / **`tests/ask*.test.ts`** files so partners get the runbooks.
+- [ ] **Stage `docs/`** (runbooks, `evaluations/ask-ship-checklist.md`, `evaluations/ask-gold-pairs.seed.jsonl`) and new **`lib/`** / **`tests/ask*.test.ts`** files so partners get the runbooks.
 - [ ] Optional: omit scratch files (e.g. local integration plans) unless the team agreed to add them.
 - [ ] PR description: call out **HF_TOKEN** for Ask/Summary, **`npm run test:ask`** for CI, and **desktop** path for fellowship demos (`docs/fellowship-partner-demo.md`).
 
 ## Related docs
 
-- Eval rubric / thresholds handoff: `docs/evaluations/winnie-ask-handoff.md`
+- Ship / eval checklist: `docs/evaluations/ask-ship-checklist.md`

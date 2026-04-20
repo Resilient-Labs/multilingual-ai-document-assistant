@@ -4,7 +4,7 @@
  *
  * **Calibration:** Research targets (High ≥0.9, etc.) are product goals — this module uses
  * draft lexical overlap. Full EN/ES/VI calibration is **Team 1** (eval + PM), not a single owner
- * after Winnie’s departure; see `docs/evaluations/winnie-ask-handoff.md` for the rubric.
+ * see `docs/evaluations/ask-ship-checklist.md` for the rubric and ship bar.
  *
  * **Vietnamese:** `wordOverlapRatio` is Latin-token–biased; VI answers may get skewed bands until
  * we add VI tokenization ([Brandi] chunk/context quality + [Jasmin] UX honesty).

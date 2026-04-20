@@ -15,6 +15,7 @@ This document is for **presenters** demoing the Multilingual AI Document Assista
    - **`DEEPL_API_KEY`** — if you will **translate** in the demo.
    - **`HF_TTS_SPACE_URL`** — if you will demo **Read Aloud** (cold start can take 30–60s after idle).
 4. **Smoke:** `npm run typecheck && npm run test:ask` then `npm run dev` — open the app once, upload a **small PDF** (under ~4 MB), complete translate if needed, open **Ask**, send one question, confirm an answer streams.
+5. **Team merge bar (optional):** same blocking items as [`docs/evaluations/ask-ship-checklist.md`](./evaluations/ask-ship-checklist.md) (trust pill on “no info” answers, no secrets in git).
 
 ## Suggested demo script (~8–10 minutes)
 

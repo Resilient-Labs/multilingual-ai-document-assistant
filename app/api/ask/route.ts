@@ -225,7 +225,7 @@ export async function POST(request: Request) {
     const questionHash = hashForAskLog(safeQuestion);
 
     // LangSmith run export when `LANGSMITH_TRACING` + API key are set (`lib/langsmithAskRun.ts`).
-    // Eval rubric + thresholds: `docs/evaluations/winnie-ask-handoff.md` (Team 1; original owner Winnie).
+    // Eval rubric + ship checklist: `docs/evaluations/ask-ship-checklist.md` (Team 1).
     /* eslint-disable no-console -- Ask route observability: never log raw question or document text */
     const requestLogPayload = {
       hasQuestion: Boolean(safeQuestion.trim()),

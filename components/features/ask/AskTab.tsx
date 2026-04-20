@@ -84,7 +84,7 @@ import {
  * professional CTA, errors. Server-side rules live in `lib/askGuardrails.ts` + `buildSystemPrompt` in `app/api/ask/route.ts`.
  */
 // [Karlee] — V1: baseline Llama 3.1 8B + RAG + prompts (no fine-tuning per team, Apr 2026).
-// [Team 1 eval] — ES/VI copy should be reviewed on the gold Q&A set (`docs/evaluations/winnie-ask-handoff.md`).
+// [Team 1 eval] — ES/VI copy should be reviewed on the gold Q&A set (`docs/evaluations/ask-ship-checklist.md`).
 
 /** Suggested + follow-up chip copy by UI locale (aligned with document / session language). */
 const ASK_PROMPT_PACK = {
