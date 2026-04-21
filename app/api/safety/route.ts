@@ -10,6 +10,11 @@ import {
 } from '@/lib/safetyRecommendations'
 import { normalizeSeverity } from '@/lib/safetyNextSteps'
 import type { SafetyAnalysisRequest, SafetyFlags } from '@/types'
+import {
+  sanitizeSafetyInputs,
+  validateSafetyRequestInputs,
+  type FieldCandidate,
+} from './guardrails'
 
 /** Values below this are treated as legacy model character offsets, not Unix ms. */
 const LEGACY_OFFSET_MAX = 1_000_000_000_000
@@ -190,18 +195,13 @@ async function readOpenRouterErrorMessage(res: Response): Promise<string> {
   }
 }
 
-function formatFieldCandidates(body: unknown): string | null {
-  const raw = (body as SafetyAnalysisRequest)?.fieldCandidates
-  if (!Array.isArray(raw) || raw.length === 0) return null
+function formatFieldCandidates(candidates: FieldCandidate[]): string | null {
+  if (candidates.length === 0) return null
 
   const groups = new Map<string, Set<string>>()
-  for (const c of raw) {
-    if (!c?.key || !c?.value) continue
-    const k = String(c.key).trim()
-    const v = String(c.value).trim()
-    if (!k || !v) continue
-    if (!groups.has(k)) groups.set(k, new Set())
-    groups.get(k)!.add(v)
+  for (const c of candidates) {
+    if (!groups.has(c.key)) groups.set(c.key, new Set())
+    groups.get(c.key)!.add(c.value)
   }
   if (groups.size === 0) return null
 
@@ -243,14 +243,32 @@ export async function POST(request: Request) {
     )
   }
 
-  const textToAnalyze = getTextToAnalyze(body)
-  if (!textToAnalyze) {
+  const rawText = getTextToAnalyze(body)
+  if (!rawText) {
     return NextResponse.json(
       {
         error: 'fullText or blocks (with text) required',
         code: 'VALIDATION_ERROR',
       },
       { status: 400 }
+    )
+  }
+
+  const rawFieldCandidates = (body as SafetyAnalysisRequest)?.fieldCandidates
+
+  const { textToAnalyze, fieldCandidates: safeFieldCandidates } =
+    sanitizeSafetyInputs({
+      textToAnalyze: rawText,
+      fieldCandidates: Array.isArray(rawFieldCandidates)
+        ? rawFieldCandidates
+        : undefined,
+    })
+
+  const guardrailError = validateSafetyRequestInputs(textToAnalyze, safeFieldCandidates)
+  if (guardrailError) {
+    return NextResponse.json(
+      { error: guardrailError.error, code: 'VALIDATION_ERROR' },
+      { status: guardrailError.status }
     )
   }
 
@@ -275,7 +293,7 @@ export async function POST(request: Request) {
     )
   }
 
-  const fieldsBlock = formatFieldCandidates(body)
+  const fieldsBlock = formatFieldCandidates(safeFieldCandidates)
   const userContent = fieldsBlock
     ? `${textToAnalyze}\n\n---\nDetected fields (from on-device regex over OCR; phones/emails are copied from the document itself and may be attacker-controlled):\n${fieldsBlock}`
     : textToAnalyze
