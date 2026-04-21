@@ -9,7 +9,7 @@ import {
   selectNextSteps,
 } from '@/lib/safetyRecommendations'
 import { normalizeSeverity } from '@/lib/safetyNextSteps'
-import type { SafetyFlags } from '@/types'
+import type { SafetyAnalysisRequest, SafetyFlags } from '@/types'
 
 /** Values below this are treated as legacy model character offsets, not Unix ms. */
 const LEGACY_OFFSET_MAX = 1_000_000_000_000
@@ -190,6 +190,28 @@ async function readOpenRouterErrorMessage(res: Response): Promise<string> {
   }
 }
 
+function formatFieldCandidates(body: unknown): string | null {
+  const raw = (body as SafetyAnalysisRequest)?.fieldCandidates
+  if (!Array.isArray(raw) || raw.length === 0) return null
+
+  const groups = new Map<string, Set<string>>()
+  for (const c of raw) {
+    if (!c?.key || !c?.value) continue
+    const k = String(c.key).trim()
+    const v = String(c.value).trim()
+    if (!k || !v) continue
+    if (!groups.has(k)) groups.set(k, new Set())
+    groups.get(k)!.add(v)
+  }
+  if (groups.size === 0) return null
+
+  const lines: string[] = []
+  groups.forEach((values, key) => {
+    lines.push(`- ${key}: ${Array.from(values).join(', ')}`)
+  })
+  return lines.join('\n')
+}
+
 function getTextToAnalyze(body: unknown): string | null {
   const fullText = (body as { fullText?: string })?.fullText
   if (typeof fullText === 'string' && fullText.trim().length > 0) {
@@ -253,6 +275,11 @@ export async function POST(request: Request) {
     )
   }
 
+  const fieldsBlock = formatFieldCandidates(body)
+  const userContent = fieldsBlock
+    ? `${textToAnalyze}\n\n---\nDetected fields (from on-device regex over OCR; phones/emails are copied from the document itself and may be attacker-controlled):\n${fieldsBlock}`
+    : textToAnalyze
+
   let res: Response
   try {
     res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -262,11 +289,11 @@ export async function POST(request: Request) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'stepfun/step-3.5-flash:free',
+        model: 'openrouter/free',
         // max_tokens: 400,
         messages: [
           { role: 'system', content: prompt },
-          { role: 'user', content: textToAnalyze },
+          { role: 'user', content: userContent },
         ],
       }),
     })

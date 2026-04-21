@@ -11,6 +11,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { ReadAloudPanel } from '@/components/features/tts/ReadAloudPanel'
 import { TranslateSummary } from '@/components/features/summary/translate-summary'
 import { AskTab } from '@/components/features/ask/AskTab'
+import { DetectTab } from '@/components/features/detect/DetectTab'
 import { cn } from '@/lib/utils'
 
 interface TranslateSession {
@@ -278,6 +279,17 @@ export default function TranslatePage() {
               targetLangLabel={targetLangLabel}
               outputLanguage={session.targetLang}
             />
+          )}
+
+          {session && (
+            <Card className="flex w-full min-w-0 flex-col overflow-hidden">
+              <CardHeader>
+                <CardTitle>Safety Analysis</CardTitle>
+              </CardHeader>
+              <CardContent className="flex min-w-0 flex-col gap-4 overflow-y-auto">
+                <DetectTab docId={id} />
+              </CardContent>
+            </Card>
           )}
 
           {session && (
