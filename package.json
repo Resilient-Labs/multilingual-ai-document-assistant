@@ -52,7 +52,8 @@
     "unpdf": "^1.4.0",
     "uuid": "^9.0.1",
     "vaul": "^1.1.2",
-    "word-extractor": "^1.0.4"
+    "word-extractor": "^1.0.4",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
