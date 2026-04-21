@@ -85,7 +85,8 @@ cp .env.local.example .env.local
 
 Set keys as needed for active integrations:
 
-- `DEEPL_API_KEY` (translation route)
+- `HF_TOKEN` (Ask and Summary; optional for Translate — see [Translation](#translation) below)
+- `HF_TRANSLATE_SPACE_URL` (Translate — public Hugging Face Gradio Space base URL, see [Translation](#translation) below)
 - `OPEN_ROUTER_API_TOKEN` (safety route)
 - `HF_TTS_SPACE_URL` (Read Aloud — see [Text-to-Speech](#text-to-speech--read-aloud) below)
 
@@ -104,6 +105,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 - The app should load without errors.
 - API routes are stateless — they process and return; no server storage.
 - Read Aloud requires `HF_TTS_SPACE_URL` to be set (see [Text-to-Speech](#text-to-speech--read-aloud)).
+- Translation (non-English targets) requires `HF_TRANSLATE_SPACE_URL` pointing at the NLLB Gradio Space (see [Translation](#translation)).
 - Safety route may require `OPEN_ROUTER_API_TOKEN` if used.
 
 ### Onboarding checklist
@@ -146,7 +148,7 @@ npm run typecheck
 | Port 3000 in use                  | Run `npm run dev -- -p 3001` to use a different port                          |
 | Build fails                       | Run `npm ci` for a clean install, then `npm run build`                        |
 | EntityDB / Transformers.js errors | Check `next.config.js` has webpack aliases for `onnxruntime-node` and `sharp` |
-| Translation fails                 | Verify DEEPL_API_KEY is set                                                   |
+| Translation fails                 | Verify `HF_TRANSLATE_SPACE_URL` is set to the NLLB Gradio Space base URL (see [Translation](#translation)). The route makes a two-step call to `/gradio_api/call/translate` (POST, then GET by `event_id`). Free Spaces sleep after ~48h idle; the first request after sleep can take 30–60s while it cold-starts, and the route waits up to 180s for the full round-trip. `HF_TOKEN` is optional for Translate. |
 | Read Aloud fails                  | Confirm `HF_TTS_SPACE_URL` is set and the Space is reachable. Cold starts after idle can take 30–60s. Read Aloud is only offered for English, Spanish, and Vietnamese. |
 | Upload rejected around 5–10MB     | Backend limit is 4.5MB `(lib/constants.ts)`                                   |
 
@@ -261,11 +263,41 @@ All endpoints are **stateless**. Client sends data; backend processes and return
 | ------------------------ | ------ | --------------------------------------------------- | ----------------------------------------------- |
 | `/api/documents/upload`  | POST   | `FormData` (file)                                   | OCR, return docId + OCR JSON                    |
 | `/api/documents/extract` | POST   | `FormData` (files[] or file)                        | OCR, return normalized entity-ready JSON        |
-| /api/translate           | POST   | `{ text, targetLang }`                              | Translation via DeepL                           |
+| /api/translate           | POST   | `{ text, targetLang }`                              | Translation via NLLB-200 on a public Hugging Face Space |
 | /api/tts                 | POST   | `{ text, targetLang, gender }`                       | TTS via Hugging Face Space (en/es/vi)           |
 | `/api/ask`               | POST   | `{ question, context? }` or `{ question, chunks? }` | RAG answer                                      |
 | `/api/summarize`         | POST   | `{ fullText }`                                      | Summary                                         |
 | `/api/safety`            | POST   | `{ fullText?, blocks? }`                            | Risk flags                                      |
+
+---
+
+## Translation
+
+`/api/translate` translates document text from **English** to **Spanish** or **Vietnamese** using Meta's **NLLB-200** model hosted on a public **Hugging Face Gradio Space** (`Resilient-Coders/nllb-translator`). Source language is fixed to English per product requirements; target codes are FLORES tags defined in `lib/translation/nllbLanguageMap.ts` (the single source of truth shared with the translate UI).
+
+### Behavior
+
+- **English short-circuit** — `targetLang === 'en'` returns the input text unchanged without any upstream call (no URL needed, no cold start).
+- **Non-English** — requires `HF_TRANSLATE_SPACE_URL` (the Space base URL) and calls the Gradio API in two steps: `POST {base}/gradio_api/call/translate` with body `{"data":[text, "eng_Latn", tgt_lang]}` returns an `event_id`, then `GET {base}/gradio_api/call/translate/{event_id}` streams back an SSE `event: complete` frame whose `data:` line is a JSON array `[translated_text]`. The response is parsed by `lib/translation/parseNllbResponse.ts`.
+- **Auth** — `HF_TOKEN` is **optional**. The Space is public, so no `Authorization` header is sent when `HF_TOKEN` is empty. If `HF_TOKEN` is set (for Ask / Summary), the route forwards it as a Bearer token on both calls, which the Space ignores.
+- **Timeout** — a single 180s `AbortController` bounds the full two-step round-trip to absorb Hugging Face cold starts. Free Spaces sleep after ~48h idle; the first request after sleep can take 30–60s.
+- **Errors** — `400` for validation (missing/empty `text`, missing/unsupported `targetLang`), `503` when `HF_TRANSLATE_SPACE_URL` is missing or the network is unreachable, `502` for upstream HTTP errors on either step / empty or malformed SSE responses / timeouts. The route never logs the token or full `text`, only status + short upstream snippet (tagged `POST:` or `SSE:` so you can tell which step failed).
+
+### Environment variables
+
+| Variable | Required | Default | Description |
+| -------- | -------- | ------- | ----------- |
+| `HF_TRANSLATE_SPACE_URL` | **Yes** for non-English | — | Base URL of the NLLB Gradio Space (e.g. `https://resilient-coders-nllb-translator.hf.space`). The route appends `/gradio_api/call/translate` and `/{event_id}` itself — do **not** include a path suffix. The route returns 503 when unset or whitespace-only. |
+| `HF_TOKEN` | No | — | Optional for Translate (the Space is public). Same token as Ask / Summary; forwarded as `Authorization: Bearer …` when present. |
+
+### Key files
+
+| File | Purpose |
+| ---- | ------- |
+| `app/api/translate/route.ts` | Next.js POST handler — validates input, English short-circuit, error mapping |
+| `lib/translation/callTranslateProvider.ts` | Wraps the upstream `fetch`, timeout, and typed `TranslateProviderError` so tests mock one function instead of global `fetch` |
+| `lib/translation/nllbLanguageMap.ts` | `APP_TO_NLLB_TARGET` FLORES mapping + `NLLB_SOURCE_ENGLISH` |
+| `lib/translation/parseNllbResponse.ts` | `extractTranslatedTextFromNllbResponse()` for Inference-shaped JSON |
 
 ---
 

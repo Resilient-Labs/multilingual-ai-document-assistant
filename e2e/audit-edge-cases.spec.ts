@@ -1,10 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { seedTranslateSession, TEST_DOC_ID } from "./helpers/session";
+import { stubTranslateApiSuccess } from "./helpers/translateApi";
 
 // ─────────────────────────────────────────
 // FLOW: Edge Cases — validation, malformed data, API errors
 // AUDIT COVERAGE: PRINCIPAL MED-1 (sessionStorage fragility),
 //   DEVOPS HIGH (streaming mismatch), PATTERNS MED (error handling)
+// Note: `/api/translate` is stubbed so Playwright never calls Hugging Face.
 // ─────────────────────────────────────────
 
 test.describe("Edge Cases", () => {
@@ -12,6 +14,7 @@ test.describe("Edge Cases", () => {
   test("EDGE-01: whitespace-only input cannot be submitted", async ({
     page,
   }) => {
+    await stubTranslateApiSuccess(page, "Texto traducido de prueba.");
     await seedTranslateSession(page);
     await page.goto(`/translate/${TEST_DOC_ID}`);
     await expect(page.getByText("Ask about this document")).toBeVisible();
@@ -40,6 +43,7 @@ test.describe("Edge Cases", () => {
   test("EDGE-03: Ask UI handles API 500 error gracefully", async ({
     page,
   }) => {
+    await stubTranslateApiSuccess(page, "Texto traducido de prueba.");
     await seedTranslateSession(page);
     await page.goto(`/translate/${TEST_DOC_ID}`);
     await expect(page.getByText("Ask about this document")).toBeVisible();

@@ -1,16 +1,26 @@
 import { test, expect } from "@playwright/test";
 import { seedTranslateSession, TEST_DOC_ID } from "./helpers/session";
+import {
+  stubTranslateApiFailure,
+  stubTranslateApiSuccess,
+} from "./helpers/translateApi";
 
 // ─────────────────────────────────────────
 // FLOW: Accessibility — WCAG 2.1 AA compliance spot-checks
 // AUDIT COVERAGE: A11Y HIGH (Send button accessible name during loading),
 //   A11Y MED (input labels, error alert roles, aria attributes)
+// Note: `/api/translate` is stubbed in every test so Playwright never calls
+// Hugging Face. See e2e/helpers/translateApi.ts.
 // ─────────────────────────────────────────
 
 test.describe("Accessibility", () => {
   test.setTimeout(60_000);
 
   test.beforeEach(async ({ page }) => {
+    // Default to a successful translation stub so page hydration is stable.
+    // Individual tests override this route (e.g. A11Y-04 uses a failure stub)
+    // before navigating.
+    await stubTranslateApiSuccess(page, "Texto traducido de prueba.");
     await seedTranslateSession(page);
     await page.goto(`/translate/${TEST_DOC_ID}`);
     await expect(page.getByText("Ask about this document")).toBeVisible();
@@ -54,7 +64,14 @@ test.describe("Accessibility", () => {
   });
 
   test("A11Y-04: error alert uses proper role='alert'", async ({ page }) => {
-    // Translation will fail because /api/translate doesn't exist — triggers an Alert
+    // Override the default success stub with a failure so the Translation
+    // Alert renders deterministically. Routes added later take precedence,
+    // and reloading re-triggers the translate fetch.
+    await stubTranslateApiFailure(page, 502, {
+      error: "Translation service returned an error",
+    });
+    await page.reload();
+
     const alert = page.locator("[role='alert']");
     await expect(alert.first()).toBeVisible({ timeout: 15_000 });
   });

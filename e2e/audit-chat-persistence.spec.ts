@@ -1,11 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
 import { seedTranslateSession, TEST_DOC_ID } from "./helpers/session";
+import { stubTranslateApiSuccess } from "./helpers/translateApi";
 
 // ─────────────────────────────────────────
 // FLOW: Chat History Persistence — IndexedDB survival across page reloads
 // TESTS: messages persist, reload restores, scoping by docId, error isolation
 // AUDIT COVERAGE: PRINCIPAL M2 (addMessage error handling), M4 (sequential persistence),
 //   DEVOPS M4 (chatHistory.error), A11Y M1 (loading history state)
+// Note: `/api/translate` is stubbed so Playwright never calls Hugging Face.
 // ─────────────────────────────────────────
 
 /**
@@ -52,6 +54,12 @@ async function askAndWaitForPersistence(
 
 test.describe("Chat History Persistence", () => {
   test.setTimeout(90_000);
+
+  test.beforeEach(async ({ page }) => {
+    // Stub the translate API for every test so page hydration is stable and
+    // we never hit real Hugging Face endpoints from CI.
+    await stubTranslateApiSuccess(page, "Texto traducido de prueba.");
+  });
 
   test("PERSIST-01: chat messages survive page refresh", async ({ page }) => {
     await stubAskApi(page, "The document covers immigration paperwork.");
