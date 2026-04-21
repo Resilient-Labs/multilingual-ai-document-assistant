@@ -150,6 +150,11 @@ export interface ChatMessage {
   sourceChunks?: string[]
   /** Structured sources with optional jump range in original text. */
   sourceRefs?: AskSourceRef[]
+  /**
+   * Ask-only: whether client RAG used indexed chunks vs whole-document fallback (timeout / empty hits).
+   * [Brandi] — data path; [Jasmin] — persisted for overlap + “can’t determine” heuristics (Apr 2026).
+   */
+  askRagMode?: 'indexed' | 'fulltext_fallback'
 }
 
 /**
@@ -161,6 +166,7 @@ export async function insertChatMessage(
   message: Pick<ChatMessage, 'role' | 'content'> & {
     sourceChunks?: string[]
     sourceRefs?: AskSourceRef[]
+    askRagMode?: ChatMessage['askRagMode']
   }
 ): Promise<void> {
   const db = getEntityDB()
@@ -176,6 +182,7 @@ export async function insertChatMessage(
     ...(message.sourceChunks && message.sourceChunks.length > 0
       ? { sourceChunks: message.sourceChunks }
       : {}),
+    ...(message.askRagMode ? { askRagMode: message.askRagMode } : {}),
   })
 }
 
@@ -224,12 +231,19 @@ export async function getChatHistory(docId: string): Promise<ChatMessage[]> {
           .filter((x): x is AskSourceRef => x != null)
         if (sourceRefs.length === 0) sourceRefs = undefined
       }
+      const rawRagMode = r['askRagMode']
+      const askRagMode =
+        rawRagMode === 'indexed' || rawRagMode === 'fulltext_fallback'
+          ? rawRagMode
+          : undefined
+
       return {
         role: r['role'] as ChatMessage['role'],
         content: r['text'] as string,
         timestamp: r['timestamp'] as number,
         ...(sourceChunks && sourceChunks.length > 0 ? { sourceChunks } : {}),
         ...(sourceRefs && sourceRefs.length > 0 ? { sourceRefs } : {}),
+        ...(askRagMode ? { askRagMode } : {}),
       }
     })
 }
