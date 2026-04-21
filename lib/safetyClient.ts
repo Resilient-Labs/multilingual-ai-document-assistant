@@ -4,27 +4,42 @@
  * Brandi and other consumers can use this or the useSafetyAnalysis hook.
  */
 
-import type { OCRResult, SafetyAnalysisResponse } from '@/types'
+import type {
+  FieldCandidate,
+  OCRResult,
+  SafetyAnalysisRequest,
+  SafetyAnalysisResponse,
+} from '@/types'
 
 /**
  * Analyze document text for safety/risk flags.
  * Call with ocr from ExtractionResponse (Team 1) after extract completes.
  *
  * @param ocr - OCR result from POST /api/documents/extract (document.ocr)
+ * @param fieldCandidates - Optional regex-extracted fields from OCR blocks.
+ *   Only `key`, `value`, and `confidence` are forwarded; document-internal ids
+ *   are dropped to keep the payload zero-retention-friendly.
  * @returns Safety flags from the analysis model
  * @throws Error if the request fails
  */
 export async function analyzeDocumentSafety(
-  ocr: OCRResult
+  ocr: OCRResult,
+  fieldCandidates: FieldCandidate[] | null = null
 ): Promise<SafetyAnalysisResponse> {
   const fullText = ocr.fullText?.trim()
   const blocks =
     ocr.blocks?.map((b) => ({ text: b.text, confidence: b.confidence })) ?? []
 
-  const body: {
-    fullText?: string
-    blocks?: Array<{ text: string; confidence?: number }>
-  } = fullText ? { fullText } : blocks.length > 0 ? { blocks } : {}
+  const slim =
+    fieldCandidates
+      ?.filter((c) => c?.value?.trim())
+      .map(({ key, value, confidence }) => ({ key, value, confidence })) ?? []
+
+  const body: SafetyAnalysisRequest = {
+    ...(fullText ? { fullText } : {}),
+    ...(!fullText && blocks.length > 0 ? { blocks } : {}),
+    ...(slim.length > 0 ? { fieldCandidates: slim } : {}),
+  }
 
   if (!body.fullText && !body.blocks?.length) {
     throw new Error('OCR has no text to analyze')

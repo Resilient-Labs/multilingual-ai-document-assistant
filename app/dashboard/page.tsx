@@ -9,13 +9,8 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { DetectTab } from '@/components/features/detect/DetectTab'
-import { DocumentTabs } from '@/components/features/tabs-layout/DocumentTabs'
-import { AskTab } from '@/components/features/ask/AskTab'
-import { useDocumentSession } from '@/hooks/useDocumentSession'
 export default function Page() {
   const isMobile = useIsMobile()
-  const { data } = useDocumentSession()
 
   return (
     <>
@@ -52,35 +47,11 @@ export default function Page() {
                 </CardContent>
               </Card>
             </TabsContent>
-            <TabsContent value="detect" className="mt-0 h-full">
-              <Card className="h-full">
-                <CardHeader>
-                  <CardTitle>Detect</CardTitle>
-                  <CardDescription>Detect content placeholder.</CardDescription>
-                </CardHeader>
-                <CardContent className="text-sm text-muted-foreground">
-                  <DetectTab />
-                </CardContent>
-              </Card>
-            </TabsContent>
-            <TabsContent value="ask" className="mt-0 h-full">
-              <Card className="h-full">
-                <CardHeader>
-                  <CardTitle>Ask</CardTitle>
-                  <CardDescription>Ask content placeholder.</CardDescription>
-                </CardHeader>
-                <CardContent className="text-sm text-muted-foreground">
-                  Ask content placeholder.
-                </CardContent>
-              </Card>
-            </TabsContent>
           </main>
           <footer className="min-h-[80px] w-full px-2">
             <TabsList className="w-full" variant="line">
               <TabsTrigger value="upload">Upload</TabsTrigger>
               <TabsTrigger value="translate">Translate</TabsTrigger>
-              <TabsTrigger value="detect">Detect</TabsTrigger>
-              <TabsTrigger value="ask">Ask</TabsTrigger>
             </TabsList>
           </footer>
         </Tabs>
@@ -93,18 +64,6 @@ export default function Page() {
             <div className="flex flex-1 flex-col">
               <div className="flex-2">Left top</div>
               <div className="flex-1">Left bottom</div>
-            </div>
-            <div className="flex-1">
-              <DocumentTabs
-                detectContent={<DetectTab />}
-                askContent={
-                  <AskTab
-                    docId={data?.document.id ?? ''}
-                    fullText={data?.ocr.fullText ?? ''}
-                  />
-                }
-                className="w-[400px]"
-              />
             </div>
           </main>
         </section>
