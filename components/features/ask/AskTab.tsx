@@ -3,6 +3,10 @@
 /**
  * AskTab — browser-side Q&A over the current document.
  *
+ * **[Jasmin] — Team 1 UX ticket:** EN / ES / VI chrome, locale resolution, streaming states,
+ * trust pill + source cards, RAG fallback behavior, teammate attribution comments in this file.
+ * **Team internal readiness** (env, smoke, CI): `docs/ask-team-readiness.md` — run `npm run test:ask`.
+ *
  * Data flow (keep in sync with `app/api/ask/route.ts`):
  * 1. User types a question. We optionally run **client-side RAG**: `queryChunks(question)` reads
  *    vectors from **EntityDB (IndexedDB)** for this browser profile. Results are scoped by `docId`.
@@ -18,7 +22,7 @@
  *    / highlights the **original document** textarea on the translate page.
  * 6. **Follow-up chips:** static suggestions after the latest answer (Research Conclusions — AI-generated follow-ups later).
  * 7. **“Can’t determine”:** heuristic on reply wording + callout. **Confidence:** plain-language pill
- *    (draft overlap bands) — see TODO [Winnie] / [Brandi] in component; calibration accordion removed from UI.
+ *    (draft overlap bands) — see `lib/askConfidenceBands.ts`; calibration accordion removed from UI.
  *
  * **State 1 (flow diagram):** until `countRagChunksForDoc(docId) > 0`, show empty state + “Go to Upload tab”
  * (no chips/input). Polls briefly after navigation so async chunking can finish.
@@ -65,26 +69,29 @@ import {
 import {
   answerContainsSpanishSignals,
   answerLooksLikeCantDetermine,
+  askTrustPillClassName,
   computeAskConfidenceBand,
   inferChipLocaleFromText,
 } from '@/lib/askConfidenceBands'
+import {
+  detectAnswerLanguage,
+  looksLikeEnglishQuestion,
+} from '@/lib/askDetectAnswerLanguage'
 
-// TODO [Zaria] — Guardrails ticket: all `ASK_PROMPT_PACK` strings (suggested chips, follow-ups, fallback, professional CTA, ES copy)
-// v1 draft — final behavior pending Zaria's prompt rules, schema validation,
-// input cleaning, output checking, refusal behavior, and domain restriction spec
-// TODO [Karlee] — Baseline model & fine-tuning ticket: static prompts assume model will respond usefully to these phrasings
-// Model quality not yet validated against eval set
-// Fine-tuning decision pending Karlee's baseline eval results
-// Do not treat current output quality as production-ready until Karlee's gate is passed
-// TODO [Winnie] — Evaluation & calibration ticket: Spanish UI strings in this pack are not yet human-reviewed for tone and clarity
-// Placeholder — must be validated against 50 Q&A pair eval set (EN + ES) before ship
-// Multilingual accuracy target: >85% per language — EN + ES only for V1
+/**
+ * [Zaria] — Guardrails ticket: **all** user-facing strings in `ASK_PROMPT_PACK` (EN + ES + VI) —
+ * privacy modal, disclosures, suggested / follow-up chips, confidence copy, “not found” callout,
+ * professional CTA, errors. Server-side rules live in `lib/askGuardrails.ts` + `buildSystemPrompt` in `app/api/ask/route.ts`.
+ */
+// [Karlee] — V1: baseline Llama 3.1 8B + RAG + prompts (no fine-tuning per team, Apr 2026).
+// [Team 1 eval] — ES/VI copy should be reviewed on the gold Q&A set (`docs/evaluations/ask-ship-checklist.md`).
 
 /** Suggested + follow-up chip copy by UI locale (aligned with document / session language). */
 const ASK_PROMPT_PACK = {
   en: {
     chrome: {
       cardTitle: 'Ask about this document',
+      assistantStreaming: 'Looking through your document…',
       preparingChunks:
         'Preparing your document for questions (checking saved chunks)…',
       loadingHistory: 'Loading history…',
@@ -99,7 +106,7 @@ const ASK_PROMPT_PACK = {
       goToUploadTab: 'Go to Upload tab',
       privacyModalTitle: 'How your question is answered',
       privacyModalBody:
-        'Your question and selected document text are sent to our AI provider (Together AI) to generate an answer. We do not store your document on the server for this step. For sensitive topics (legal, medical, immigration), this tool does not replace a professional — see each answer’s reminders.',
+        'Your question and selected document text are sent to our AI provider (Hugging Face) to generate an answer. We do not store your document on the server for this step. For sensitive topics (legal, medical, immigration), this tool does not replace a professional — see each answer’s reminders.',
       privacyModalOk: 'OK — I understand',
       privacyBannerTitle: 'Privacy',
       privacyBannerBody:
@@ -109,6 +116,7 @@ const ASK_PROMPT_PACK = {
       chatHistoryErrorFallback: 'Unable to load chat history.',
       chatHistoryErrorRefresh: 'Refresh page',
       errorAlertTitle: 'Error',
+      noAnswerReturned: 'No answer was returned.',
     },
     inputPlaceholder: 'Ask a question…',
     sendButton: 'Send',
@@ -154,6 +162,7 @@ const ASK_PROMPT_PACK = {
   es: {
     chrome: {
       cardTitle: 'Preguntas sobre este documento',
+      assistantStreaming: 'Revisando su documento…',
       preparingChunks:
         'Preparando su documento para preguntas (comprobando los fragmentos guardados)…',
       loadingHistory: 'Cargando el historial…',
@@ -168,7 +177,7 @@ const ASK_PROMPT_PACK = {
       goToUploadTab: 'Ir a la pestaña de carga',
       privacyModalTitle: 'Cómo se responde su pregunta',
       privacyModalBody:
-        'Su pregunta y el texto del documento seleccionado se envían a nuestro proveedor de IA (Together AI) para generar una respuesta. No guardamos su documento en el servidor en este paso. Para temas sensibles (legal, médico, inmigración), esta herramienta no sustituye a un profesional: revise los recordatorios de cada respuesta.',
+        'Su pregunta y el texto del documento seleccionado se envían a nuestro proveedor de IA (Hugging Face) para generar una respuesta. No guardamos su documento en el servidor en este paso. Para temas sensibles (legal, médico, inmigración), esta herramienta no sustituye a un profesional: revise los recordatorios de cada respuesta.',
       privacyModalOk: 'Entendido',
       privacyBannerTitle: 'Privacidad',
       privacyBannerBody:
@@ -179,6 +188,7 @@ const ASK_PROMPT_PACK = {
         'No se pudo cargar el historial del chat. Intente actualizar la página.',
       chatHistoryErrorRefresh: 'Actualizar página',
       errorAlertTitle: 'Error',
+      noAnswerReturned: 'No se recibió ninguna respuesta.',
     },
     inputPlaceholder: 'Haz una pregunta…',
     sendButton: 'Enviar',
@@ -221,11 +231,87 @@ const ASK_PROMPT_PACK = {
       consultButton: 'Consultar a un profesional',
     },
   },
+  vi: {
+    chrome: {
+      cardTitle: 'Hỏi về tài liệu này',
+      assistantStreaming: 'Đang xem qua tài liệu của bạn…',
+      preparingChunks:
+        'Đang chuẩn bị tài liệu để hỏi (đang kiểm tra các đoạn đã lưu)…',
+      loadingHistory: 'Đang tải lịch sử…',
+      loading: 'Đang tải…',
+      chatThreadEmpty: 'Hãy đặt câu hỏi về tài liệu phía trên.',
+      ragEmptyTitle: 'Chưa có tài liệu để tìm',
+      ragEmptyLead:
+        'Chúng tôi không thấy các đoạn văn bản của tài liệu này trong cơ sở dữ liệu trên trình duyệt (EntityDB). Thường là do chưa xử lý xong hoặc chưa tải tệp từ thiết bị này. Vui lòng vào tab Tải lên, đợi xử lý xong rồi mở lại phần Hỏi.',
+      ragEmptyEx1: 'Ví dụ: «Tôi có những quyền gì theo thỏa thuận này?»',
+      ragEmptyEx2: 'Ví dụ: «Có hạn chót nào tôi cần làm không?»',
+      ragEmptyEx3: 'Ví dụ: «Thông báo này yêu cầu tôi làm gì?»',
+      goToUploadTab: 'Đến tab Tải lên',
+      privacyModalTitle: 'Câu trả lời của bạn được tạo ra thế nào',
+      privacyModalBody:
+        'Câu hỏi và đoạn văn bản tài liệu bạn chọn được gửi tới nhà cung cấp AI (Hugging Face) để tạo câu trả lời. Chúng tôi không lưu tài liệu của bạn trên máy chủ ở bước này. Với chủ đề nhạy cảm (pháp lý, y tế, nhập cư), công cụ này không thay thế chuyên gia — xem nhắc nhở dưới mỗi câu trả lời.',
+      privacyModalOk: 'Tôi đã hiểu',
+      privacyBannerTitle: 'Quyền riêng tư',
+      privacyBannerBody:
+        'Xem cách dữ liệu được sử dụng trước khi bạn đặt câu hỏi.',
+      privacyBannerButton: 'Mở thông báo quyền riêng tư',
+      chatHistoryErrorTitle: 'Không tải được lịch sử trò chuyện',
+      chatHistoryErrorFallback: 'Không tải được lịch sử trò chuyện.',
+      chatHistoryErrorRefresh: 'Tải lại trang',
+      errorAlertTitle: 'Lỗi',
+      noAnswerReturned: 'Không nhận được câu trả lời.',
+    },
+    inputPlaceholder: 'Đặt câu hỏi…',
+    sendButton: 'Gửi',
+    inputAriaLabel: 'Ô nhập câu hỏi',
+    suggestedSection: 'Thử hỏi:',
+    suggested: [
+      'Tôi có đủ điều kiện nhận quyền lợi này không?',
+      'Tôi cần những giấy tờ gì để nộp đơn?',
+      'Hạn chót nộp hồ sơ là khi nào?',
+      'Tôi có những quyền gì theo thỏa thuận này?',
+    ],
+    followUp: [
+      'Tôi nên làm gì tiếp theo?',
+      'Có hạn chót nào tôi cần biết không?',
+      'Bạn có thể giải thích đơn giản hơn không?',
+    ],
+    source: {
+      pagePlaceholder: 'Trang chưa có',
+      expandPrefix: 'Nguồn',
+      tapToExpand: 'chạm để mở rộng',
+      exactSentence: 'Câu khớp (đã truy xuất)',
+      fullPassageSent: 'Đoạn đầy đủ đã gửi cho mô hình:',
+      showInOriginal: 'Hiện trong tài liệu gốc',
+      highlightUnavailable:
+        'Không thể làm nổi bật — đoạn có thể bị cắt hoặc không khớp nguyên văn trong tài liệu.',
+      useTranslatePage:
+        'Dùng trang dịch của tài liệu này để nhảy tới và làm nổi bật văn bản gốc.',
+    },
+    confidence: {
+      cantBadgeLabel: 'Không xác định được',
+      highSentence: 'Chúng tôi tìm thấy câu trả lời rõ ràng trong tài liệu',
+      moderateSentence:
+        'Chúng tôi tìm thấy câu trả lời một phần — vui lòng đối chiếu tài liệu',
+      lowSentence:
+        'Chúng tôi không chắc về câu trả lời này — vui lòng xem trực tiếp tài liệu',
+    },
+    cantCallout: {
+      title: 'Không thấy rõ trong tài liệu',
+      body: 'Chúng tôi không tìm thấy câu trả lời rõ trong tài liệu. Hãy thử đặt lại câu hỏi hoặc tham vấn chuyên gia có trình độ.',
+      consultButton: 'Tham vấn chuyên gia',
+    },
+  },
 } as const
 
 /** English follow-up chip labels — when the doc/session is Spanish, we still treat these as “Spanish UX” turns. */
 const ASK_EN_FOLLOW_UP_CHIP_SET = new Set<string>(
   ASK_PROMPT_PACK.en.followUp as unknown as string[]
+)
+
+/** Vietnamese follow-up chips — same pattern as English chips on a Vietnamese session ([Jasmin] UX, Apr 2026). */
+const ASK_VI_FOLLOW_UP_CHIP_SET = new Set<string>(
+  ASK_PROMPT_PACK.vi.followUp as unknown as string[]
 )
 
 type AskChipLocale = keyof typeof ASK_PROMPT_PACK
@@ -234,29 +320,72 @@ function documentPageIsSpanish(documentLanguage: string | undefined): boolean {
   return (documentLanguage?.trim().toLowerCase() ?? '').startsWith('es')
 }
 
-/** API `answerLanguage`: Spanish doc or Spanish translate target + static English follow-up chip ⇒ still request Spanish from the model. */
+function documentPageIsVietnamese(documentLanguage: string | undefined): boolean {
+  return (documentLanguage?.trim().toLowerCase() ?? '').startsWith('vi')
+}
+
+/**
+ * API `answerLanguage`: doc/translate locale + static follow-up chip in another surface language
+ * ⇒ still request the session language from the model ([Jasmin] contract; [Brandi] chunk language may still differ).
+ *
+ * Contributors: [Jasmin] — thread snapshot + chrome reconciliation for short ambiguous lines;
+ * [Karlee] — `/api/ask` + `buildSystemPrompt` output-language rule; [Brandi] — `messagesSnapshot`
+ * must stay in sync with client RAG turns so chrome and POST body agree.
+ */
 function answerLanguageForAskApi(
   question: string,
   documentLanguage: string | undefined,
-  translationTargetLang?: string
-): 'es' | 'en' {
-  const targetEs = (translationTargetLang?.trim().toLowerCase() ?? '').startsWith(
-    'es'
-  )
+  translationTargetLang: string | undefined,
+  messagesSnapshot: Array<{ role: string; content: string }>,
+  fullText: string
+): 'es' | 'en' | 'vi' {
+  const q = question.trim()
+  const tl = translationTargetLang?.trim().toLowerCase() ?? ''
+  const targetVi = tl.startsWith('vi')
+  if (
+    (documentPageIsVietnamese(documentLanguage) || targetVi) &&
+    ASK_EN_FOLLOW_UP_CHIP_SET.has(q)
+  ) {
+    return 'vi'
+  }
+  if (
+    (documentPageIsVietnamese(documentLanguage) || targetVi) &&
+    ASK_VI_FOLLOW_UP_CHIP_SET.has(q)
+  ) {
+    return 'vi'
+  }
+  const targetEs = tl.startsWith('es')
   if (
     (documentPageIsSpanish(documentLanguage) || targetEs) &&
-    ASK_EN_FOLLOW_UP_CHIP_SET.has(question.trim())
+    ASK_EN_FOLLOW_UP_CHIP_SET.has(q)
   ) {
     return 'es'
   }
-  return detectAnswerLanguage(question, documentLanguage)
+  const detected = detectAnswerLanguage(
+    question,
+    documentLanguage,
+    translationTargetLang
+  )
+  const thread = [...messagesSnapshot, { role: 'user' as const, content: q }]
+  const chrome = resolveAskChromeLocale(
+    thread,
+    documentLanguage,
+    fullText,
+    translationTargetLang
+  )
+  // [Jasmin] — align POST `answerLanguage` with per-turn chrome when the line is short/ambiguous EN;
+  // [Karlee] — model follows system prompt language; mismatch here caused EN answers on ES shell.
+  if (
+    detected === 'en' &&
+    (chrome === 'es' || chrome === 'vi') &&
+    q.length <= 48
+  ) {
+    return chrome
+  }
+  return detected
 }
 
-// TODO [Brandi] — Data & inputs ticket: answer language vs chunk language can diverge when RAG pulls English slices for a Spanish question
-// Placeholder until chunking pipeline is hardened and race condition in upload-form is fixed
-// TODO [Winnie] — Evaluation & calibration ticket: locale from answer + heuristics must be validated on the 50 Q&A eval set (EN + ES)
-// Placeholder — must be validated against 50 Q&A pair eval set (EN + ES) before ship
-// Multilingual accuracy target: >85% per language — EN + ES only for V1
+// [Team 1 eval] — Locale heuristics should be checked on gold Q&A rows (EN/ES/VI).
 /**
  * Best-effort: per–assistant-turn chrome follows answer text; when the reply is mixed or
  * ASCII-only Spanish, the paired user question nudges locale so chips/pills match “Enviar”.
@@ -271,14 +400,24 @@ function inferUiLocaleFromAnswerText(
   const t = answer.trim()
   if (!t) return 'en'
   const fromAnswer = inferChipLocaleFromText(t)
+  if (fromAnswer === 'vi') return 'vi'
   if (fromAnswer === 'es') return 'es'
 
   const q = pairedUserQuestion?.trim() ?? ''
-  const userLang = q ? detectAnswerLanguage(q, documentLanguage) : 'en'
+  const userLang = q
+    ? detectAnswerLanguage(q, documentLanguage, translationTargetLang)
+    : 'en'
 
-  const targetEs = (translationTargetLang?.trim().toLowerCase() ?? '').startsWith(
-    'es'
-  )
+  const tl = translationTargetLang?.trim().toLowerCase() ?? ''
+  const targetVi = tl.startsWith('vi')
+  const targetEs = tl.startsWith('es')
+  if (
+    (documentPageIsVietnamese(documentLanguage) || targetVi) &&
+    q &&
+    (ASK_EN_FOLLOW_UP_CHIP_SET.has(q) || ASK_VI_FOLLOW_UP_CHIP_SET.has(q))
+  ) {
+    return 'vi'
+  }
   if (
     (documentPageIsSpanish(documentLanguage) || targetEs) &&
     q &&
@@ -287,6 +426,7 @@ function inferUiLocaleFromAnswerText(
     return 'es'
   }
 
+  if (userLang === 'vi') return 'vi'
   if (userLang === 'es') return 'es'
 
   if (userLang === 'en' && answerContainsSpanishSignals(t)) {
@@ -303,22 +443,22 @@ function resolveAskChipLocale(
 ): AskChipLocale {
   const raw = documentLanguage?.trim().toLowerCase() ?? ''
   if (raw.startsWith('es')) return 'es'
+  if (raw.startsWith('vi')) return 'vi'
   if (raw.startsWith('en')) return 'en'
   return inferChipLocaleFromText(fullText)
 }
 
 function sourcePassageCountLabel(locale: AskChipLocale, count: number): string {
-  if (count === 1) return locale === 'es' ? '1 pasaje' : '1 passage'
-  return locale === 'es' ? `${count} pasajes` : `${count} passages`
-}
-
-/** Heuristic: English Ask phrasing — wins over session `sourceLang` so UI/API follow the question. */
-function looksLikeEnglishQuestion(q: string): boolean {
-  const t = q.trim().toLowerCase()
-  if (t.length < 2) return false
-  return /\b(hi|hey|hello|thanks|thank you|what|when|where|why|how|who|which|whose|should|would|could|can|can't|cannot|do|does|did|is|are|was|were|have|has|had|am|i'm|i am|please|help|explain|tell me|do i|am i|is there|are there|need to|have to|deadline|benefit|benefits|apply|applying|rights|document|documents|eligible|agreement|notice|this document|summarize|summary)\b/.test(
-    t
-  )
+  if (locale === 'es') {
+    if (count === 1) return '1 pasaje'
+    return `${count} pasajes`
+  }
+  if (locale === 'vi') {
+    if (count === 1) return '1 đoạn'
+    return `${count} đoạn`
+  }
+  if (count === 1) return '1 passage'
+  return `${count} passages`
 }
 
 function lastUserMessageContent(
@@ -355,77 +495,194 @@ function resolveAskUiLocale(
   const last = lastUserMessageContent(messages)?.trim() ?? ''
   if (!last) {
     const tgt = translationTargetLang?.trim().toLowerCase() ?? ''
+    if (tgt.startsWith('vi')) return 'vi'
     if (tgt.startsWith('es')) return 'es'
     return resolveAskChipLocale(documentLanguage, fullText)
   }
 
-  let fromUser = detectAnswerLanguage(last, documentLanguage)
+  let fromUser = detectAnswerLanguage(last, documentLanguage, translationTargetLang)
   const assistant = lastAssistantMessageContent(messages)?.trim() ?? ''
   if (
     assistant &&
-    last.length <= 28 &&
+    last.length <= 200 &&
     fromUser === 'en' &&
     !looksLikeEnglishQuestion(last) &&
-    detectAnswerLanguage(assistant.slice(0, 6000), documentLanguage) === 'es'
+    detectAnswerLanguage(assistant.slice(0, 6000), documentLanguage, translationTargetLang) ===
+      'es'
   ) {
     fromUser = 'es'
   }
 
-  return fromUser === 'es' ? 'es' : 'en'
-}
-
-/** Detect question language for /api/ask and UI — question text beats document `sourceLang`. */
-function detectAnswerLanguage(
-  question: string,
-  documentLanguage: string | undefined
-): 'es' | 'en' {
-  const q = question.trim().toLowerCase()
-  if (!q) {
-    const raw = documentLanguage?.trim().toLowerCase() ?? ''
-    return raw.startsWith('es') ? 'es' : 'en'
-  }
-  if (/[áéíóúñü¿¡]/.test(q)) return 'es'
-  if (
-    /\b(hola|buenas|buenos|gracias|muchas gracias|por favor|adiós|adios|disculpa|perdón|saludos|qué tal|buenas tardes|buenas noches)\b/i.test(
-      q
-    ) ||
-    /\b(buen\s+día|buenos\s+días)\b/i.test(q)
-  ) {
-    return 'es'
-  }
-  if (
-    /\b(qué|cual|cuál|cuando|cuándo|como|cómo|por qué|hay|debería|deberia|puede|puedes|puedo|explícalo|explicarlo|plazo|solicitud|documento|documentos|derechos|beneficio|usted|información)\b/.test(
-      q
-    )
-  ) {
-    return 'es'
-  }
-  if (
-    /\b(resumir|resumen|explica|explique|traducir|traduce|describe|describir|indique|señale|enumere|dime|cuéntame|cuentame|háblame|hableme|este|esta|estos|estas|aquí|aqui)\b/i.test(
-      q
-    )
-  ) {
-    return 'es'
-  }
-  if (looksLikeEnglishQuestion(q)) return 'en'
-  const raw = documentLanguage?.trim().toLowerCase() ?? ''
-  if (raw.startsWith('es')) return 'es'
+  if (fromUser === 'vi') return 'vi'
+  if (fromUser === 'es') return 'es'
   return 'en'
 }
 
-// TODO [Winnie] — Evaluation & calibration ticket: Spanish `ASK_ERROR_COPY` strings need human review and eval alignment
-// Placeholder — must be validated against 50 Q&A pair eval set (EN + ES) before ship
-// Multilingual accuracy target: >85% per language — EN + ES only for V1
-// TODO [Zaria] — Guardrails ticket: error / offline messaging should match Zaria’s tone and domain-safe wording in EN + ES
-// v1 draft — final behavior pending Zaria's prompt rules, schema validation,
-// input cleaning, output checking, refusal behavior, and domain restriction spec
+/**
+ * When the translate session target is ES or VI, nudge ambiguous **short** English (e.g. follow-up chips)
+ * to session chrome — but **do not** override a clear English *typed* question (not the static EN chip
+ * labels on a VI/ES session — those still floor to session chrome) ([Jasmin] v1 + Apr 2026).
+ */
+function applyTranslationTargetChromeFloor(
+  locale: AskChipLocale,
+  translationTargetLang?: string,
+  opts?: { lastUserContent?: string | null; documentLanguage?: string }
+): AskChipLocale {
+  const last = opts?.lastUserContent?.trim() ?? ''
+  const doc = opts?.documentLanguage
+  const tl = translationTargetLang?.trim().toLowerCase() ?? ''
+  const targetVi = tl.startsWith('vi')
+  const targetEs = tl.startsWith('es')
+  const isStaticEnFollowUpChip =
+    ASK_EN_FOLLOW_UP_CHIP_SET.has(last) &&
+    ((documentPageIsVietnamese(doc) || targetVi) ||
+      (documentPageIsSpanish(doc) || targetEs))
+
+  if (
+    last.length >= 2 &&
+    looksLikeEnglishQuestion(last) &&
+    !isStaticEnFollowUpChip
+  ) {
+    return locale
+  }
+  if (tl.startsWith('es') && locale === 'en') return 'es'
+  if (tl.startsWith('vi') && locale === 'en') return 'vi'
+  return locale
+}
+
+/**
+ * Locale for **card chrome** (title, placeholders, send, top chips) — must match the latest turn
+ * **and** the translate `translationTargetLang` when set ([Jasmin] v1).
+ */
+function resolveAskChromeLocale(
+  messages: Array<{ role: string; content: string }>,
+  documentLanguage: string | undefined,
+  fullText: string,
+  translationTargetLang?: string
+): AskChipLocale {
+  const n = messages.length
+  if (n === 0) {
+    return applyTranslationTargetChromeFloor(
+      resolveAskUiLocale(
+        messages,
+        documentLanguage,
+        fullText,
+        translationTargetLang
+      ),
+      translationTargetLang,
+      { documentLanguage }
+    )
+  }
+
+  const last = messages[n - 1]
+
+  if (
+    last.role === 'assistant' &&
+    !last.content.trim() &&
+    n >= 2 &&
+    messages[n - 2].role === 'user' &&
+    messages[n - 2].content.trim()
+  ) {
+    const lang = detectAnswerLanguage(
+      messages[n - 2].content,
+      documentLanguage,
+      translationTargetLang
+    )
+    const chip: AskChipLocale =
+      lang === 'vi' ? 'vi' : lang === 'es' ? 'es' : 'en'
+    return applyTranslationTargetChromeFloor(chip, translationTargetLang, {
+      lastUserContent: messages[n - 2].content,
+      documentLanguage,
+    })
+  }
+
+  if (last.role === 'user' && last.content.trim()) {
+    const lang = detectAnswerLanguage(
+      last.content,
+      documentLanguage,
+      translationTargetLang
+    )
+    let chip: AskChipLocale =
+      lang === 'vi' ? 'vi' : lang === 'es' ? 'es' : 'en'
+    // Short follow-up after a non-English assistant: keep ES/VI chrome when the line alone looks “en” ([Jasmin] Apr 2026).
+    if (chip === 'en' && n >= 2) {
+      const prev = messages[n - 2]
+      const trimmed = last.content.trim()
+      if (prev.role === 'assistant' && prev.content.trim() && trimmed.length <= 40) {
+        const priorAns = inferChipLocaleFromText(prev.content.slice(0, 4000))
+        const clearlyEnglish =
+          looksLikeEnglishQuestion(trimmed) &&
+          !/\b(gracias|por favor|hola|chao|chau|vale|bueno|xin|cảm ơn|vâng|dạ|cám ơn)\b/i.test(
+            trimmed.toLowerCase()
+          )
+        if (priorAns === 'es' && !clearlyEnglish) chip = 'es'
+        else if (priorAns === 'vi' && !clearlyEnglish) chip = 'vi'
+      }
+    }
+    return applyTranslationTargetChromeFloor(chip, translationTargetLang, {
+      lastUserContent: last.content,
+      documentLanguage,
+    })
+  }
+
+  if (last.role === 'assistant' && last.content.trim()) {
+    const idx = n - 1
+    const paired = lastUserContentBeforeAssistantIndex(messages, idx)
+    const pairedTrim = paired?.trim() ?? ''
+    const userLang = pairedTrim
+      ? detectAnswerLanguage(pairedTrim, documentLanguage, translationTargetLang)
+      : 'en'
+    const fromAnswer = inferUiLocaleFromAnswerText(
+      last.content,
+      paired,
+      documentLanguage,
+      translationTargetLang
+    )
+    /**
+     * Chrome for this assistant row follows the **paired user question**, not the model’s surface
+     * language — EN question + ES answer still shows EN pills/callout/source labels ([Jasmin] Apr 2026).
+     */
+    const inferred: AskChipLocale = pairedTrim
+      ? userLang === 'vi'
+        ? 'vi'
+        : userLang === 'es'
+          ? 'es'
+          : 'en'
+      : fromAnswer
+    return applyTranslationTargetChromeFloor(
+      inferred,
+      translationTargetLang,
+      { lastUserContent: pairedTrim || null, documentLanguage }
+    )
+  }
+
+  return applyTranslationTargetChromeFloor(
+    resolveAskUiLocale(
+      messages,
+      documentLanguage,
+      fullText,
+      translationTargetLang
+    ),
+    translationTargetLang,
+    {
+      lastUserContent: lastUserMessageContent(messages),
+      documentLanguage,
+    }
+  )
+}
+
+// [Zaria] — Guardrails: error / offline messaging — pair with `lib/askGuardrails.ts`. [Team 1] — ES/VI tone on eval set.
 const ASK_ERROR_COPY = {
   en: {
     offline:
       'You appear to be offline. Please check your connection and try again.',
     modelTimeout: 'This is taking longer than expected. Please try again.',
+    modelProviderBusy:
+      'The answer service is busy or rate-limited. Wait a moment and try again, or check your Hugging Face account and plan limits.',
     modelFailure:
       'Something went wrong answering your question. Please try again.',
+    modelEmptyReply:
+      'The model did not return any text. Please try again.',
     sessionEnded:
       'Your session has ended. Please go back to the Upload tab to continue.',
     tryAgain: 'Try again',
@@ -436,32 +693,68 @@ const ASK_ERROR_COPY = {
       'Parece que no tiene conexión. Verifique su conexión e intente de nuevo.',
     modelTimeout:
       'Esto está tardando más de lo esperado. Por favor intente de nuevo.',
+    modelProviderBusy:
+      'El servicio de respuestas está ocupado o con límite de uso. Espere un momento e intente de nuevo, o revise su cuenta y plan de Hugging Face.',
     modelFailure: 'Algo salió mal. Por favor intente de nuevo.',
+    modelEmptyReply:
+      'El modelo no devolvió ningún texto. Por favor intente de nuevo.',
     sessionEnded:
       'Su sesión ha terminado. Regrese a la pestaña de carga para continuar.',
     tryAgain: 'Intentar de nuevo',
     goToUpload: 'Ir a la pestaña de carga',
   },
+  vi: {
+    offline:
+      'Có vẻ bạn đang ngoại tuyến. Vui lòng kiểm tra kết nối và thử lại.',
+    modelTimeout: 'Đang mất nhiều thời gian hơn dự kiến. Vui lòng thử lại.',
+    modelProviderBusy:
+      'Dịch vụ trả lời đang bận hoặc bị giới hạn tần suất. Hãy đợi một lát rồi thử lại, hoặc kiểm tra tài khoản và gói Hugging Face của bạn.',
+    modelFailure: 'Đã xảy ra lỗi khi trả lời. Vui lòng thử lại.',
+    modelEmptyReply:
+      'Mô hình không trả về nội dung. Vui lòng thử lại.',
+    sessionEnded:
+      'Phiên của bạn đã kết thúc. Vui lòng quay lại tab Tải lên để tiếp tục.',
+    tryAgain: 'Thử lại',
+    goToUpload: 'Đến tab Tải lên',
+  },
 } as const
 
 function askErrorLocale(
   question: string,
-  documentLanguage: string | undefined
+  documentLanguage: string | undefined,
+  translationTargetLang?: string
 ): AskChipLocale {
-  return detectAnswerLanguage(question, documentLanguage) === 'es'
-    ? 'es'
-    : 'en'
+  const lang = detectAnswerLanguage(
+    question,
+    documentLanguage,
+    translationTargetLang
+  )
+  if (lang === 'vi') return 'vi'
+  if (lang === 'es') return 'es'
+  return 'en'
 }
 
 const ASK_ERROR_MESSAGES_ES = new Set<string>([
   ASK_ERROR_COPY.es.offline,
   ASK_ERROR_COPY.es.modelTimeout,
+  ASK_ERROR_COPY.es.modelProviderBusy,
   ASK_ERROR_COPY.es.modelFailure,
+  ASK_ERROR_COPY.es.modelEmptyReply,
   ASK_ERROR_COPY.es.sessionEnded,
+])
+
+const ASK_ERROR_MESSAGES_VI = new Set<string>([
+  ASK_ERROR_COPY.vi.offline,
+  ASK_ERROR_COPY.vi.modelTimeout,
+  ASK_ERROR_COPY.vi.modelProviderBusy,
+  ASK_ERROR_COPY.vi.modelFailure,
+  ASK_ERROR_COPY.vi.modelEmptyReply,
+  ASK_ERROR_COPY.vi.sessionEnded,
 ])
 
 function errorChromeLocale(error: string | null): AskChipLocale {
   if (error && ASK_ERROR_MESSAGES_ES.has(error)) return 'es'
+  if (error && ASK_ERROR_MESSAGES_VI.has(error)) return 'vi'
   return 'en'
 }
 
@@ -469,13 +762,39 @@ function isSessionEndedAskError(error: string | null): boolean {
   if (!error) return false
   return (
     error === ASK_ERROR_COPY.en.sessionEnded ||
-    error === ASK_ERROR_COPY.es.sessionEnded
+    error === ASK_ERROR_COPY.es.sessionEnded ||
+    error === ASK_ERROR_COPY.vi.sessionEnded
   )
 }
 
-// TODO [Brandi] — Data & inputs ticket: `SNIPPET_MAX` truncates retrieved chunk text stored/shown on source cards (not final sentence boundaries)
-// Placeholder until chunking pipeline is hardened and race condition in upload-form is fixed
+/**
+ * Map HF / AI SDK failures to a user-facing line (EN / ES / VI). [Karlee] — inference path;
+ * [Jasmin] — client surfacing; [Team 1 eval] — tone on ES/VI.
+ */
+function askProviderOrNetworkMessage(raw: string): 'timeout' | 'quota' | 'generic' {
+  const m = raw.toLowerCase()
+  if (
+    /abort|timeout|timed out|network|failed to fetch|load failed|querychunks timeout|etimedout|econnreset/i.test(
+      m
+    )
+  ) {
+    return 'timeout'
+  }
+  if (
+    /\b402\b|\b429\b|quota|rate limit|too many requests|billing|payment|exceeded|capacity|overload/i.test(
+      m
+    )
+  ) {
+    return 'quota'
+  }
+  return 'generic'
+}
+
+// [Brandi] — `SNIPPET_MAX` caps snippet size on source cards (sentence boundaries are future work).
 const SNIPPET_MAX = 450
+
+/** Max chars of full document used as overlap context when RAG used whole-doc fallback ([Jasmin] + [Brandi] heuristic fix, Apr 2026). */
+const ASK_OVERLAP_FULLTEXT_MAX = 24_000
 
 /** DOM id for focus after send — `Input` is not `forwardRef` in this codebase. */
 const ASK_QUESTION_INPUT_ID = 'ask-tab-question-input'
@@ -579,9 +898,7 @@ function sourcesForDisplay(
   })
 }
 
-// TODO [Brandi] — Data & inputs ticket: `firstSentenceFromSnippet` approximates “exact sentence” from truncated chunk text (no real sentence spans yet)
-// Placeholder until chunking pipeline is hardened and race condition in upload-form is fixed
-/** “Exact sentence” for expanded source — until Brandi supplies sentence boundaries per chunk. */
+/** “Exact sentence” for expanded source — approximates from truncated chunk ([Brandi] data path). */
 function firstSentenceFromSnippet(snippet: string): string {
   const t = snippet.trim()
   if (!t) return ''
@@ -589,11 +906,47 @@ function firstSentenceFromSnippet(snippet: string): string {
   return (m ? m[0] : t.slice(0, 240)).trim()
 }
 
-function contextForOverlap(msg: { sourceRefs?: AskSourceRef[]; sourceChunks?: string[] }, fullText: string): string {
+function inferLegacyAskRagMode(
+  msg: {
+    sourceRefs?: AskSourceRef[]
+    sourceChunks?: string[]
+    askRagMode?: 'indexed' | 'fulltext_fallback'
+  },
+  fullText: string
+): 'indexed' | 'fulltext_fallback' {
+  if (msg.askRagMode) return msg.askRagMode
+  const refs = sourcesForDisplay(msg, fullText)
+  if (refs.length === 0) return 'fulltext_fallback'
+  if (refs.length >= 2) return 'indexed'
+  const r0 = refs[0]
+  if (r0.chunkId) return 'indexed'
+  const head = r0.snippet.replace(/\u2026$|…$/, '').trim()
+  if (head.length >= 320 && fullText.trim().startsWith(head))
+    return 'fulltext_fallback'
+  return 'indexed'
+}
+
+/**
+ * Text window for lexical overlap / trust pill. Indexed RAG uses posted snippets; whole-doc
+ * fallback uses a large `fullText` slice so the pill is not stuck on a 450-char head ([Brandi] issue; [Jasmin] fix).
+ */
+function contextForOverlap(
+  msg: {
+    sourceRefs?: AskSourceRef[]
+    sourceChunks?: string[]
+    askRagMode?: 'indexed' | 'fulltext_fallback'
+  },
+  fullText: string
+): string {
+  const mode = inferLegacyAskRagMode(msg, fullText)
+  if (mode === 'fulltext_fallback') {
+    return fullText.slice(
+      0,
+      Math.min(Math.max(0, fullText.length), ASK_OVERLAP_FULLTEXT_MAX)
+    )
+  }
   const refs = sourcesForDisplay(msg, fullText)
   if (refs.length > 0) return refs.map((r) => r.snippet).join('\n')
-  // TODO [Brandi] — Data & inputs ticket: overlap context falls back to first 8k of `fullText` when no source snippets — not chunk-aligned
-  // Placeholder until chunking pipeline is hardened and race condition in upload-form is fixed
   return fullText.slice(0, 8000)
 }
 
@@ -602,6 +955,8 @@ interface PendingMessage {
   content: string
   /** Structured RAG sources for this turn (persisted on assistant). */
   sourceRefs?: AskSourceRef[]
+  /** See `ChatMessage.askRagMode` — set on assistant rows for overlap + cant-determine gating. */
+  askRagMode?: 'indexed' | 'fulltext_fallback'
 }
 
 export interface AskTabProps {
@@ -616,8 +971,9 @@ export interface AskTabProps {
    */
   documentLanguage?: string
   /**
-   * Translate flow: session `targetLang` (e.g. `es`). When Spanish, Ask chrome matches
-   * translation + summary before the first question even if the source document is English.
+   * Translate flow: session `targetLang` (e.g. `es` / `vi`). Drives **chrome floor**: if the user
+   * types English but the session target is Spanish or Vietnamese, card title / input / send stay
+   * ES or VI so the shell matches the translate language ([Jasmin] v1).
    */
   translationTargetLang?: string
 }
@@ -653,7 +1009,7 @@ export function AskTab({
   )
 
   const { askPromptPack } = useMemo(() => {
-    const locale = resolveAskUiLocale(
+    const locale = resolveAskChromeLocale(
       displayMessages,
       documentLanguage,
       fullText,
@@ -683,8 +1039,7 @@ export function AskTab({
   }, [docId])
 
   // Poll briefly: chunking/embeddings run async after upload (flow: no input until chunks exist).
-  // TODO [Brandi] — Data & inputs ticket: polling `countRagChunksForDoc` bridges upload vs Ask race until pipeline + upload-form are hardened
-  // Placeholder until chunking pipeline is hardened and race condition in upload-form is fixed
+  // [Brandi] — `countRagChunksForDoc` bridges upload vs Ask until navigation/indexing is instant.
   useEffect(() => {
     if (!docId) return
     let cancelled = false
@@ -727,7 +1082,11 @@ export function AskTab({
       setError(null)
       lastQuestionForRetryRef.current = question
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        const eloc = askErrorLocale(question, documentLanguage)
+        const eloc = askErrorLocale(
+          question,
+          documentLanguage,
+          translationTargetLang
+        )
         setError(ASK_ERROR_COPY[eloc].offline)
         queueMicrotask(() => {
           if (typeof document === 'undefined') return
@@ -743,12 +1102,10 @@ export function AskTab({
       ])
 
       // --- Client RAG: top chunks for this doc, or full document text as fallback ---
-      // TODO [Brandi] — Data & inputs ticket: falls back to full `fullText` when semantic hits are empty, time out, or fail — not sized/overlapped like real chunks
-      // Placeholder until chunking pipeline is hardened and race condition in upload-form is fixed
+      // [Brandi] — Indexed chunks when hits exist; [Jasmin] — `askRagMode` records fallback for overlap / cant-determine gating.
       let ragParts: Array<{ text: string; chunkId?: string }>
+      let usedIndexedChunks = false
       try {
-        // TODO [Brandi] — Data & inputs ticket: `queryChunks` limit (5) and ranking depend on client chunking + embeddings quality
-        // Placeholder until chunking pipeline is hardened and race condition in upload-form is fixed
         const results = await Promise.race([
           queryChunks(question, { limit: 5 }),
           new Promise<never>((_, reject) =>
@@ -756,6 +1113,7 @@ export function AskTab({
           ),
         ])
         const scopedResults = results.filter((r) => r.docId === docId)
+        usedIndexedChunks = scopedResults.length > 0
         ragParts =
           scopedResults.length > 0
             ? scopedResults.map((r) => ({
@@ -765,21 +1123,20 @@ export function AskTab({
             : [{ text: fullText }]
       } catch {
         ragParts = [{ text: fullText }]
+        usedIndexedChunks = false
       }
 
+      const askRagMode = usedIndexedChunks ? 'indexed' : 'fulltext_fallback'
       const chunks = ragParts.map((p) => p.text)
       const sourceRefs = buildSourceRefs(ragParts, fullText)
       const sourceSnippets = sourceRefs.map((r) => r.snippet)
       setPendingMessages([
         { role: 'user', content: question },
-        { role: 'assistant', content: '', sourceRefs },
+        { role: 'assistant', content: '', sourceRefs, askRagMode },
       ])
 
       try {
-        // TODO [Karlee] — Baseline model & fine-tuning ticket: `/api/ask` answer quality and streaming behavior depend on baseline model + prompt pack
-        // Model quality not yet validated against eval set
-        // Fine-tuning decision pending Karlee's baseline eval results
-        // Do not treat current output quality as production-ready until Karlee's gate is passed
+        // [Karlee] — Baseline Llama 3.1 8B + prompts (no fine-tuning, Apr 2026).
         const res = await fetch('/api/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -789,13 +1146,19 @@ export function AskTab({
             answerLanguage: answerLanguageForAskApi(
               question,
               documentLanguage,
-              translationTargetLang
+              translationTargetLang,
+              chatHistory.messages,
+              fullText
             ),
           }),
         })
 
         if (!res.ok) {
-          const eloc = askErrorLocale(question, documentLanguage)
+          const eloc = askErrorLocale(
+            question,
+            documentLanguage,
+            translationTargetLang
+          )
           if (res.status === 401 || res.status === 403) {
             setError(ASK_ERROR_COPY[eloc].sessionEnded)
             setPendingMessages([])
@@ -806,14 +1169,51 @@ export function AskTab({
             setPendingMessages([])
             return
           }
-          await res.json().catch(() => ({}))
+          if (res.status === 402 || res.status === 429) {
+            setError(ASK_ERROR_COPY[eloc].modelProviderBusy)
+            setPendingMessages([])
+            return
+          }
+          const errBody = (await res.json().catch(() => ({}))) as {
+            error?: unknown
+          }
+          const serverMsg =
+            typeof errBody.error === 'string' ? errBody.error.trim() : ''
+          if (res.status === 503 && serverMsg) {
+            setError(serverMsg)
+            setPendingMessages([])
+            return
+          }
+          if (
+            serverMsg &&
+            (res.status === 422 || res.status === 400 || res.status === 413)
+          ) {
+            // [Zaria] — guardrails / policy errors: show server text (crisis routing, off-topic, limits).
+            setError(serverMsg)
+            setPendingMessages([])
+            return
+          }
+          if (
+            serverMsg &&
+            res.status >= 500 &&
+            res.status < 600 &&
+            serverMsg.length <= 280
+          ) {
+            setError(serverMsg)
+            setPendingMessages([])
+            return
+          }
           setError(ASK_ERROR_COPY[eloc].modelFailure)
           setPendingMessages([])
           return
         }
 
         if (!res.body) {
-          const eloc = askErrorLocale(question, documentLanguage)
+          const eloc = askErrorLocale(
+            question,
+            documentLanguage,
+            translationTargetLang
+          )
           setError(ASK_ERROR_COPY[eloc].modelFailure)
           setPendingMessages([])
           return
@@ -834,7 +1234,7 @@ export function AskTab({
           })
         )
 
-        // Provider failures (e.g. Together 402 billing) arrive as stream `error` chunks, not HTTP 4xx.
+        // Provider failures (e.g. HF 402 / quota) arrive as stream `error` chunks, not HTTP 4xx.
         // Without terminateOnError, the iterator completes and we commit empty assistant text.
         const messageStream = readUIMessageStream({
           stream: chunkStream,
@@ -851,33 +1251,56 @@ export function AskTab({
                 role: 'assistant',
                 content: finalText,
                 sourceRefs,
+                askRagMode,
               },
             ])
           }
+        }
+
+        if (!finalText.trim()) {
+          const eloc = askErrorLocale(
+            question,
+            documentLanguage,
+            translationTargetLang
+          )
+          setError(ASK_ERROR_COPY[eloc].modelEmptyReply)
+          setPendingMessages([])
+          return
         }
 
         await chatHistory.addMessage('user', question)
         await chatHistory.addMessage('assistant', finalText, {
           sourceRefs,
           sourceChunks: sourceSnippets,
+          askRagMode,
         })
         setPendingMessages([])
       } catch (err) {
-        const eloc = askErrorLocale(question, documentLanguage)
+        const eloc = askErrorLocale(
+          question,
+          documentLanguage,
+          translationTargetLang
+        )
         const msg = err instanceof Error ? err.message : String(err)
+        if (process.env.NODE_ENV === 'development') {
+          /* eslint-disable no-console -- [Jasmin] dev-only Ask stream / HF diagnostics for [Karlee] model path */
+          console.warn('[ask-tab] ask failed:', msg)
+          /* eslint-enable no-console */
+        }
         if (
           /\b401\b|\b403\b/i.test(msg) ||
           /unauthorized|forbidden/i.test(msg.toLowerCase())
         ) {
           setError(ASK_ERROR_COPY[eloc].sessionEnded)
-        } else if (
-          /abort|timeout|timed out|network|failed to fetch|load failed|querychunks timeout/i.test(
-            msg
-          )
-        ) {
-          setError(ASK_ERROR_COPY[eloc].modelTimeout)
         } else {
-          setError(ASK_ERROR_COPY[eloc].modelFailure)
+          const kind = askProviderOrNetworkMessage(msg)
+          if (kind === 'timeout') {
+            setError(ASK_ERROR_COPY[eloc].modelTimeout)
+          } else if (kind === 'quota') {
+            setError(ASK_ERROR_COPY[eloc].modelProviderBusy)
+          } else {
+            setError(ASK_ERROR_COPY[eloc].modelFailure)
+          }
         }
         setPendingMessages([])
       } finally {
@@ -888,9 +1311,16 @@ export function AskTab({
         })
       }
     },
-    // chatHistory.addMessage is stable; full chatHistory in deps would re-run every parent render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only addMessage + doc slice needed
-    [fullText, docId, documentLanguage, translationTargetLang, chatHistory.addMessage]
+    [
+      fullText,
+      docId,
+      documentLanguage,
+      translationTargetLang,
+      chatHistory.addMessage,
+      // [Jasmin] — list `messages`: `addMessage` is stable from `useChatHistory`; omitting messages
+      // stale-closed `answerLanguageForAskApi` (wrong language on turn 2+).
+      chatHistory.messages,
+    ]
   )
 
   const handleSubmit = useCallback(async () => {
@@ -974,9 +1404,7 @@ export function AskTab({
             {/* First-send privacy gate (Team 1 handoff) */}
             <Dialog open={privacyGateOpen} onOpenChange={setPrivacyGateOpen}>
               <DialogContent showCloseButton={false}>
-                {/* TODO [Zaria] — Guardrails ticket: first-send privacy modal copy (disclosure + professional referral framing)
-                    v1 draft — final behavior pending Zaria's prompt rules, schema validation,
-                    input cleaning, output checking, refusal behavior, and domain restriction spec */}
+                {/* [Zaria] Guardrails: privacy modal — ASK_PROMPT_PACK.chrome.privacyModal* */}
                 <DialogHeader>
                   <DialogTitle>{askPromptPack.chrome.privacyModalTitle}</DialogTitle>
                   <DialogDescription className="text-left">
@@ -1046,20 +1474,7 @@ export function AskTab({
             <div className="flex max-h-80 min-h-[120px] flex-col gap-3 overflow-y-auto pr-1">
               {showTopSuggestedChips && (
                 <div className="flex flex-wrap gap-2 pb-1">
-                  {/* TODO [Brandi] — Data & inputs ticket: top suggested chips default to English before first question — no chunk-derived niche yet
-                      Placeholder until chunking pipeline is hardened and race condition in upload-form is fixed */}
-                  {/* TODO [Winnie] — Evaluation & calibration ticket: English-only top chips + multilingual flows need eval sign-off
-                      Placeholder — must be validated against 50 Q&A pair eval set (EN + ES) before ship
-                      Multilingual accuracy target: >85% per language — EN + ES only for V1 */}
-                  {/* TODO [Zaria] — Guardrails ticket: top suggested chip wording must pass domain + guardrail review
-                      v1 draft — final behavior pending Zaria's prompt rules, schema validation,
-                      input cleaning, output checking, refusal behavior, and domain restriction spec */}
-                  {/* TODO [Karlee] — Baseline model & fine-tuning ticket: suggested chip prompts assume model answers usefully from cold start
-                      Model quality not yet validated against eval set
-                      Fine-tuning decision pending Karlee's baseline eval results
-                      Do not treat current output quality as production-ready until Karlee's gate is passed */}
-                  {/* TODO [Brandi] — Data & inputs ticket: suggested prompts stay generic until chunk metadata can classify document niche
-                      Placeholder until chunking pipeline is hardened and race condition in upload-form is fixed */}
+                  {/* [Zaria] — suggested chips. [Brandi] — niche prompts when chunk metadata exists. [Team 1 eval] — EN/ES/VI review. */}
                   <p className="w-full text-xs font-medium text-muted-foreground">
                     {askPromptPack.suggestedSection}
                   </p>
@@ -1104,19 +1519,29 @@ export function AskTab({
                 isAssistant && isLast && isLoading && msg.content === ''
               const isStreamingThisAssistant =
                 isAssistant && isLast && isLoading
-              const pairedUserQuestion = isAssistant
-                ? lastUserContentBeforeAssistantIndex(displayMessages, i)
-                : null
-              const answerLocale =
+              /** Per-turn chrome pack — trust pill / sources / chips match title & input for that point in the thread ([Jasmin] Apr 2026). */
+              const chromeLocaleAtTurn = resolveAskChromeLocale(
+                displayMessages.slice(0, i + 1),
+                documentLanguage,
+                fullText,
+                translationTargetLang
+              )
+              const packForChromeAtTurn = ASK_PROMPT_PACK[chromeLocaleAtTurn]
+              const overlapCtx = isAssistant
+                ? contextForOverlap(msg, fullText)
+                : ''
+              const overlapBand =
                 isAssistant && msg.content.trim().length > 0
-                  ? inferUiLocaleFromAnswerText(
-                      msg.content,
-                      pairedUserQuestion,
-                      documentLanguage,
-                      translationTargetLang
-                    )
-                  : 'en'
-              const packForAnswer = ASK_PROMPT_PACK[answerLocale]
+                  ? computeAskConfidenceBand(msg.content, overlapCtx)
+                  : 'low'
+              const wordingCant =
+                isAssistant &&
+                msg.content.trim().length > 0 &&
+                answerLooksLikeCantDetermine(msg.content)
+              /** Pill must match “can’t find” wording; overlap alone can contradict ([Jasmin] Apr 2026). */
+              const pillBand = wordingCant ? 'cant_determine' : overlapBand
+              const showCantCallout =
+                wordingCant && overlapBand !== 'high'
               const assistantPostStreamReady =
                 isAssistant &&
                 msg.content.trim().length > 0 &&
@@ -1146,11 +1571,11 @@ export function AskTab({
                           <span className="animate-pulse delay-100">·</span>
                           <span className="animate-pulse delay-200">·</span>
                         </span>
-                        Looking through your document…
+                        {askPromptPack.chrome.assistantStreaming}
                       </span>
                     ) : !msg.content.trim() && isAssistant ? (
                       <span className="text-muted-foreground">
-                        No answer was returned.
+                        {packForChromeAtTurn.chrome.noAnswerReturned}
                       </span>
                     ) : (
                       msg.content
@@ -1158,21 +1583,15 @@ export function AskTab({
                   </div>
                   {isAssistant && assistantPostStreamReady && (
                       <div className="flex w-full min-w-0 max-w-full flex-col gap-2 sm:max-w-[min(100%,36rem)]">
-                        {/* TODO [Winnie] — Evaluation & calibration ticket: “can’t determine” uses `answerLooksLikeCantDetermine` regex heuristics only
-                            Placeholder — must be validated against 50 Q&A pair eval set (EN + ES) before ship
-                            Multilingual accuracy target: >85% per language — EN + ES only for V1 */}
-                        {/* TODO [Brandi] — Data & inputs ticket: false “can’t determine” may fire when chunks are missing, late, or low quality
-                            Placeholder until chunking pipeline is hardened and race condition in upload-form is fixed */}
-                        {answerLooksLikeCantDetermine(msg.content) && (
+                        {/* [Brandi] — “Not found” regex + [Jasmin] — suppress when overlap band is `high` (bad chunks / full-doc fallback used to skew overlap). */}
+                        {showCantCallout && (
                           <Alert className="border-muted-foreground/40 bg-muted/60">
-                            {/* TODO [Zaria] — Guardrails ticket: “not found” callout + professional CTA copy (EN/ES) needs guardrail + referral review
-                                v1 draft — final behavior pending Zaria's prompt rules, schema validation,
-                                input cleaning, output checking, refusal behavior, and domain restriction spec */}
+                            {/* [Zaria] Guardrails: “not found” + CTA — ASK_PROMPT_PACK.*.cantCallout */}
                             <AlertTitle>
-                              {packForAnswer.cantCallout.title}
+                              {packForChromeAtTurn.cantCallout.title}
                             </AlertTitle>
                             <AlertDescription className="flex flex-col gap-2">
-                              <span>{packForAnswer.cantCallout.body}</span>
+                              <span>{packForChromeAtTurn.cantCallout.body}</span>
                               <Button
                                 type="button"
                                 variant="default"
@@ -1185,67 +1604,43 @@ export function AskTab({
                                   target="_blank"
                                   rel="noopener noreferrer"
                                 >
-                                  {packForAnswer.cantCallout.consultButton}
+                                  {packForChromeAtTurn.cantCallout.consultButton}
                                 </a>
                               </Button>
                             </AlertDescription>
                           </Alert>
                         )}
                         {(() => {
-                          const ctx = contextForOverlap(msg, fullText)
-                          const band = computeAskConfidenceBand(
-                            msg.content,
-                            ctx
-                          )
                           const refs = sourcesForDisplay(msg, fullText)
-                          const cant = answerLooksLikeCantDetermine(msg.content)
+                          const cantPill = pillBand === 'cant_determine'
                           return (
                             <>
-                              {/* TODO [Winnie] — Evaluation & calibration ticket: band = `computeAskConfidenceBand` from `lib/askConfidenceBands.ts` (same constants logged by `/api/ask`)
-                                  Placeholder — must be validated against 50 Q&A pair eval set (EN + ES) before ship
-                                  Multilingual accuracy target: >85% per language — EN + ES only for V1 */}
-                              {/* TODO [Brandi] — Data & inputs ticket: badge context uses retrieved snippets / `fullText` — chunk quality skews overlap and language
-                                  Placeholder until chunking pipeline is hardened and race condition in upload-form is fixed */}
-                              {/* TODO [Karlee] — Baseline model & fine-tuning ticket: plain-language “confidence” implies model grounding readers can trust
-                                  Model quality not yet validated against eval set
-                                  Fine-tuning decision pending Karlee's baseline eval results
-                                  Do not treat current output quality as production-ready until Karlee's gate is passed */}
+                              {/* [Team 1 eval] — Trust pill uses `lib/askConfidenceBands.ts` (same constants as `/api/ask` logs). [Karlee] — baseline model only. */}
                               <div
                                 role="status"
                                 className={cn(
                                   'inline-flex max-w-full rounded-full px-4 py-2.5 text-left text-sm font-semibold leading-snug shadow-sm [text-wrap:pretty]',
-                                  cant &&
-                                    'bg-zinc-500 text-white dark:bg-zinc-600 dark:text-white',
-                                  !cant &&
-                                    band === 'high' &&
-                                    'bg-emerald-600 text-white dark:bg-emerald-600',
-                                  !cant &&
-                                    band === 'medium' &&
-                                    'bg-amber-400 text-neutral-950 dark:bg-amber-400 dark:text-neutral-950',
-                                  !cant &&
-                                    band === 'low' &&
-                                    'bg-orange-600 text-white dark:bg-orange-600'
+                                  askTrustPillClassName(pillBand)
                                 )}
                               >
-                                {cant
-                                  ? packForAnswer.confidence.cantBadgeLabel
-                                  : band === 'high'
-                                    ? packForAnswer.confidence.highSentence
-                                    : band === 'medium'
-                                      ? packForAnswer.confidence.moderateSentence
-                                      : packForAnswer.confidence.lowSentence}
+                                {cantPill
+                                  ? packForChromeAtTurn.confidence.cantBadgeLabel
+                                  : pillBand === 'high'
+                                    ? packForChromeAtTurn.confidence.highSentence
+                                    : pillBand === 'medium'
+                                      ? packForChromeAtTurn.confidence.moderateSentence
+                                      : packForChromeAtTurn.confidence.lowSentence}
                               </div>
-                              {refs.length > 0 && !cant && (
+                              {refs.length > 0 && !cantPill && (
                                 <Collapsible className="w-full max-w-md rounded-md border border-border bg-background/80 text-left text-xs">
-                                  {/* TODO [Brandi] — Data & inputs ticket: source card shows POSTed snippets + placeholder page label — not real page metadata
-                                      Placeholder until chunking pipeline is hardened and race condition in upload-form is fixed */}
+                                  {/* [Brandi] — snippets are what was POSTed; page labels are placeholders until doc layout metadata exists. */}
                                   <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 px-3 py-2 font-medium hover:bg-muted/60 [&[data-state=open]>svg]:rotate-180">
                                     <span>
-                                      {packForAnswer.source.expandPrefix} ·{' '}
-                                      {packForAnswer.source.pagePlaceholder} ·{' '}
-                                      {packForAnswer.source.tapToExpand} (
+                                      {packForChromeAtTurn.source.expandPrefix} ·{' '}
+                                      {packForChromeAtTurn.source.pagePlaceholder} ·{' '}
+                                      {packForChromeAtTurn.source.tapToExpand} (
                                       {sourcePassageCountLabel(
-                                        answerLocale,
+                                        chromeLocaleAtTurn,
                                         refs.length
                                       )}
                                       )
@@ -1265,7 +1660,7 @@ export function AskTab({
                                         return (
                                           <li key={si} className="space-y-1">
                                             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                              {packForAnswer.source.exactSentence}
+                                              {packForChromeAtTurn.source.exactSentence}
                                             </p>
                                             <p className="whitespace-pre-wrap text-foreground/90">
                                               {firstSentenceFromSnippet(
@@ -1273,7 +1668,7 @@ export function AskTab({
                                               )}
                                             </p>
                                             <p className="mt-1 text-[11px] text-muted-foreground">
-                                              {packForAnswer.source.fullPassageSent}
+                                              {packForChromeAtTurn.source.fullPassageSent}
                                             </p>
                                             <p className="whitespace-pre-wrap text-muted-foreground">
                                               {ref.snippet}
@@ -1292,21 +1687,21 @@ export function AskTab({
                                                 }
                                               >
                                                 {
-                                                  packForAnswer.source
+                                                  packForChromeAtTurn.source
                                                     .showInOriginal
                                                 }
                                               </Button>
                                             ) : onJumpToSource ? (
                                               <p className="text-[11px] text-muted-foreground">
                                                 {
-                                                  packForAnswer.source
+                                                  packForChromeAtTurn.source
                                                     .highlightUnavailable
                                                 }
                                               </p>
                                             ) : (
                                               <p className="text-[11px] text-muted-foreground">
                                                 {
-                                                  packForAnswer.source
+                                                  packForChromeAtTurn.source
                                                     .useTranslatePage
                                                 }
                                               </p>
@@ -1328,7 +1723,7 @@ export function AskTab({
                               i
                             )
                           const followUps = promptsExcludingDuplicates(
-                            packForAnswer.followUp,
+                            packForChromeAtTurn.followUp,
                             {
                               inputValue: input,
                               hideIfMatchesUserTurn: lastUserTurn,
@@ -1345,18 +1740,7 @@ export function AskTab({
                                   'opacity-50 saturate-[0.65] transition-[opacity,filter] duration-200'
                               )}
                             >
-                              {/* TODO [Zaria] — Guardrails ticket: follow-up chip wording (EN/ES) needs guardrail review
-                                  v1 draft — final behavior pending Zaria's prompt rules, schema validation,
-                                  input cleaning, output checking, refusal behavior, and domain restriction spec */}
-                              {/* TODO [Karlee] — Baseline model & fine-tuning ticket: follow-up prompts assume the model continues helpfully from those seeds
-                                  Model quality not yet validated against eval set
-                                  Fine-tuning decision pending Karlee's baseline eval results
-                                  Do not treat current output quality as production-ready until Karlee's gate is passed */}
-                              {/* TODO [Brandi] — Data & inputs ticket: follow-up chip language follows answer heuristics — improve with chunk / doc metadata later
-                                  Placeholder until chunking pipeline is hardened and race condition in upload-form is fixed */}
-                              {/* TODO [Winnie] — Evaluation & calibration ticket: Spanish follow-up strings need human + eval validation
-                                  Placeholder — must be validated against 50 Q&A pair eval set (EN + ES) before ship
-                                  Multilingual accuracy target: >85% per language — EN + ES only for V1 */}
+                              {/* [Zaria] — follow-up chips; locale from per-turn `resolveAskChromeLocale` (matches card chrome). [Karlee] — model continuation quality. */}
                               {followUps.map((label) => (
                                 <Button
                                   key={label}
@@ -1381,17 +1765,9 @@ export function AskTab({
               <div ref={bottomRef} />
             </div>
 
-            {/* TODO [Winnie] — Evaluation & calibration ticket: hidden calibration / eval UI — restore after LangSmith + 50 Q&A gate
-                Placeholder — must be validated against 50 Q&A pair eval set (EN + ES) before ship
-                Multilingual accuracy target: >85% per language — EN + ES only for V1 */}
-            {/* TODO [Brandi] — Data & inputs ticket: calibration outputs depend on stable chunking — meaningless until pipeline is reliable
-                Placeholder until chunking pipeline is hardened and race condition in upload-form is fixed */}
-
             {error && (
               <Alert variant="destructive">
-                {/* TODO [Winnie] — Evaluation & calibration ticket: localized error strings need human review + eval alignment
-                    Placeholder — must be validated against 50 Q&A pair eval set (EN + ES) before ship
-                    Multilingual accuracy target: >85% per language — EN + ES only for V1 */}
+                {/* [Zaria] — error chrome; [Team 1 eval] — localized ES/VI strings. */}
                 <AlertTitle>{askPromptPack.chrome.errorAlertTitle}</AlertTitle>
                 <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                   <span>{error}</span>

@@ -22,7 +22,11 @@ export interface UseChatHistoryResult {
   addMessage: (
     role: ChatMessage['role'],
     content: string,
-    opts?: { sourceChunks?: string[]; sourceRefs?: ChatMessage['sourceRefs'] }
+    opts?: {
+      sourceChunks?: string[]
+      sourceRefs?: ChatMessage['sourceRefs']
+      askRagMode?: ChatMessage['askRagMode']
+    }
   ) => Promise<void>;
 }
 
@@ -76,6 +80,7 @@ export function useChatHistory(docId: string): UseChatHistoryResult {
       opts?: {
         sourceChunks?: string[];
         sourceRefs?: ChatMessage['sourceRefs'];
+        askRagMode?: ChatMessage['askRagMode'];
       }
     ): Promise<void> => {
       const timestamp = Date.now();
@@ -84,6 +89,7 @@ export function useChatHistory(docId: string): UseChatHistoryResult {
         content,
         sourceChunks: opts?.sourceChunks,
         sourceRefs: opts?.sourceRefs,
+        askRagMode: opts?.askRagMode,
       });
       setMessages((prev) => [
         ...prev,
@@ -97,6 +103,7 @@ export function useChatHistory(docId: string): UseChatHistoryResult {
           ...(opts?.sourceRefs && opts.sourceRefs.length > 0
             ? { sourceRefs: opts.sourceRefs }
             : {}),
+          ...(opts?.askRagMode ? { askRagMode: opts.askRagMode } : {}),
         },
       ]);
     },
