@@ -1,33 +1,30 @@
 import { NextResponse } from 'next/server'
+import {
+  runTranslateGuardrails,
+  validateTranslateOutput,
+  translateFallback,
+  internalErrorFallback,
+  guardrailLog,
+  type GuardrailResult,
+} from '@/lib/guardrails'
 
-/**
- * Maps the app's language codes to DeepL v2 target language codes.
- * Source language is always EN per product requirements.
- * Full list: https://developers.deepl.com/docs/resources/supported-languages
- */
-const DEEPL_LANG_MAP: Record<string, string> = {
-  en: 'EN-US',
-  es: 'ES',
-  fr: 'FR',
-  de: 'DE',
-  zh: 'ZH-HANS',
-  'zh-TW': 'ZH-HANT',
-  ja: 'JA',
-  ko: 'KO',
-  pt: 'PT-PT',
-  it: 'IT',
-  ru: 'RU',
-  ar: 'AR',
-  hi: 'HI',
-  nl: 'NL',
-  pl: 'PL',
-  sv: 'SV',
-  tr: 'TR',
-  vi: 'VI',
-}
+const ROUTE = '/api/translate'
 
 // DEEPL_API_KEY — set in .env.local
 const DEEPL_API_KEY = process.env.DEEPL_API_KEY
+
+/**
+ * Converts a `GuardrailResult<never>` failure (always `ok: false`) into a
+ * NextResponse. All fallback helpers are typed as `GuardrailResult<never>` and
+ * always return the failure branch; this helper narrows the discriminated union
+ * so we can access `.response` and `.status` without casting everywhere.
+ */
+function fallbackResponse(fb: GuardrailResult<never>) {
+  if (fb.ok) {
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+  }
+  return NextResponse.json(fb.response, { status: fb.status })
+}
 
 /**
  * POST /api/translate
@@ -35,63 +32,86 @@ const DEEPL_API_KEY = process.env.DEEPL_API_KEY
  * Returns: { translatedText: string }
  */
 export async function POST(request: Request) {
+  let rawBody: unknown
   try {
-    const body = await request.json()
-    const { text, targetLang } = body as { text?: string; targetLang?: string }
+    rawBody = await request.json()
+  } catch {
+    return fallbackResponse(
+      internalErrorFallback({ route: ROUTE, reason: 'Failed to parse request body as JSON' })
+    )
+  }
 
-    if (!text || typeof text !== 'string' || text.trim() === '') {
-      return NextResponse.json({ error: 'No text provided' }, { status: 400 })
-    }
+  // ── Layers 1–3 + circuit breaker preflight ────────────────────────────────
+  const pre = runTranslateGuardrails(rawBody, ROUTE)
+  if (!pre.ok) return NextResponse.json(pre.response, { status: pre.status })
 
-    if (!targetLang || typeof targetLang !== 'string') {
-      return NextResponse.json(
-        { error: 'No target language provided' },
-        { status: 400 }
-      )
-    }
+  const { sanitizedText, hardenedBody, circuitBreaker } = pre.value
 
-    const deeplTarget = DEEPL_LANG_MAP[targetLang]
-    if (!deeplTarget) {
-      return NextResponse.json(
-        { error: `Unsupported target language: ${targetLang}` },
-        { status: 400 }
-      )
-    }
+  if (!DEEPL_API_KEY) {
+    circuitBreaker.onFailure()
+    guardrailLog('error', {
+      route: ROUTE,
+      layer: 'fallback',
+      action: 'reject',
+      reason: 'DEEPL_API_KEY is not configured',
+    })
+    return fallbackResponse(
+      translateFallback({ inputLength: sanitizedText.length, reason: 'service-not-configured' })
+    )
+  }
 
-    if (!DEEPL_API_KEY) {
-      return NextResponse.json(
-        { error: 'Translation service is not configured' },
-        { status: 503 }
-      )
-    }
-
+  // ── Upstream call (Layer 3 hardened body forwarded to DeepL) ─────────────
+  let rawApiResponse: unknown
+  try {
     const deeplRes = await fetch('https://api-free.deepl.com/v2/translate', {
       method: 'POST',
       headers: {
         Authorization: `DeepL-Auth-Key ${DEEPL_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        text: [text],
-        source_lang: 'EN',
-        target_lang: deeplTarget,
-      }),
+      body: JSON.stringify(hardenedBody),
     })
 
     if (!deeplRes.ok) {
       const errorText = await deeplRes.text()
-      console.error('DeepL API error:', deeplRes.status, errorText)
-      return NextResponse.json(
-        { error: 'Translation service returned an error' },
-        { status: 502 }
-      )
+      guardrailLog('error', {
+        route: ROUTE,
+        layer: 'fallback',
+        action: 'reject',
+        reason: 'DeepL API returned a non-2xx status',
+        meta: { status: deeplRes.status, bodyLength: errorText.length },
+      })
+      circuitBreaker.onFailure()
+      return fallbackResponse(translateFallback({ inputLength: sanitizedText.length }))
     }
 
-    const deeplData = await deeplRes.json()
-    const translatedText: string = deeplData.translations?.[0]?.text ?? ''
-
-    return NextResponse.json({ translatedText })
-  } catch {
-    return NextResponse.json({ error: 'Translation failed' }, { status: 500 })
+    rawApiResponse = await deeplRes.json()
+    circuitBreaker.onSuccess()
+  } catch (err) {
+    circuitBreaker.onFailure()
+    guardrailLog('error', {
+      route: ROUTE,
+      layer: 'fallback',
+      action: 'reject',
+      reason: 'DeepL fetch threw an unexpected error',
+      meta: { errorMessage: err instanceof Error ? err.message : String(err) },
+    })
+    return fallbackResponse(translateFallback({ inputLength: sanitizedText.length }))
   }
+
+  // ── Layer 4: Output validation ────────────────────────────────────────────
+  const out = validateTranslateOutput(rawApiResponse, ROUTE)
+  if (!out.ok) return NextResponse.json(out.response, { status: out.status })
+
+  if (out.value.sourceLangMismatch) {
+    guardrailLog('warn', {
+      route: ROUTE,
+      layer: 'output-validation',
+      action: 'warn',
+      reason: 'DeepL detected a non-English source language',
+      meta: { detectedSourceLanguage: out.value.detectedSourceLanguage },
+    })
+  }
+
+  return NextResponse.json({ translatedText: out.value.translatedText })
 }
