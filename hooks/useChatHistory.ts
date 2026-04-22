@@ -19,7 +19,15 @@ export interface UseChatHistoryResult {
   messages: ChatMessage[];
   loading: boolean;
   error: string | null;
-  addMessage: (role: ChatMessage["role"], content: string) => Promise<void>;
+  addMessage: (
+    role: ChatMessage['role'],
+    content: string,
+    opts?: {
+      sourceChunks?: string[]
+      sourceRefs?: ChatMessage['sourceRefs']
+      askRagMode?: ChatMessage['askRagMode']
+    }
+  ) => Promise<void>;
 }
 
 const IS_BROWSER = typeof window !== "undefined";
@@ -66,10 +74,38 @@ export function useChatHistory(docId: string): UseChatHistoryResult {
   }, [docId]);
 
   const addMessage = useCallback(
-    async (role: ChatMessage["role"], content: string): Promise<void> => {
+    async (
+      role: ChatMessage['role'],
+      content: string,
+      opts?: {
+        sourceChunks?: string[];
+        sourceRefs?: ChatMessage['sourceRefs'];
+        askRagMode?: ChatMessage['askRagMode'];
+      }
+    ): Promise<void> => {
       const timestamp = Date.now();
-      await insertChatMessage(docId, { role, content });
-      setMessages((prev) => [...prev, { role, content, timestamp }]);
+      await insertChatMessage(docId, {
+        role,
+        content,
+        sourceChunks: opts?.sourceChunks,
+        sourceRefs: opts?.sourceRefs,
+        askRagMode: opts?.askRagMode,
+      });
+      setMessages((prev) => [
+        ...prev,
+        {
+          role,
+          content,
+          timestamp,
+          ...(opts?.sourceChunks && opts.sourceChunks.length > 0
+            ? { sourceChunks: opts.sourceChunks }
+            : {}),
+          ...(opts?.sourceRefs && opts.sourceRefs.length > 0
+            ? { sourceRefs: opts.sourceRefs }
+            : {}),
+          ...(opts?.askRagMode ? { askRagMode: opts.askRagMode } : {}),
+        },
+      ]);
     },
     [docId]
   );

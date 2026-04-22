@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import {
   Item,
   ItemActions,
@@ -19,35 +18,28 @@ import {
 
 import { Badge } from '@/components/ui/badge'
 import { useSafetyAnalysis } from '@/hooks/useSafetyAnalysis'
-import type { OCRResult, RiskNextStep } from '@/types'
+import { useDocumentSession } from '@/hooks/useDocumentSession'
+import type { OCRResult, RiskNextStep, SafetyFlags } from '@/types'
 
 export interface DetectTabProps {
+  docId: string
   className?: string
 }
 
-const CURRENT_DOC_ID_KEY = 'current-doc-id'
-const TRANSLATE_SESSION_PREFIX = 'translate-'
+type EffectiveSeverity = NonNullable<SafetyFlags['riskLevel']> | SafetyFlags['severity']
 
-interface TranslateSessionPayload {
-  fullText?: unknown
-}
-
-function resolveCurrentTranslateSessionKey(): string | null {
-  const currentDocId = sessionStorage.getItem(CURRENT_DOC_ID_KEY)?.trim()
-  if (currentDocId) {
-    const key = `${TRANSLATE_SESSION_PREFIX}${currentDocId}`
-    if (sessionStorage.getItem(key)) {
-      return key
-    }
+function severityToneClasses(severity: EffectiveSeverity): string {
+  switch (severity) {
+    case 'low':
+      return 'bg-green-50 text-green-800 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-900'
+    case 'medium':
+      return 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-900'
+    case 'high':
+      return 'bg-orange-50 text-orange-800 border-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-900'
+    case 'urgent':
+    default:
+      return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-900'
   }
-
-  for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
-    const key = sessionStorage.key(index)
-    if (key?.startsWith(TRANSLATE_SESSION_PREFIX)) {
-      return key
-    }
-  }
-  return null
 }
 
 function telHref(phone: string): string {
@@ -93,64 +85,22 @@ function PrimaryActionDescription({ action }: { action: RiskNextStep }) {
   return null
 }
 
-export function DetectTab({ className }: DetectTabProps) {
-  const [ocr, setOcr] = useState<OCRResult | null>(null)
-  const [documentLookupError, setDocumentLookupError] = useState<string | null>(
-    null
-  )
-  const [documentReady, setDocumentReady] = useState(false)
+export function DetectTab({ docId, className }: DetectTabProps) {
+  const {
+    data,
+    loading: docLoading,
+    error: docError,
+  } = useDocumentSession(docId)
+  const ocr: OCRResult | null = data?.ocr ?? null
+  const fieldCandidates = data?.fieldCandidates ?? null
+  const {
+    flags,
+    presentation,
+    loading: safetyLoading,
+    error: safetyError,
+  } = useSafetyAnalysis(ocr, fieldCandidates)
 
-  useEffect(() => {
-    try {
-      const key = resolveCurrentTranslateSessionKey()
-      if (!key) {
-        setOcr(null)
-        setDocumentLookupError(
-          'No uploaded document found in this session. Upload a document to run safety analysis.'
-        )
-        return
-      }
-
-      const raw = sessionStorage.getItem(key)
-      if (!raw) {
-        setOcr(null)
-        setDocumentLookupError(
-          'Document data is unavailable in this session. Please upload again.'
-        )
-        return
-      }
-
-      const parsed = JSON.parse(raw) as TranslateSessionPayload
-      const fullText =
-        typeof parsed.fullText === 'string' ? parsed.fullText.trim() : ''
-      if (!fullText) {
-        setOcr(null)
-        setDocumentLookupError(
-          'Uploaded document has no readable text for safety analysis.'
-        )
-        return
-      }
-
-      const documentId = key.slice(TRANSLATE_SESSION_PREFIX.length)
-      setOcr({
-        documentId,
-        fullText,
-        blocks: [],
-      })
-      setDocumentLookupError(null)
-    } catch {
-      setOcr(null)
-      setDocumentLookupError(
-        'Unable to read uploaded document data from session storage.'
-      )
-    } finally {
-      setDocumentReady(true)
-    }
-  }, [])
-
-  const { flags, presentation, loading, error } = useSafetyAnalysis(ocr)
-
-  if (!documentReady) {
+  if (docLoading) {
     return (
       <div className={`space-y-4 ${className ?? ''}`}>
         <p className="text-sm text-muted-foreground">
@@ -160,15 +110,25 @@ export function DetectTab({ className }: DetectTabProps) {
     )
   }
 
-  if (documentLookupError) {
+  if (docError) {
     return (
       <div className={`space-y-4 ${className ?? ''}`}>
-        <p className="text-sm text-muted-foreground">{documentLookupError}</p>
+        <p className="text-sm text-muted-foreground">{docError}</p>
       </div>
     )
   }
 
-  if (loading) {
+  if (!ocr || !ocr.fullText?.trim()) {
+    return (
+      <div className={`space-y-4 ${className ?? ''}`}>
+        <p className="text-sm text-muted-foreground">
+          No document text available for safety analysis.
+        </p>
+      </div>
+    )
+  }
+
+  if (safetyLoading) {
     return (
       <div className={`space-y-4 ${className ?? ''}`}>
         <p className="text-sm text-muted-foreground">Analyzing document...</p>
@@ -176,11 +136,11 @@ export function DetectTab({ className }: DetectTabProps) {
     )
   }
 
-  if (error) {
+  if (safetyError) {
     return (
       <div className={`space-y-4 ${className ?? ''}`}>
         <p className="text-sm text-muted-foreground">
-          Safety analysis could not be completed. {error}
+          Safety analysis could not be completed. {safetyError}
         </p>
       </div>
     )
@@ -200,24 +160,23 @@ export function DetectTab({ className }: DetectTabProps) {
     [flags.category, flags.explanation].filter(Boolean).join(' - ') ||
     'Risk category was identified, but no explanation was provided.'
 
+  const effectiveSeverity = flags.riskLevel ?? flags.severity
+  const tone = severityToneClasses(effectiveSeverity)
+
   return (
     <div className={`space-y-4 ${className ?? ''}`}>
-      <Item
-        variant="outline"
-        className="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
-      >
+      <Item variant="outline" className={tone}>
         <ItemMedia variant="icon">
           <OctagonAlertIcon />
         </ItemMedia>
         <ItemContent>
           <ItemTitle>Risk Level</ItemTitle>
-          <ItemDescription>{riskBody}</ItemDescription>
+          <ItemDescription className="line-clamp-none whitespace-normal text-current/90">
+            {riskBody}
+          </ItemDescription>
         </ItemContent>
       </Item>
-      <Badge
-        variant="secondary"
-        className="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
-      >
+      <Badge variant="secondary" className={tone}>
         <Clock4Icon />
         <span>{presentation.severityLabel}</span>
       </Badge>

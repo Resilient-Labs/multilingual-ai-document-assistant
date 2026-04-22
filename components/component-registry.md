@@ -22,27 +22,15 @@ Alphabetical inventory (55). Import from `@/components/ui/<name>`.
 
 ## Feature components (`components/features/`)
 
-### DocumentTabs
-
-|                |                                                                             |
-| -------------- | --------------------------------------------------------------------------- |
-| **Location**   | `components/features/tabs-layout/DocumentTabs.tsx`                          |
-| **Purpose**    | Tab container with pluggable slots for Detect and Ask content.              |
-| **Props**      | `detectContent` (ReactNode), `askContent` (ReactNode), `className?`         |
-| **Built with** | Tabs, TabsList, TabsTrigger, TabsContent                                    |
-| **Usage**      | `app/dashboard/page.tsx` — passes `<DetectTab />` and `<AskTab />` as slots |
-
----
-
 ### DetectTab
 
-|                |                                                                                                                                                                                                                                              |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Location**   | `components/features/detect/DetectTab.tsx`                                                                                                                                                                                                   |
-| **Purpose**    | Safety / detection UI: risk summary, severity, confidence, suggested actions, resources, disclaimer. Loads document text from `sessionStorage` (`translate-{docId}` / `current-doc-id`), then runs `useSafetyAnalysis` → `POST /api/safety`. |
-| **Props**      | `className?`                                                                                                                                                                                                                                 |
-| **Built with** | Item, ItemMedia, ItemContent, ItemTitle, ItemDescription, ItemActions, Badge; lucide-react icons                                                                                                                                             |
-| **Usage**      | Plugs into `DocumentTabs` as `detectContent`, and mobile dashboard Detect tab                                                                                                                                                                |
+|                |                                                                                                                                                                                                           |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Location**   | `components/features/detect/DetectTab.tsx`                                                                                                                                                                |
+| **Purpose**    | Safety / detection UI: risk summary, severity, confidence, suggested actions, resources, disclaimer. Reads the canonical OCR from EntityDB via `useDocumentSession(docId)`, then runs `useSafetyAnalysis` → `POST /api/safety`. |
+| **Props**      | `docId: string`, `className?`                                                                                                                                                                             |
+| **Built with** | Item, ItemMedia, ItemContent, ItemTitle, ItemDescription, ItemActions, Badge; lucide-react icons                                                                                                          |
+| **Usage**      | `app/translate/[id]/page.tsx` — rendered in the Safety Analysis card between `TranslateSummary` and `AskTab`                                                                                              |
 
 ---
 
@@ -54,7 +42,7 @@ Alphabetical inventory (55). Import from `@/components/ui/<name>`.
 | **Purpose**    | Placeholder for document Q&A / ask interface. |
 | **Props**      | `className?`                                  |
 | **Built with** | Layout-only (no shadcn primitives yet)        |
-| **Usage**      | Plugs into `DocumentTabs` as `askContent`     |
+| **Usage**      | `app/translate/[id]/page.tsx` — rendered in the Ask card below Safety Analysis |
 
 ---
 
@@ -70,6 +58,18 @@ Alphabetical inventory (55). Import from `@/components/ui/<name>`.
 
 ---
 
+### ReadAloudPanel
+
+|                |                                                                                                                                                                      |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Location**   | `components/features/tts/ReadAloudPanel.tsx`                                                                                                                         |
+| **Purpose**    | Complete Read Aloud shell. Manages TTS request lifecycle (loading, error, audio URL) via the HF Space backend (en/es/vi only). Shows a gender-picker dialog for English (VCTK multi-speaker); Spanish and Vietnamese generate with one click. |
+| **Props**      | `text: string`, `language: string`, `disabled?: boolean`, `labelSuffix?: string`                                                                                     |
+| **Built with** | Button, Dialog, RadioGroup, Alert, Spinner, `TtsPlaybackVisual`                                                                                                      |
+| **Usage**      | `app/translate/[id]/page.tsx` — once for the original doc (gated by `TTS_SUPPORTED_LANGS.has(session.sourceLang)`), once for the translation (gated by `TTS_SUPPORTED_LANGS.has(session.targetLang)`) |
+
+---
+
 ### TtsPlaybackVisual
 
 |                |                                                                                    |
@@ -78,7 +78,7 @@ Alphabetical inventory (55). Import from `@/components/ui/<name>`.
 | **Purpose**    | TTS playback controls and visual sync (audio ref, waveform-style UI, word timing). |
 | **Props**      | `audioRef`, `audioUrl`, `text`, `className?`                                       |
 | **Built with** | Button, `cn` utility                                                               |
-| **Usage**      | Text-to-speech playback feature                                                    |
+| **Usage**      | Rendered by `ReadAloudPanel` after audio is successfully generated                 |
 
 ---
 
@@ -89,7 +89,7 @@ Alphabetical inventory (55). Import from `@/components/ui/<name>`.
 |                |                                                                                                                                    |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | **Location**   | `components/upload-form.tsx`                                                                                                       |
-| **Purpose**    | File upload (dropzone), processing, OCR persistence, navigation to translate flow; writes `sessionStorage` keys used by DetectTab. |
+| **Purpose**    | File upload (dropzone), processing, OCR persistence, navigation to translate flow; writes `sessionStorage` keys consumed by the translate page. |
 | **Built with** | Button, Select, Spinner, react-dropzone, lucide-react                                                                              |
 
 ---

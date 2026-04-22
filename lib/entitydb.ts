@@ -10,7 +10,7 @@
  * @see https://github.com/babycommando/entity-db
  */
 
-import { EntityDB } from '@babycommando/entity-db'
+import type { EntityDB } from '@babycommando/entity-db'
 
 /**
  * Internal interface and helper for raw IDB access, bypassing the embedding
@@ -45,6 +45,19 @@ const EMBEDDING_MODEL = 'Xenova/all-MiniLM-L6-v2'
 
 let _db: EntityDB | null = null
 
+function instantiateEntityDB(): EntityDB {
+  // Value-importing `@babycommando/entity-db` at module top level pulls in
+  // `@xenova/transformers`, which runs during Next SSR and crashes ONNX/WASM
+  // in Node. Load the package only in the browser, inside getEntityDB().
+  const { EntityDB: EntityDBCtor } =
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- browser-only; avoids SSR onnx
+    require('@babycommando/entity-db') as typeof import('@babycommando/entity-db')
+  return new EntityDBCtor({
+    vectorPath: VECTOR_PATH,
+    model: EMBEDDING_MODEL,
+  })
+}
+
 /**
  * Get or create EntityDB instance.
  * Call from client components only.
@@ -54,10 +67,7 @@ export function getEntityDB(): EntityDB {
     throw new Error('EntityDB can only be used in the browser')
   }
   if (!_db) {
-    _db = new EntityDB({
-      vectorPath: VECTOR_PATH,
-      model: EMBEDDING_MODEL,
-    })
+    _db = instantiateEntityDB()
   }
   return _db
 }
@@ -106,10 +116,45 @@ export async function queryChunks(
 
 export const CHAT_MESSAGE_ENTITY_KEY = 'chat_message' as const
 
+/**
+ * Count vector rows for this document excluding chat history (RAG chunks only).
+ * AskTab State 1: no rows ⇒ empty state → Upload (UI flow diagram).
+ */
+export async function countRagChunksForDoc(docId: string): Promise<number> {
+  if (typeof window === 'undefined' || !docId) {
+    return 0
+  }
+  const db = await getIdb()
+  const tx = db.transaction('vectors', 'readonly')
+  const records = await tx.objectStore('vectors').getAll()
+  return records.filter(
+    (r) =>
+      r['docId'] === docId && r['entityKey'] !== CHAT_MESSAGE_ENTITY_KEY
+  ).length
+}
+
+/** One retrieved snippet shown in Ask “sources” (Team 1). */
+export interface AskSourceRef {
+  snippet: string
+  chunkId?: string
+  /** Start index in original `fullText` for “show in document”. */
+  charStart?: number
+  matchLen?: number
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   timestamp: number
+  /** Legacy: string-only snippets (no jump links). */
+  sourceChunks?: string[]
+  /** Structured sources with optional jump range in original text. */
+  sourceRefs?: AskSourceRef[]
+  /**
+   * Ask-only: whether client RAG used indexed chunks vs whole-document fallback (timeout / empty hits).
+   * [Brandi] — data path; [Jasmin] — persisted for overlap + “can’t determine” heuristics (Apr 2026).
+   */
+  askRagMode?: 'indexed' | 'fulltext_fallback'
 }
 
 /**
@@ -118,7 +163,11 @@ export interface ChatMessage {
  */
 export async function insertChatMessage(
   docId: string,
-  message: Pick<ChatMessage, 'role' | 'content'>
+  message: Pick<ChatMessage, 'role' | 'content'> & {
+    sourceChunks?: string[]
+    sourceRefs?: AskSourceRef[]
+    askRagMode?: ChatMessage['askRagMode']
+  }
 ): Promise<void> {
   const db = getEntityDB()
   await db.insert({
@@ -127,6 +176,13 @@ export async function insertChatMessage(
     docId,
     role: message.role,
     timestamp: Date.now(),
+    ...(message.sourceRefs && message.sourceRefs.length > 0
+      ? { sourceRefs: message.sourceRefs }
+      : {}),
+    ...(message.sourceChunks && message.sourceChunks.length > 0
+      ? { sourceChunks: message.sourceChunks }
+      : {}),
+    ...(message.askRagMode ? { askRagMode: message.askRagMode } : {}),
   })
 }
 
@@ -151,9 +207,43 @@ export async function getChatHistory(docId: string): Promise<ChatMessage[]> {
       (a, b) =>
         ((a['timestamp'] as number) ?? 0) - ((b['timestamp'] as number) ?? 0)
     )
-    .map((r) => ({
-      role: r['role'] as ChatMessage['role'],
-      content: r['text'] as string,
-      timestamp: r['timestamp'] as number,
-    }))
+    .map((r) => {
+      const rawChunks = r['sourceChunks']
+      const sourceChunks = Array.isArray(rawChunks)
+        ? rawChunks.filter((s): s is string => typeof s === 'string')
+        : undefined
+      const rawRefs = r['sourceRefs']
+      let sourceRefs: AskSourceRef[] | undefined
+      if (Array.isArray(rawRefs)) {
+        sourceRefs = rawRefs
+          .map((item) => {
+            if (!item || typeof item !== 'object') return null
+            const o = item as Record<string, unknown>
+            const snippet = typeof o.snippet === 'string' ? o.snippet : ''
+            if (!snippet) return null
+            return {
+              snippet,
+              ...(typeof o.chunkId === 'string' ? { chunkId: o.chunkId } : {}),
+              ...(typeof o.charStart === 'number' ? { charStart: o.charStart } : {}),
+              ...(typeof o.matchLen === 'number' ? { matchLen: o.matchLen } : {}),
+            } satisfies AskSourceRef
+          })
+          .filter((x): x is AskSourceRef => x != null)
+        if (sourceRefs.length === 0) sourceRefs = undefined
+      }
+      const rawRagMode = r['askRagMode']
+      const askRagMode =
+        rawRagMode === 'indexed' || rawRagMode === 'fulltext_fallback'
+          ? rawRagMode
+          : undefined
+
+      return {
+        role: r['role'] as ChatMessage['role'],
+        content: r['text'] as string,
+        timestamp: r['timestamp'] as number,
+        ...(sourceChunks && sourceChunks.length > 0 ? { sourceChunks } : {}),
+        ...(sourceRefs && sourceRefs.length > 0 ? { sourceRefs } : {}),
+        ...(askRagMode ? { askRagMode } : {}),
+      }
+    })
 }

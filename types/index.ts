@@ -169,6 +169,13 @@ export interface SafetyAnalysisResponse {
   presentation: SafetyRecommendationPresentation
 }
 
+export interface SafetyAnalysisRequest {
+  fullText?: string
+  blocks?: Array<{ text: string; confidence?: number }>
+  /** Regex-extracted fields from OCR blocks (phones, emails, dates, amounts, kv). */
+  fieldCandidates?: Array<Pick<FieldCandidate, 'key' | 'value' | 'confidence'>>
+}
+
 // --- OCR API response (from stateless backend) ---
 
 export interface OCRResult {

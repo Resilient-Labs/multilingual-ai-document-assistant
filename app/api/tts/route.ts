@@ -1,35 +1,20 @@
 import { NextResponse } from 'next/server'
 import { synthesizeSpeech } from '@/lib/tts/router'
-import type { Gender, SpanishAccent, TtsRequestPayload } from '@/lib/tts/types'
+import type { Gender, TtsRequestPayload } from '@/lib/tts/types'
 import { TtsError } from '@/lib/tts/types'
 import { preprocessText } from '@/lib/tts/preprocess'
 
 const VALID_GENDERS: Gender[] = ['masculine', 'feminine']
-const VALID_SPANISH_ACCENTS: SpanishAccent[] = [
-  'argentine',
-  'colombian',
-  'latin-american',
-  'mexican',
-  'peninsular',
-]
 const MAX_TTS_TEXT_LENGTH = 8000
 
 function isGender(value: unknown): value is Gender {
   return typeof value === 'string' && VALID_GENDERS.includes(value as Gender)
 }
 
-function isSpanishAccent(value: unknown): value is SpanishAccent {
-  return (
-    typeof value === 'string' &&
-    VALID_SPANISH_ACCENTS.includes(value as SpanishAccent)
-  )
-}
-
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { text, targetLang, gender, spanishAccent } =
-      body as Partial<TtsRequestPayload>
+    const { text, targetLang, gender } = body as Partial<TtsRequestPayload>
 
     if (!text || typeof text !== 'string' || text.trim() === '') {
       return NextResponse.json(
@@ -57,13 +42,6 @@ export async function POST(request: Request) {
     if (!isGender(gender)) {
       return NextResponse.json(
         { error: 'Invalid gender. Choose masculine or feminine.' },
-        { status: 400 }
-      )
-    }
-
-    if (spanishAccent && !isSpanishAccent(spanishAccent)) {
-      return NextResponse.json(
-        { error: 'Invalid Spanish accent option.' },
         { status: 400 }
       )
     }
@@ -98,7 +76,6 @@ export async function POST(request: Request) {
       text: cleanedText,
       targetLang,
       gender,
-      spanishAccent,
     })
 
     // --- Return audio response ---

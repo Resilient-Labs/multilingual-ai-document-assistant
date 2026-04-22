@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { analyzeDocumentSafety } from '@/lib/safetyClient'
 import type {
+  FieldCandidate,
   OCRResult,
   SafetyFlags,
   SafetyRecommendationPresentation,
@@ -20,9 +21,11 @@ export interface UseSafetyAnalysisResult {
  * Brandi and other consumers can use this in the results panel.
  *
  * @param ocr - OCR result from extraction (null to skip analysis)
+ * @param fieldCandidates - Regex-extracted fields from OCR blocks, forwarded to the safety API for grounding
  */
 export function useSafetyAnalysis(
-  ocr: OCRResult | null
+  ocr: OCRResult | null,
+  fieldCandidates: FieldCandidate[] | null = null
 ): UseSafetyAnalysisResult {
   const [flags, setFlags] = useState<SafetyFlags | null>(null)
   const [presentation, setPresentation] =
@@ -55,7 +58,7 @@ export function useSafetyAnalysis(
     setFlags(null)
     setPresentation(null)
 
-    analyzeDocumentSafety(ocr)
+    analyzeDocumentSafety(ocr, fieldCandidates)
       .then((res) => {
         if (!cancelled) {
           setFlags(res.flags)
@@ -79,7 +82,7 @@ export function useSafetyAnalysis(
     return () => {
       cancelled = true
     }
-  }, [ocr])
+  }, [ocr, fieldCandidates])
 
   return { flags, presentation, loading, error }
 }

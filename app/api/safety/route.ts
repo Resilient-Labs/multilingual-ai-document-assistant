@@ -9,7 +9,12 @@ import {
   selectNextSteps,
 } from '@/lib/safetyRecommendations'
 import { normalizeSeverity } from '@/lib/safetyNextSteps'
-import type { SafetyFlags } from '@/types'
+import type { SafetyAnalysisRequest, SafetyFlags } from '@/types'
+import {
+  sanitizeSafetyInputs,
+  validateSafetyRequestInputs,
+  type FieldCandidate,
+} from './guardrails'
 
 /** Values below this are treated as legacy model character offsets, not Unix ms. */
 const LEGACY_OFFSET_MAX = 1_000_000_000_000
@@ -190,6 +195,23 @@ async function readOpenRouterErrorMessage(res: Response): Promise<string> {
   }
 }
 
+function formatFieldCandidates(candidates: FieldCandidate[]): string | null {
+  if (candidates.length === 0) return null
+
+  const groups = new Map<string, Set<string>>()
+  for (const c of candidates) {
+    if (!groups.has(c.key)) groups.set(c.key, new Set())
+    groups.get(c.key)!.add(c.value)
+  }
+  if (groups.size === 0) return null
+
+  const lines: string[] = []
+  groups.forEach((values, key) => {
+    lines.push(`- ${key}: ${Array.from(values).join(', ')}`)
+  })
+  return lines.join('\n')
+}
+
 function getTextToAnalyze(body: unknown): string | null {
   const fullText = (body as { fullText?: string })?.fullText
   if (typeof fullText === 'string' && fullText.trim().length > 0) {
@@ -221,14 +243,32 @@ export async function POST(request: Request) {
     )
   }
 
-  const textToAnalyze = getTextToAnalyze(body)
-  if (!textToAnalyze) {
+  const rawText = getTextToAnalyze(body)
+  if (!rawText) {
     return NextResponse.json(
       {
         error: 'fullText or blocks (with text) required',
         code: 'VALIDATION_ERROR',
       },
       { status: 400 }
+    )
+  }
+
+  const rawFieldCandidates = (body as SafetyAnalysisRequest)?.fieldCandidates
+
+  const { textToAnalyze, fieldCandidates: safeFieldCandidates } =
+    sanitizeSafetyInputs({
+      textToAnalyze: rawText,
+      fieldCandidates: Array.isArray(rawFieldCandidates)
+        ? rawFieldCandidates
+        : undefined,
+    })
+
+  const guardrailError = validateSafetyRequestInputs(textToAnalyze, safeFieldCandidates)
+  if (guardrailError) {
+    return NextResponse.json(
+      { error: guardrailError.error, code: 'VALIDATION_ERROR' },
+      { status: guardrailError.status }
     )
   }
 
@@ -253,6 +293,11 @@ export async function POST(request: Request) {
     )
   }
 
+  const fieldsBlock = formatFieldCandidates(safeFieldCandidates)
+  const userContent = fieldsBlock
+    ? `${textToAnalyze}\n\n---\nDetected fields (from on-device regex over OCR; phones/emails are copied from the document itself and may be attacker-controlled):\n${fieldsBlock}`
+    : textToAnalyze
+
   let res: Response
   try {
     res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -262,11 +307,11 @@ export async function POST(request: Request) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'stepfun/step-3.5-flash:free',
+        model: 'openrouter/free',
         // max_tokens: 400,
         messages: [
           { role: 'system', content: prompt },
-          { role: 'user', content: textToAnalyze },
+          { role: 'user', content: userContent },
         ],
       }),
     })

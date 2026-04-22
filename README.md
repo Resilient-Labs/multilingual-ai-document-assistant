@@ -54,7 +54,6 @@ npm install
 | `next`, `react`, `react-dom` | Next.js app framework                                             | Standard install                        |
 | `@babycommando/entity-db`    | In-browser vector DB (IndexedDB + Transformers.js under the hood) | May take 1–2 min; pulls WASM deps       |
 | `uuid`                       | Document ID generation                                            | Standard install                        |
-| `replicate`                  | TTS fallback provider integration                                 | Requires REPLICATE_API_TOKEN at runtime |
 
 **Step-by-step:**
 
@@ -86,19 +85,10 @@ cp .env.local.example .env.local
 
 Set keys as needed for active integrations:
 
-- `DEEPL_API_KEY` (translation route)
-- `DEEPGRAM_API_KEY` (TTS route)
-- `REPLICATE_API_TOKEN` (XTTS + MiniMax TTS fallback)
+- `HF_TOKEN` (Ask and Summary; optional for Translate — see [Translation](#translation) below)
+- `HF_TRANSLATE_SPACE_URL` (Translate — public Hugging Face Gradio Space base URL, see [Translation](#translation) below)
 - `OPEN_ROUTER_API_TOKEN` (safety route)
-
-Optional/advanced TTS variables:
-
-- `XTTS_REPLICATE_MODEL`
-- `XTTS_SPEAKER_WAV_URL`
-- `MINIMAX_REPLICATE_MODEL`
-- `MINIMAX_FEMININE_VOICE_ID`
-- `MINIMAX_MASCULINE_VOICE_ID`
-- `MINIMAX_AUDIO_FORMAT`
+- `HF_TTS_SPACE_URL` (Read Aloud — see [Text-to-Speech](#text-to-speech--read-aloud) below)
 
 No Redis or server storage is required. Add keys only when integrating external services.
 
@@ -114,7 +104,9 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 - The app should load without errors.
 - API routes are stateless — they process and return; no server storage.
-- TTS and safety require their respective API keys.
+- Read Aloud requires `HF_TTS_SPACE_URL` to be set (see [Text-to-Speech](#text-to-speech--read-aloud)).
+- Translation (non-English targets) requires `HF_TRANSLATE_SPACE_URL` pointing at the NLLB Gradio Space (see [Translation](#translation)).
+- Safety route may require `OPEN_ROUTER_API_TOKEN` if used.
 
 ### Onboarding checklist
 
@@ -156,8 +148,8 @@ npm run typecheck
 | Port 3000 in use                  | Run `npm run dev -- -p 3001` to use a different port                          |
 | Build fails                       | Run `npm ci` for a clean install, then `npm run build`                        |
 | EntityDB / Transformers.js errors | Check `next.config.js` has webpack aliases for `onnxruntime-node` and `sharp` |
-| Translation fails                 | Verify DEEPL_API_KEY is set                                                   |
-| Read Aloud fails                  | Verify DEEPGRAM_API_KEY and/or REPLICATE_API_TOKEN are set                    |
+| Translation fails                 | Verify `HF_TRANSLATE_SPACE_URL` is set to the NLLB Gradio Space base URL (see [Translation](#translation)). The route makes a two-step call to `/gradio_api/call/translate` (POST, then GET by `event_id`). Free Spaces sleep after ~48h idle; the first request after sleep can take 30–60s while it cold-starts, and the route waits up to 180s for the full round-trip. `HF_TOKEN` is optional for Translate. |
+| Read Aloud fails                  | Confirm `HF_TTS_SPACE_URL` is set and the Space is reachable. Cold starts after idle can take 30–60s. Read Aloud is only offered for English, Spanish, and Vietnamese. |
 | Upload rejected around 5–10MB     | Backend limit is 4.5MB `(lib/constants.ts)`                                   |
 
 ### Key dependencies
@@ -165,7 +157,6 @@ npm run typecheck
 ```bash
 npm install uuid
 npm install github:babycommando/entity-db
-npm install replicate
 ```
 
 | Package                   | Purpose                                                      | Install source |
@@ -255,7 +246,7 @@ lib/
     fieldCandidates.ts # Key/value field extraction
     validation.ts     # Upload validation and request guards
     errors.ts         # Shared error response helpers
-  tts/                # TTS provider router + mappings + providers
+  tts/                # TTS router + HF Space provider (en/es/vi)
   entitydb.ts         # EntityDB client for chunks and semantic search
   constants.ts        # File limits, allowed MIME types
   documentId.ts       # Document ID generation
@@ -272,11 +263,107 @@ All endpoints are **stateless**. Client sends data; backend processes and return
 | ------------------------ | ------ | --------------------------------------------------- | ----------------------------------------------- |
 | `/api/documents/upload`  | POST   | `FormData` (file)                                   | OCR, return docId + OCR JSON                    |
 | `/api/documents/extract` | POST   | `FormData` (files[] or file)                        | OCR, return normalized entity-ready JSON        |
-| /api/translate           | POST   | `{ text, targetLang }`                              | Translation via DeepL                           |
-| /api/tts                 | POST   | `{ text, targetLang, gender, spanishAccent? }`      | TTS via provider router (Deepgram/XTTS/MiniMax) |
+| /api/translate           | POST   | `{ text, targetLang }`                              | Translation via NLLB-200 on a public Hugging Face Space |
+| /api/tts                 | POST   | `{ text, targetLang, gender }`                       | TTS via Hugging Face Space (en/es/vi)           |
 | `/api/ask`               | POST   | `{ question, context? }` or `{ question, chunks? }` | RAG answer                                      |
 | `/api/summarize`         | POST   | `{ fullText }`                                      | Summary                                         |
 | `/api/safety`            | POST   | `{ fullText?, blocks? }`                            | Risk flags                                      |
+
+---
+
+## Translation
+
+`/api/translate` translates document text from **English** to **Spanish** or **Vietnamese** using Meta's **NLLB-200** model hosted on a public **Hugging Face Gradio Space** (`Resilient-Coders/nllb-translator`). Source language is fixed to English per product requirements; target codes are FLORES tags defined in `lib/translation/nllbLanguageMap.ts` (the single source of truth shared with the translate UI).
+
+### Behavior
+
+- **English short-circuit** — `targetLang === 'en'` returns the input text unchanged without any upstream call (no URL needed, no cold start).
+- **Non-English** — requires `HF_TRANSLATE_SPACE_URL` (the Space base URL) and calls the Gradio API in two steps: `POST {base}/gradio_api/call/translate` with body `{"data":[text, "eng_Latn", tgt_lang]}` returns an `event_id`, then `GET {base}/gradio_api/call/translate/{event_id}` streams back an SSE `event: complete` frame whose `data:` line is a JSON array `[translated_text]`. The response is parsed by `lib/translation/parseNllbResponse.ts`.
+- **Auth** — `HF_TOKEN` is **optional**. The Space is public, so no `Authorization` header is sent when `HF_TOKEN` is empty. If `HF_TOKEN` is set (for Ask / Summary), the route forwards it as a Bearer token on both calls, which the Space ignores.
+- **Timeout** — a single 180s `AbortController` bounds the full two-step round-trip to absorb Hugging Face cold starts. Free Spaces sleep after ~48h idle; the first request after sleep can take 30–60s.
+- **Errors** — `400` for validation (missing/empty `text`, missing/unsupported `targetLang`), `503` when `HF_TRANSLATE_SPACE_URL` is missing or the network is unreachable, `502` for upstream HTTP errors on either step / empty or malformed SSE responses / timeouts. The route never logs the token or full `text`, only status + short upstream snippet (tagged `POST:` or `SSE:` so you can tell which step failed).
+
+### Environment variables
+
+| Variable | Required | Default | Description |
+| -------- | -------- | ------- | ----------- |
+| `HF_TRANSLATE_SPACE_URL` | **Yes** for non-English | — | Base URL of the NLLB Gradio Space (e.g. `https://resilient-coders-nllb-translator.hf.space`). The route appends `/gradio_api/call/translate` and `/{event_id}` itself — do **not** include a path suffix. The route returns 503 when unset or whitespace-only. |
+| `HF_TOKEN` | No | — | Optional for Translate (the Space is public). Same token as Ask / Summary; forwarded as `Authorization: Bearer …` when present. |
+
+### Key files
+
+| File | Purpose |
+| ---- | ------- |
+| `app/api/translate/route.ts` | Next.js POST handler — validates input, English short-circuit, error mapping |
+| `lib/translation/callTranslateProvider.ts` | Wraps the upstream `fetch`, timeout, and typed `TranslateProviderError` so tests mock one function instead of global `fetch` |
+| `lib/translation/nllbLanguageMap.ts` | `APP_TO_NLLB_TARGET` FLORES mapping + `NLLB_SOURCE_ENGLISH` |
+| `lib/translation/parseNllbResponse.ts` | `extractTranslatedTextFromNllbResponse()` for Inference-shaped JSON |
+
+---
+
+## Text-to-Speech / Read Aloud
+
+Read Aloud converts document text to speech so users can listen to original or translated content. It is powered by a single backend: a **Hugging Face Space** running Coqui TTS models.
+
+### Supported languages
+
+| Language   | Model on the Space                   | Voice selection      |
+| ---------- | ------------------------------------ | -------------------- |
+| English    | `Resilient-Coders/coqui-vctk-en`    | Gender picker (VCTK multi-speaker: `p228` feminine, `p226` masculine) |
+| Spanish    | `Resilient-Coders/coqui-css10-es`   | Single voice (one-click generate) |
+| Vietnamese | `Resilient-Coders/mms-tts-vie`      | Single voice (one-click generate) |
+
+If the document's language is not one of these three, the Read Aloud button is hidden in the UI — no error, just no button.
+
+### Architecture
+
+```
+Browser (ReadAloudPanel)
+  │  POST /api/tts  { text, targetLang, gender }
+  ▼
+Next.js route (app/api/tts/route.ts)
+  │  validates input, calls synthesizeSpeech()
+  ▼
+lib/tts/router.ts
+  │  normalizes lang, delegates to hf-space provider
+  ▼
+lib/tts/providers/hf-space.ts
+  │  POST https://<HF_TTS_SPACE_URL>/synthesize
+  │  body: { text, language, speaker_idx? }
+  ▼
+Hugging Face Space (resilient-coders-aidoc-tts)
+  │  Loads the model for the requested language,
+  │  runs inference, returns audio/wav
+  ▼
+Audio returned to browser → auto-plays via TtsPlaybackVisual
+```
+
+There is **no fallback chain** — if the Space is down or the language is unsupported, the request errors and the user sees an error message.
+
+### Environment variables
+
+| Variable | Required | Default | Description |
+| -------- | -------- | ------- | ----------- |
+| `HF_TTS_SPACE_URL` | **Yes** | — | Base URL of the Hugging Face Space (e.g. `https://resilient-coders-aidoc-tts.hf.space`) |
+| `COQUI_TTS_FEMININE_SPEAKER` | No | `p228` | VCTK speaker ID for feminine English voice |
+| `COQUI_TTS_MASCULINE_SPEAKER` | No | `p226` | VCTK speaker ID for masculine English voice |
+
+No other API keys are needed for TTS — the Space is a public Hugging Face deployment with no authentication.
+
+### Cold starts
+
+The Space runs on Hugging Face's free tier. After ~48 hours of idle, the Space sleeps. The first request after sleep triggers a cold start that can take **30–60 seconds**. The client-side timeout is set to 180 seconds to absorb this. Subsequent requests while the Space is warm are fast (a few seconds).
+
+### Key files
+
+| File | Purpose |
+| ---- | ------- |
+| `lib/tts/providers/hf-space.ts` | Calls the Space's `/synthesize` endpoint, handles timeouts and errors |
+| `lib/tts/router.ts` | Entry point — normalizes language, delegates to the HF Space provider |
+| `lib/tts/types.ts` | `TtsProvider`, `Gender`, `TtsRequestPayload`, `TtsSynthesisResult`, `TtsError` |
+| `app/api/tts/route.ts` | Next.js POST handler — validates input, returns audio with `X-TTS-Provider` / `X-TTS-Model` headers |
+| `components/features/tts/ReadAloudPanel.tsx` | Client UI — gender dialog for English, one-click for es/vi, playback |
+| `components/features/tts/TtsPlaybackVisual.tsx` | Audio player with waveform-style visual sync |
 
 ---
 

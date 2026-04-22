@@ -1,33 +1,32 @@
 import { NextResponse } from 'next/server'
+import { getNllbTargetCode } from '@/lib/translation/nllbLanguageMap'
+import {
+  callTranslateProvider,
+  TranslateProviderError,
+} from '@/lib/translation/callTranslateProvider'
 
 /**
- * Maps the app's language codes to DeepL v2 target language codes.
- * Source language is always EN per product requirements.
- * Full list: https://developers.deepl.com/docs/resources/supported-languages
+ * NLLB translation via a dedicated Hugging Face Gradio Space (see
+ * `Resilient-Coders/nllb-translator`). Source language is fixed to English
+ * per product requirements; target codes come from `APP_TO_NLLB_TARGET`
+ * (single source of truth with the translate UI). The actual fetch +
+ * parsing lives in `lib/translation/callTranslateProvider`, which drives
+ * the Gradio two-step call protocol (`POST /gradio_api/call/translate`
+ * then `GET /gradio_api/call/translate/{event_id}`), so tests can mock a
+ * single function instead of global `fetch` and error mapping stays in
+ * one place. The Space is public — `HF_TOKEN` is optional and only
+ * forwarded as a Bearer when set. `HF_TRANSLATE_SPACE_URL` must be the
+ * Space base URL (no `/gradio_api/...` suffix); the helper appends the
+ * call + event-id paths itself.
  */
-const DEEPL_LANG_MAP: Record<string, string> = {
-  en: 'EN-US',
-  es: 'ES',
-  fr: 'FR',
-  de: 'DE',
-  zh: 'ZH-HANS',
-  'zh-TW': 'ZH-HANT',
-  ja: 'JA',
-  ko: 'KO',
-  pt: 'PT-PT',
-  it: 'IT',
-  ru: 'RU',
-  ar: 'AR',
-  hi: 'HI',
-  nl: 'NL',
-  pl: 'PL',
-  sv: 'SV',
-  tr: 'TR',
-  vi: 'VI',
-}
 
-// DEEPL_API_KEY — set in .env.local
-const DEEPL_API_KEY = process.env.DEEPL_API_KEY
+/** Long timeout to absorb HF cold starts; matches TTS scale. */
+const TRANSLATE_TIMEOUT_MS = 180_000
+
+function resolveTranslateUrl(): string | null {
+  const explicit = process.env.HF_TRANSLATE_SPACE_URL?.trim()
+  return explicit ? explicit : null
+}
 
 /**
  * POST /api/translate
@@ -35,63 +34,88 @@ const DEEPL_API_KEY = process.env.DEEPL_API_KEY
  * Returns: { translatedText: string }
  */
 export async function POST(request: Request) {
+  let body: unknown
   try {
-    const body = await request.json()
-    const { text, targetLang } = body as { text?: string; targetLang?: string }
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
 
-    if (!text || typeof text !== 'string' || text.trim() === '') {
-      return NextResponse.json({ error: 'No text provided' }, { status: 400 })
-    }
+  const { text, targetLang } = (body ?? {}) as {
+    text?: unknown
+    targetLang?: unknown
+  }
 
-    if (!targetLang || typeof targetLang !== 'string') {
-      return NextResponse.json(
-        { error: 'No target language provided' },
-        { status: 400 }
-      )
-    }
+  if (typeof text !== 'string' || text.trim() === '') {
+    return NextResponse.json({ error: 'No text provided' }, { status: 400 })
+  }
 
-    const deeplTarget = DEEPL_LANG_MAP[targetLang]
-    if (!deeplTarget) {
-      return NextResponse.json(
-        { error: `Unsupported target language: ${targetLang}` },
-        { status: 400 }
-      )
-    }
+  if (typeof targetLang !== 'string' || targetLang === '') {
+    return NextResponse.json(
+      { error: 'No target language provided' },
+      { status: 400 }
+    )
+  }
 
-    if (!DEEPL_API_KEY) {
-      return NextResponse.json(
-        { error: 'Translation service is not configured' },
-        { status: 503 }
-      )
-    }
+  // English short-circuit: no upstream call, no cold start.
+  if (targetLang === 'en') {
+    return NextResponse.json({ translatedText: text })
+  }
 
-    const deeplRes = await fetch('https://api-free.deepl.com/v2/translate', {
-      method: 'POST',
-      headers: {
-        Authorization: `DeepL-Auth-Key ${DEEPL_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        text: [text],
-        source_lang: 'EN',
-        target_lang: deeplTarget,
-      }),
+  const tgtLang = getNllbTargetCode(targetLang)
+  if (!tgtLang) {
+    return NextResponse.json(
+      { error: `Unsupported target language: ${targetLang}` },
+      { status: 400 }
+    )
+  }
+
+  const url = resolveTranslateUrl()
+  if (!url) {
+    return NextResponse.json(
+      { error: 'Translation service is not configured' },
+      { status: 503 }
+    )
+  }
+
+  const hfToken = process.env.HF_TOKEN?.trim() || undefined
+
+  try {
+    const translatedText = await callTranslateProvider({
+      text,
+      tgtLang,
+      url,
+      hfToken,
+      timeoutMs: TRANSLATE_TIMEOUT_MS,
     })
-
-    if (!deeplRes.ok) {
-      const errorText = await deeplRes.text()
-      console.error('DeepL API error:', deeplRes.status, errorText)
+    return NextResponse.json({ translatedText })
+  } catch (err) {
+    if (err instanceof TranslateProviderError) {
+      // Log status + short snippet only; never tokens or full user text.
+      if (err.kind === 'upstream_http_error') {
+        console.error(
+          'NLLB translate upstream error:',
+          err.status,
+          err.snippet ?? ''
+        )
+      }
+      if (err.kind === 'network') {
+        return NextResponse.json(
+          { error: 'Translation service is not configured' },
+          { status: 503 }
+        )
+      }
+      // timeout | upstream_http_error | invalid_response | empty_response
       return NextResponse.json(
         { error: 'Translation service returned an error' },
         { status: 502 }
       )
     }
-
-    const deeplData = await deeplRes.json()
-    const translatedText: string = deeplData.translations?.[0]?.text ?? ''
-
-    return NextResponse.json({ translatedText })
-  } catch {
-    return NextResponse.json({ error: 'Translation failed' }, { status: 500 })
+    // Unknown error: treat as upstream failure rather than leak details.
+    console.error('NLLB translate unexpected error')
+    return NextResponse.json(
+      { error: 'Translation service returned an error' },
+      { status: 502 }
+    )
   }
 }

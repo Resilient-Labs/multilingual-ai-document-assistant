@@ -4,11 +4,17 @@ import {
   TEST_DOC_ID,
   TEST_SESSION,
 } from "./helpers/session";
+import {
+  stubTranslateApiFailure,
+  stubTranslateApiSuccess,
+} from "./helpers/translateApi";
 
 // ─────────────────────────────────────────
 // FLOW: Translate Page — session hydration, layout, navigation
 // AUDIT COVERAGE: PRINCIPAL MED-1 (sessionStorage transport),
 //   A11Y MED (page title, aria-labels)
+// Note: `/api/translate` is stubbed in every test so Playwright never calls
+// Hugging Face. See e2e/helpers/translateApi.ts.
 // ─────────────────────────────────────────
 
 test.describe("Translate Page", () => {
@@ -36,6 +42,7 @@ test.describe("Translate Page", () => {
   test("TRANS-03: loads and displays original document from sessionStorage", async ({
     page,
   }) => {
+    await stubTranslateApiSuccess(page, "Texto traducido de prueba.");
     await seedTranslateSession(page);
     await page.goto(`/translate/${TEST_DOC_ID}`);
 
@@ -47,6 +54,7 @@ test.describe("Translate Page", () => {
   test("TRANS-04: header shows filename and language pair", async ({
     page,
   }) => {
+    await stubTranslateApiSuccess(page, "Texto traducido de prueba.");
     await seedTranslateSession(page);
     await page.goto(`/translate/${TEST_DOC_ID}`);
 
@@ -57,12 +65,20 @@ test.describe("Translate Page", () => {
   });
 
   test("TRANS-05: translation failure shows error alert", async ({ page }) => {
+    // Deterministic upstream failure so the test exercises UI behavior, not
+    // real Hugging Face health. The route now exists and calls NLLB; we stub
+    // it to a 502 to reliably surface the error alert.
+    await stubTranslateApiFailure(page, 502, {
+      error: "Translation service returned an error",
+    });
     await seedTranslateSession(page);
     await page.goto(`/translate/${TEST_DOC_ID}`);
 
-    // /api/translate route does not exist on this branch — the fetch 404s
     await expect(page.getByText("Translation failed")).toBeVisible({
       timeout: 15_000,
     });
+    await expect(
+      page.getByText("Translation service returned an error"),
+    ).toBeVisible();
   });
 });

@@ -255,6 +255,71 @@ describe('POST /api/safety', () => {
     })
   })
 
+  describe('fieldCandidates', () => {
+    it('includes a Detected fields block in the OpenRouter user message', async () => {
+      ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+        createSuccessfulFetchMock({
+          category: 'Scam Suspect',
+          severity: 'high',
+        })
+      )
+
+      const request = createMockRequest({
+        fullText: 'Please call us to resolve your case.',
+        fieldCandidates: [
+          { key: 'phone', value: '555-123-4567', confidence: 0.9 },
+          { key: 'phone', value: '555-123-4567', confidence: 0.8 },
+          { key: 'email', value: 'agent@irs-refund.biz', confidence: 0.85 },
+          { key: 'amount', value: '$1,250.00', confidence: 0.95 },
+          { key: 'blank', value: '   ', confidence: 0.5 },
+        ],
+      })
+      const response = await POST(request)
+
+      expect(response.status).toBe(200)
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+
+      const fetchCall = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+        .calls[0]
+      const fetchBody = JSON.parse(fetchCall[1]?.body as string)
+      const userContent = fetchBody.messages[1].content as string
+
+      expect(userContent).toContain('Please call us to resolve your case.')
+      expect(userContent).toContain('Detected fields')
+      expect(userContent).toContain('- phone: 555-123-4567')
+      expect(userContent).toContain('- email: agent@irs-refund.biz')
+      expect(userContent).toContain('- amount: $1,250.00')
+      expect(userContent).not.toContain('- blank:')
+      expect(
+        (userContent.match(/555-123-4567/g) ?? []).length
+      ).toBe(1)
+    })
+
+    it('omits the Detected fields block when fieldCandidates is empty or missing', async () => {
+      ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+        createSuccessfulFetchMock({
+          category: 'Utility Bill',
+          severity: 'low',
+        })
+      )
+
+      const request = createMockRequest({
+        fullText: 'Your electric bill is ready.',
+        fieldCandidates: [],
+      })
+      const response = await POST(request)
+
+      expect(response.status).toBe(200)
+      const fetchCall = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+        .calls[0]
+      const fetchBody = JSON.parse(fetchCall[1]?.body as string)
+      const userContent = fetchBody.messages[1].content as string
+
+      expect(userContent).toBe('Your electric bill is ready.')
+      expect(userContent).not.toContain('Detected fields')
+    })
+  })
+
   describe('model output shapes', () => {
     it('parses JSON wrapped in markdown fences', async () => {
       const payload = {

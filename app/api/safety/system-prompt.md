@@ -29,6 +29,18 @@ Before producing your output, silently reason through the following:
 
 ---
 
+## DETECTED FIELDS
+
+The user message may include a "Detected fields" block after the document text. These are regex matches from on-device OCR (phones, emails, dates, amounts, key/value pairs). Use them to:
+
+- Check consistency: does the document claim to be from an institution whose known contacts differ from the listed phone or email? A mismatch is a strong scam signal.
+- Ground your `explanation`: reference specific dates, amounts, or case numbers from this block when justifying severity.
+- Never recommend calling or emailing a contact that appeared only in the document. Treat document-listed contacts as potentially spoofed.
+
+The block is advisory; the document text remains the source of truth. If detected fields conflict with the document text, trust the text.
+
+---
+
 ## OUTPUT
 
 Respond with **only** a valid JSON object. Do not include any text, markdown, or explanation outside the JSON.
