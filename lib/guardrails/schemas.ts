@@ -50,11 +50,10 @@ export type TranslateSupportedLang = (typeof TRANSLATE_SUPPORTED_LANGS)[number]
  */
 export const TranslateInputSchema = z.object({
   text: z
-    .string({ required_error: 'text is required' })
+    .string({ error: 'text is required' })
     .min(1, 'text must not be empty')
     .max(50_000, 'text must not exceed 50 000 characters'),
   targetLang: z.enum(TRANSLATE_SUPPORTED_LANGS, {
-    required_error: 'targetLang is required',
     message: `targetLang must be one of: ${TRANSLATE_SUPPORTED_LANGS.join(', ')}`,
   }),
 })
@@ -85,15 +84,13 @@ export type TtsSupportedLang = (typeof TTS_SUPPORTED_LANGS)[number]
  */
 export const TtsInputSchema = z.object({
   text: z
-    .string({ required_error: 'text is required' })
+    .string({ error: 'text is required' })
     .min(1, 'text must not be empty')
     .max(8_000, 'text must not exceed 8 000 characters'),
   targetLang: z.enum(TTS_SUPPORTED_LANGS, {
-    required_error: 'targetLang is required',
     message: `targetLang must be one of: ${TTS_SUPPORTED_LANGS.join(', ')}`,
   }),
-  gender: z.enum(['masculine', 'feminine'], {
-    required_error: 'gender is required',
+  gender: z.enum(['masculine', 'feminine'] as const, {
     message: "gender must be 'masculine' or 'feminine'",
   }),
 })
