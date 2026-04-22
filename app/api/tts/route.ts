@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { synthesizeSpeech } from '@/lib/tts/router'
 import type { Gender, SpanishAccent, TtsRequestPayload } from '@/lib/tts/types'
 import { TtsError } from '@/lib/tts/types'
+import { preprocessText } from '@/lib/tts/preprocess'
 
 const VALID_GENDERS: Gender[] = ['masculine', 'feminine']
 const VALID_SPANISH_ACCENTS: SpanishAccent[] = [
@@ -66,14 +67,41 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
+    const cleanedText = preprocessText(text, targetLang)
 
+    if (!cleanedText || cleanedText.trim() === '') {
+      return NextResponse.json(
+        { error: 'Text could not be processed for speech' },
+        { status: 400 }
+      )
+    }
+
+    if (cleanedText.length > MAX_TTS_TEXT_LENGTH) {
+      return NextResponse.json( 
+        { 
+          error: `Processed text is too long for TTS. Please reduce input.`, 
+        }, 
+        { status: 400 }
+      ) 
+    }
+    // --- Debug logging (dev only) --- 
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[TTS preprocess]', {
+        before: text.slice(0, 100),
+        after: cleanedText.slice(0, 100), 
+        lang: targetLang, 
+      }) 
+    }
+    
+    // --- Call TTS model ---
     const result = await synthesizeSpeech({
-      text,
+      text: cleanedText,
       targetLang,
       gender,
       spanishAccent,
     })
 
+    // --- Return audio response ---
     return new NextResponse(result.audio, {
       status: 200,
       headers: {
@@ -92,6 +120,7 @@ export async function POST(request: Request) {
     }
 
     console.error('TTS route error:', error)
+    
     return NextResponse.json(
       { error: 'Text-to-speech failed' },
       { status: 500 }
