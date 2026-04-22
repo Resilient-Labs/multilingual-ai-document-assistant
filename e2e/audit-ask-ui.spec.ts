@@ -1,17 +1,20 @@
 import { test, expect } from "@playwright/test";
 import { seedTranslateSession, TEST_DOC_ID } from "./helpers/session";
+import { stubTranslateApiSuccess } from "./helpers/translateApi";
 
 // ─────────────────────────────────────────
 // FLOW: Ask UI — chat Q&A, streaming/JSON detection, loading states
 // AUDIT COVERAGE: PRINCIPAL HIGH-3 (docId prop), HIGH-4 (handleSubmit dual-mode),
 //   MED-5 (key stability), MED-7 (stale closure),
 //   DEVOPS HIGH (streaming mismatch — verifies JSON fallback path)
+// Note: `/api/translate` is stubbed so Playwright never calls Hugging Face.
 // ─────────────────────────────────────────
 
 test.describe("Ask UI", () => {
   test.setTimeout(60_000);
 
   test.beforeEach(async ({ page }) => {
+    await stubTranslateApiSuccess(page, "Texto traducido de prueba.");
     await seedTranslateSession(page);
     await page.goto(`/translate/${TEST_DOC_ID}`);
     await expect(page.getByText("Ask about this document")).toBeVisible();

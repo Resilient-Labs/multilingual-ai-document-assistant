@@ -11,8 +11,8 @@ This document is for **presenters** demoing the Multilingual AI Document Assista
 1. **Machine:** Use **desktop Chrome or Edge** (recommended). The main flow is **Upload → Translate**; mobile home still shows placeholder tabs for translate/ask—avoid phone for this demo.
 2. **Network:** Stable Wi‑Fi; Hugging Face inference can rate-limit on congested networks.
 3. **Environment:** In `.env.local` set at minimum:
-   - **`HF_TOKEN`** — powers **Ask (Q&A)** and **Summary** via Hugging Face Inference Providers (same token for both). Without it, Ask returns a clear configuration error.
-   - **`DEEPL_API_KEY`** — if you will **translate** in the demo.
+   - **`HF_TOKEN`** — powers **Ask (Q&A)** and **Summary** (Hugging Face Inference Providers). Without it, those routes return a clear configuration error.
+   - **`HF_TRANSLATE_SPACE_URL`** — powers **Translate** (NLLB-200 on a public Hugging Face Gradio Space, e.g. `https://resilient-coders-nllb-translator.hf.space`). Set the **base URL only**; the route appends `/gradio_api/call/translate` and the `event_id` on its own. Without it, `/api/translate` returns a clear configuration error. `HF_TOKEN` is **not** required for Translate; the Space is public. Translate to **English** still works without any config because the route short-circuits.
    - **`HF_TTS_SPACE_URL`** — if you will demo **Read Aloud** (cold start can take 30–60s after idle).
 4. **Smoke:** `npm run typecheck && npm run test:ask` then `npm run dev` — open the app once, upload a **small PDF** (under ~4 MB), complete translate if needed, open **Ask**, send one question, confirm an answer streams.
 5. **Team merge bar (optional):** same blocking items as [`docs/evaluations/ask-ship-checklist.md`](./evaluations/ask-ship-checklist.md) (trust pill on “no info” answers, no secrets in git).
@@ -23,7 +23,7 @@ This document is for **presenters** demoing the Multilingual AI Document Assista
 |--------|----------------|---------------------|
 | 0–1 | Home / upload | “Nothing stays on our servers; persistence is in the user’s browser.” |
 | 1–4 | Upload a **short** benefits-style or notice PDF | “We OCR and chunk in the browser for search and Q&A.” |
-| 4–6 | Translate to **Spanish or Vietnamese** (if DeepL configured) | “Translation is a separate API call; we still keep the doc client-side.” |
+| 4–6 | Translate to **Spanish or Vietnamese** (requires `HF_TRANSLATE_SPACE_URL`) | “Translation is a separate API call to Meta’s NLLB model hosted on a public Hugging Face Gradio Space; the doc still stays client-side.” |
 | 6–9 | **Ask** — one question in **English**, one in **Spanish** (`¿…?`) | “Answers are grounded in chunks we send; the UI shows trust and sources.” |
 | 9–10 | **Summary** or **Read Aloud** (optional) | “Same privacy model—full text sent only for that request.” |
 
@@ -39,7 +39,8 @@ This document is for **presenters** demoing the Multilingual AI Document Assista
 |---------|-------------|-----|
 | Ask: “not configured” / 503 | “We need a Hugging Face token in this environment.” | Set `HF_TOKEN`, restart `npm run dev`. |
 | Ask: “busy or rate-limited” | “The free inference tier is throttling; we’ll retry.” | Wait 30s, click **Try again**, or shorten the question. |
-| Translate fails | “Translation uses DeepL in this build.” | Set `DEEPL_API_KEY` or skip translate and still demo Ask on **English** doc text. |
+| Translate fails (503) | “The translation Space URL isn’t configured here.” | Set `HF_TRANSLATE_SPACE_URL` to the NLLB Gradio Space **base URL** (no path suffix — the route appends `/gradio_api/call/translate` itself) and restart `npm run dev`. Translate to **English** still works without any config. |
+| Translate slow / 502 | “The NLLB Space is waking up from sleep.” | Free Spaces sleep after ~48h idle; the first request can take 30–60s while it cold-starts. The route makes a two-step Gradio call (POST then GET by `event_id`) and waits up to 180s for the full round-trip — retry once, or skip translate and demo Ask on **English** doc text. To avoid this during the demo, fire one warm-up Translate request before partners enter the room. |
 | Read Aloud slow | “The TTS Space wakes from sleep.” | Start Read Aloud **once** before partners enter the room. |
 | Ask input disabled | “Chunks are still indexing.” | Wait a few seconds on the translate page; see `docs/ask-team-readiness.md`. |
 
