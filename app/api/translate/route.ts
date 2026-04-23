@@ -4,6 +4,17 @@ import {
   callTranslateProvider,
   TranslateProviderError,
 } from '@/lib/translation/callTranslateProvider'
+import {
+  runTranslateGuardrails,
+  translateFallback,
+  internalErrorFallback,
+  checkOutputPii,
+  guardrailLog,
+  logPass,
+  type GuardrailResult,
+} from '@/lib/guardrails'
+
+const ROUTE = '/api/translate'
 
 /**
  * NLLB translation via a dedicated Hugging Face Gradio Space (see
@@ -18,6 +29,18 @@ import {
  * forwarded as a Bearer when set. `HF_TRANSLATE_SPACE_URL` must be the
  * Space base URL (no `/gradio_api/...` suffix); the helper appends the
  * call + event-id paths itself.
+ *
+ * Guardrails (Layers 1–5) are applied around the NLLB upstream call:
+ * - L1/L2/L3 preflight and the circuit-breaker check come from
+ *   `runTranslateGuardrails`. That helper's DeepL-shaped `hardenedBody`
+ *   is intentionally ignored here; `callTranslateProvider` builds its own
+ *   provider-specific Gradio payload from the already-sanitized text and
+ *   the FLORES-200 target code.
+ * - L4 uses a minimal NLLB-appropriate output check (non-empty string +
+ *   `checkOutputPii`) because NLLB returns a plain string rather than the
+ *   DeepL `{ translations: [{ text, detected_source_language }] }` shape
+ *   that `validateTranslateOutput` expects.
+ * - L5 fallbacks use `translateFallback` / `internalErrorFallback`.
  */
 
 /** Long timeout to absorb HF cold starts; matches TTS scale. */
@@ -29,93 +52,166 @@ function resolveTranslateUrl(): string | null {
 }
 
 /**
+ * Converts a `GuardrailResult<never>` failure (always `ok: false`) into a
+ * NextResponse. All fallback helpers are typed as `GuardrailResult<never>` and
+ * always return the failure branch; this helper narrows the discriminated union
+ * so we can access `.response` and `.status` without casting everywhere.
+ */
+function fallbackResponse(fb: GuardrailResult<never>) {
+  if (fb.ok) {
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+  }
+  return NextResponse.json(fb.response, { status: fb.status })
+}
+
+/**
  * POST /api/translate
  * Body: { text: string, targetLang: string }
  * Returns: { translatedText: string }
  */
 export async function POST(request: Request) {
-  let body: unknown
+  let rawBody: unknown
   try {
-    body = await request.json()
+    rawBody = await request.json()
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
-  }
-
-  const { text, targetLang } = (body ?? {}) as {
-    text?: unknown
-    targetLang?: unknown
-  }
-
-  if (typeof text !== 'string' || text.trim() === '') {
-    return NextResponse.json({ error: 'No text provided' }, { status: 400 })
-  }
-
-  if (typeof targetLang !== 'string' || targetLang === '') {
-    return NextResponse.json(
-      { error: 'No target language provided' },
-      { status: 400 }
+    return fallbackResponse(
+      internalErrorFallback({
+        route: ROUTE,
+        reason: 'Failed to parse request body as JSON',
+      })
     )
   }
 
+  // ── Layers 1–3 + circuit breaker preflight ────────────────────────────────
+  const pre = runTranslateGuardrails(rawBody, ROUTE)
+  if (!pre.ok) return NextResponse.json(pre.response, { status: pre.status })
+
+  const { sanitizedText, targetLang, circuitBreaker } = pre.value
+
   // English short-circuit: no upstream call, no cold start.
   if (targetLang === 'en') {
-    return NextResponse.json({ translatedText: text })
+    circuitBreaker.onSuccess()
+    return NextResponse.json({ translatedText: sanitizedText })
   }
 
   const tgtLang = getNllbTargetCode(targetLang)
   if (!tgtLang) {
-    return NextResponse.json(
-      { error: `Unsupported target language: ${targetLang}` },
-      { status: 400 }
+    // Should never happen — TRANSLATE_SUPPORTED_LANGS and APP_TO_NLLB_TARGET
+    // currently cover the same keys — but fail closed if they ever drift.
+    circuitBreaker.onFailure()
+    guardrailLog('error', {
+      route: ROUTE,
+      layer: 'fallback',
+      action: 'reject',
+      reason: 'No NLLB target code for whitelisted targetLang',
+      meta: { targetLang },
+    })
+    return fallbackResponse(
+      translateFallback({
+        inputLength: sanitizedText.length,
+        reason: 'service-not-configured',
+      })
     )
   }
 
   const url = resolveTranslateUrl()
   if (!url) {
-    return NextResponse.json(
-      { error: 'Translation service is not configured' },
-      { status: 503 }
+    circuitBreaker.onFailure()
+    guardrailLog('error', {
+      route: ROUTE,
+      layer: 'fallback',
+      action: 'reject',
+      reason: 'HF_TRANSLATE_SPACE_URL is not configured',
+    })
+    return fallbackResponse(
+      translateFallback({
+        inputLength: sanitizedText.length,
+        reason: 'service-not-configured',
+      })
     )
   }
 
   const hfToken = process.env.HF_TOKEN?.trim() || undefined
 
+  // ── Upstream call (NLLB via HF Gradio Space) ──────────────────────────────
+  let translatedText: string
   try {
-    const translatedText = await callTranslateProvider({
-      text,
+    translatedText = await callTranslateProvider({
+      text: sanitizedText,
       tgtLang,
       url,
       hfToken,
       timeoutMs: TRANSLATE_TIMEOUT_MS,
     })
-    return NextResponse.json({ translatedText })
+    circuitBreaker.onSuccess()
   } catch (err) {
+    circuitBreaker.onFailure()
+
     if (err instanceof TranslateProviderError) {
-      // Log status + short snippet only; never tokens or full user text.
       if (err.kind === 'upstream_http_error') {
+        // Log status + short snippet only; never tokens or full user text.
         console.error(
           'NLLB translate upstream error:',
           err.status,
           err.snippet ?? ''
         )
       }
-      if (err.kind === 'network') {
-        return NextResponse.json(
-          { error: 'Translation service is not configured' },
-          { status: 503 }
-        )
-      }
-      // timeout | upstream_http_error | invalid_response | empty_response
-      return NextResponse.json(
-        { error: 'Translation service returned an error' },
-        { status: 502 }
-      )
+      guardrailLog('error', {
+        route: ROUTE,
+        layer: 'fallback',
+        action: 'reject',
+        reason: 'NLLB translate provider threw TranslateProviderError',
+        meta: { kind: err.kind, status: err.status },
+      })
+    } else {
+      console.error('NLLB translate unexpected error')
+      guardrailLog('error', {
+        route: ROUTE,
+        layer: 'fallback',
+        action: 'reject',
+        reason: 'callTranslateProvider threw an unexpected error',
+        meta: {
+          errorMessage: err instanceof Error ? err.message : String(err),
+        },
+      })
     }
-    // Unknown error: treat as upstream failure rather than leak details.
-    console.error('NLLB translate unexpected error')
-    return NextResponse.json(
-      { error: 'Translation service returned an error' },
-      { status: 502 }
+
+    return fallbackResponse(
+      translateFallback({ inputLength: sanitizedText.length })
     )
   }
+
+  // ── Layer 4: Output validation (NLLB-shaped) ─────────────────────────────
+  // NLLB returns a plain translated string (no detected_source_language),
+  // so the DeepL-specific `validateTranslateOutput` does not apply. Enforce
+  // non-empty output + output PII re-detection here.
+  if (!translatedText || translatedText.trim() === '') {
+    guardrailLog('error', {
+      route: ROUTE,
+      layer: 'output-validation',
+      action: 'reject',
+      reason: 'NLLB returned an empty translation',
+    })
+    return fallbackResponse(
+      translateFallback({ inputLength: sanitizedText.length })
+    )
+  }
+
+  const outPii = checkOutputPii(translatedText, ROUTE)
+  if (!outPii.ok) {
+    return NextResponse.json(outPii.response, { status: outPii.status })
+  }
+
+  logPass(
+    ROUTE,
+    'output-validation',
+    'Translate output passed all validation checks',
+    {
+      inputLength: sanitizedText.length,
+      outputLength: translatedText.length,
+      targetLang,
+    }
+  )
+
+  return NextResponse.json({ translatedText })
 }
