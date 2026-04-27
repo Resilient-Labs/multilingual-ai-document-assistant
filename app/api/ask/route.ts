@@ -125,12 +125,9 @@ function hashForAskLog(value: string): string {
 }
 
 /** Inline guard: refuse to emit log lines that accidentally include long strings (raw question / document). */
-/** True when LangSmith / LangChain tracing keys are set (boolean only — never log secrets). */
+/** True when LangSmith API key is set (boolean only — never log secrets). */
 function langsmithTracingEnvPresent(): boolean {
-  return Boolean(
-    process.env.LANGSMITH_API_KEY?.trim() ||
-      process.env.LANGCHAIN_API_KEY?.trim(),
-  );
+  return Boolean(process.env.LANGSMITH_API_KEY?.trim());
 }
 
 function assertAskLogHasNoRawTextPayload(

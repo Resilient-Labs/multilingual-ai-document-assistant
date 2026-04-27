@@ -26,12 +26,8 @@ function isEvaluationsEnabled(): boolean {
 
 /** Same key + tracing rules as `isAskLangSmithExportEnabled` in `langsmithAskRun.ts`. */
 function isLangSmithConfigured(): boolean {
-  const hasKey =
-    process.env.LANGSMITH_API_KEY?.trim() ||
-    process.env.LANGCHAIN_API_KEY?.trim();
-  const tracingOn =
-    process.env.LANGSMITH_TRACING === "true" ||
-    process.env.LANGCHAIN_TRACING_V2 === "true";
+  const hasKey = process.env.LANGSMITH_API_KEY?.trim();
+  const tracingOn = process.env.LANGSMITH_TRACING === "true";
   return Boolean(hasKey && tracingOn);
 }
 
@@ -81,7 +77,7 @@ export function evaluateAsync(params: EvaluateAsyncParams): void {
   if (!isLangSmithConfigured()) {
     /* eslint-disable no-console -- intentional operator warning */
     console.warn(
-      "[evaluate] EVALUATIONS_ENABLED is true but LangSmith is not configured. Set LANGSMITH_API_KEY (or LANGCHAIN_API_KEY) and LANGSMITH_TRACING=true (or LANGCHAIN_TRACING_V2=true). Skipping export.",
+      "[evaluate] EVALUATIONS_ENABLED is true but LangSmith is not configured. Set LANGSMITH_API_KEY and LANGSMITH_TRACING=true. Skipping export.",
     );
     /* eslint-enable no-console */
     return;
