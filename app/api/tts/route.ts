@@ -10,15 +10,10 @@ import {
   logPass,
   type GuardrailResult,
 } from '@/lib/guardrails'
+import { preprocessText } from '@/lib/tts/preprocess'  // ← Add this import
 
 const ROUTE = '/api/tts'
 
-/**
- * Converts a `GuardrailResult<never>` failure (always `ok: false`) into a
- * NextResponse. All fallback helpers are typed as `GuardrailResult<never>` and
- * always return the failure branch; this helper narrows the discriminated union
- * so we can access `.response` and `.status` without casting everywhere.
- */
 function fallbackResponse(fb: GuardrailResult<never>) {
   if (fb.ok) {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
@@ -26,11 +21,6 @@ function fallbackResponse(fb: GuardrailResult<never>) {
   return NextResponse.json(fb.response, { status: fb.status })
 }
 
-/**
- * POST /api/tts
- * Body: { text: string, targetLang: string, gender: 'masculine' | 'feminine' }
- * Returns: audio buffer with appropriate Content-Type header
- */
 export async function POST(request: Request) {
   let rawBody: unknown
   try {
@@ -41,16 +31,24 @@ export async function POST(request: Request) {
     )
   }
 
-  // ── Layers 1–3 + circuit breaker preflight ────────────────────────────────
   const pre = runTtsGuardrails(rawBody, ROUTE)
   if (!pre.ok) return NextResponse.json(pre.response, { status: pre.status })
 
   const { sanitizedText, targetLang, gender, circuitBreaker } = pre.value
 
-  // ── Upstream call ─────────────────────────────────────────────────────────
+  // ── NEW: Preprocess text ────────────────────────────────────────────────────
+  const cleanedText = preprocessText(sanitizedText, targetLang)
+  
+  if (!cleanedText || cleanedText.trim() === '') {
+    return fallbackResponse(
+      internalErrorFallback({ route: ROUTE, reason: 'Text could not be processed for speech' })
+    )
+  }
+
+  // ── Upstream call ────────────────────────────────────────────────────────
   let result: Awaited<ReturnType<typeof synthesizeSpeech>>
   try {
-    result = await synthesizeSpeech({ text: sanitizedText, targetLang, gender })
+    result = await synthesizeSpeech({ text: cleanedText, targetLang, gender })  // ← Use cleanedText
     circuitBreaker.onSuccess()
   } catch (err) {
     circuitBreaker.onFailure()
@@ -74,7 +72,7 @@ export async function POST(request: Request) {
     }
 
     return fallbackResponse(
-      ttsFallback({ inputLength: sanitizedText.length, targetLang })
+      ttsFallback({ inputLength: cleanedText.length, targetLang })  // ← Use cleanedText
     )
   }
 
