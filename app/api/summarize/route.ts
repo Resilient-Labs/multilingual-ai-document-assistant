@@ -289,6 +289,8 @@ export async function POST(request: Request) {
       )
     }
 
+    // Evaluation hook (`lib/evaluate.ts`): optional LangSmith run `evaluation-summarize`.
+    // Fire-and-forget; active only when EVALUATIONS_ENABLED=true and LangSmith is configured.
     evaluateAsync({
       input: trimmed,
       output: summary,

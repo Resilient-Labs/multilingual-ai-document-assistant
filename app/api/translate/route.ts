@@ -214,6 +214,8 @@ export async function POST(request: Request) {
     }
   )
 
+  // Evaluation hook (`lib/evaluate.ts`): optional LangSmith run `evaluation-translate`.
+  // Fire-and-forget; gated by EVALUATIONS_ENABLED + LangSmith env; NLLB model label is fixed here.
   evaluateAsync({
     input: sanitizedText,
     output: translatedText,

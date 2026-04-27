@@ -273,6 +273,8 @@ export async function POST(request: Request) {
           );
           /* eslint-enable no-console */
         });
+        // Evaluation hook (`lib/evaluate.ts`): optional LangSmith run `evaluation-ask` when
+        // EVALUATIONS_ENABLED=true (alongside `postAskTurnToLangSmith` when tracing is on).
         evaluateAsync({
           input: safeQuestion,
           output: event.text,

@@ -95,6 +95,8 @@ export async function POST(request: Request) {
     contentType: out.value.contentType,
   })
 
+  // Evaluation hook (`lib/evaluate.ts`): optional LangSmith run `evaluation-tts`.
+  // Fire-and-forget; gated by EVALUATIONS_ENABLED + LangSmith env. `output` is a short descriptor (binary audio is not sent as text).
   evaluateAsync({
     input: cleanedText,
     output: `audio/${out.value.contentType} — ${out.value.audio.byteLength} bytes`,

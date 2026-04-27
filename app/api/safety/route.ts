@@ -379,6 +379,8 @@ export async function POST(request: Request) {
   const flags = buildSafetyFlags(parsed)
   const presentation = buildSafetyRecommendationPresentation(flags)
 
+  // Evaluation hook (`lib/evaluate.ts`): optional LangSmith run `evaluation-safety`.
+  // Fire-and-forget; gated by EVALUATIONS_ENABLED + LangSmith env; does not affect this response.
   evaluateAsync({
     input: userContent,
     output: rawContent,
