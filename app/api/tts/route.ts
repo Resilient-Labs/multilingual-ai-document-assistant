@@ -1,106 +1,106 @@
 import { NextResponse } from 'next/server'
 import { synthesizeSpeech } from '@/lib/tts/router'
-import type { Gender, TtsRequestPayload } from '@/lib/tts/types'
 import { TtsError } from '@/lib/tts/types'
-import { preprocessText } from '@/lib/tts/preprocess'
+import {
+  runTtsGuardrails,
+  validateTtsOutput,
+  ttsFallback,
+  internalErrorFallback,
+  guardrailLog,
+  logPass,
+  type GuardrailResult,
+} from '@/lib/guardrails'
+import { preprocessText } from '@/lib/tts/preprocess'  // ← Add this import
 
-const VALID_GENDERS: Gender[] = ['masculine', 'feminine']
-const MAX_TTS_TEXT_LENGTH = 8000
+const ROUTE = '/api/tts'
 
-function isGender(value: unknown): value is Gender {
-  return typeof value === 'string' && VALID_GENDERS.includes(value as Gender)
+function fallbackResponse(fb: GuardrailResult<never>) {
+  if (fb.ok) {
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+  }
+  return NextResponse.json(fb.response, { status: fb.status })
 }
 
 export async function POST(request: Request) {
+  let rawBody: unknown
   try {
-    const body = await request.json()
-    const { text, targetLang, gender } = body as Partial<TtsRequestPayload>
-
-    if (!text || typeof text !== 'string' || text.trim() === '') {
-      return NextResponse.json(
-        { error: 'No text provided for speech' },
-        { status: 400 }
-      )
-    }
-
-    if (text.length > MAX_TTS_TEXT_LENGTH) {
-      return NextResponse.json(
-        {
-          error: `Text is too long for TTS. Please reduce to ${MAX_TTS_TEXT_LENGTH} characters or less.`,
-        },
-        { status: 400 }
-      )
-    }
-
-    if (!targetLang || typeof targetLang !== 'string') {
-      return NextResponse.json(
-        { error: 'No target language provided' },
-        { status: 400 }
-      )
-    }
-
-    if (!isGender(gender)) {
-      return NextResponse.json(
-        { error: 'Invalid gender. Choose masculine or feminine.' },
-        { status: 400 }
-      )
-    }
-    const cleanedText = preprocessText(text, targetLang)
-
-    if (!cleanedText || cleanedText.trim() === '') {
-      return NextResponse.json(
-        { error: 'Text could not be processed for speech' },
-        { status: 400 }
-      )
-    }
-
-    if (cleanedText.length > MAX_TTS_TEXT_LENGTH) {
-      return NextResponse.json( 
-        { 
-          error: `Processed text is too long for TTS. Please reduce input.`, 
-        }, 
-        { status: 400 }
-      ) 
-    }
-    // --- Debug logging (dev only) --- 
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[TTS preprocess]', {
-        before: text.slice(0, 100),
-        after: cleanedText.slice(0, 100), 
-        lang: targetLang, 
-      }) 
-    }
-    
-    // --- Call TTS model ---
-    const result = await synthesizeSpeech({
-      text: cleanedText,
-      targetLang,
-      gender,
-    })
-
-    // --- Return audio response ---
-    return new NextResponse(result.audio, {
-      status: 200,
-      headers: {
-        'Content-Type': result.contentType,
-        'Cache-Control': 'no-store',
-        'X-TTS-Provider': result.provider,
-        'X-TTS-Model': result.model,
-      },
-    })
-  } catch (error) {
-    if (error instanceof TtsError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.status }
-      )
-    }
-
-    console.error('TTS route error:', error)
-    
-    return NextResponse.json(
-      { error: 'Text-to-speech failed' },
-      { status: 500 }
+    rawBody = await request.json()
+  } catch {
+    return fallbackResponse(
+      internalErrorFallback({ route: ROUTE, reason: 'Failed to parse request body as JSON' })
     )
   }
+
+  const pre = runTtsGuardrails(rawBody, ROUTE)
+  if (!pre.ok) return NextResponse.json(pre.response, { status: pre.status })
+
+  const { sanitizedText, targetLang, gender, circuitBreaker } = pre.value
+
+  // ── NEW: Preprocess text ────────────────────────────────────────────────────
+  const cleanedText = preprocessText(sanitizedText, targetLang)
+  
+  if (!cleanedText || cleanedText.trim() === '') {
+    return fallbackResponse(
+      internalErrorFallback({ route: ROUTE, reason: 'Text could not be processed for speech' })
+    )
+  }
+
+  // ── Upstream call ────────────────────────────────────────────────────────
+  let result: Awaited<ReturnType<typeof synthesizeSpeech>>
+  try {
+    result = await synthesizeSpeech({ text: cleanedText, targetLang, gender })  // ← Use cleanedText
+    circuitBreaker.onSuccess()
+  } catch (err) {
+    circuitBreaker.onFailure()
+
+    if (err instanceof TtsError) {
+      guardrailLog('error', {
+        route: ROUTE,
+        layer: 'fallback',
+        action: 'reject',
+        reason: 'TTS provider threw a TtsError',
+        meta: { status: err.status, errorMessage: err.message },
+      })
+    } else {
+      guardrailLog('error', {
+        route: ROUTE,
+        layer: 'fallback',
+        action: 'reject',
+        reason: 'synthesizeSpeech threw an unexpected error',
+        meta: { errorMessage: err instanceof Error ? err.message : String(err) },
+      })
+    }
+
+    return fallbackResponse(
+      ttsFallback({ inputLength: cleanedText.length, targetLang })  // ← Use cleanedText
+    )
+  }
+
+  // ── Layer 4: Output validation ────────────────────────────────────────────
+  const out = validateTtsOutput(result.audio, result.contentType, ROUTE)
+  if (!out.ok) {
+    guardrailLog('error', {
+      route: ROUTE,
+      layer: 'output-validation',
+      action: 'reject',
+      reason: out.response.error,
+      meta: { code: out.response.code },
+    })
+    return NextResponse.json(out.response, { status: out.status })
+  }
+
+  logPass(ROUTE, 'output-validation', 'TTS output passed all validation checks', {
+    byteLength: out.value.audio.byteLength,
+    contentType: out.value.contentType,
+  })
+
+  return new NextResponse(out.value.audio, {
+    status: 200,
+    headers: {
+      'Content-Type': out.value.contentType,
+      'Cache-Control': 'no-store',
+      'X-TTS-Provider': result.provider,
+      'X-TTS-Model': result.model,
+    },
+  })
 }
