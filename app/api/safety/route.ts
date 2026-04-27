@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { evaluateAsync } from '@/lib/evaluate'
 import { promises as fs } from 'fs'
 import { join } from 'path'
 import {
@@ -378,5 +379,11 @@ export async function POST(request: Request) {
   const flags = buildSafetyFlags(parsed)
   const presentation = buildSafetyRecommendationPresentation(flags)
 
+  evaluateAsync({
+    input: userContent,
+    output: rawContent,
+    model: 'openrouter/free',
+    feature: 'safety',
+  })
   return NextResponse.json({ flags, presentation })
 }

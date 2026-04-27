@@ -11,6 +11,7 @@ import {
   sanitizeAskInputs,
   validateAskRequestInputs,
 } from "@/lib/askGuardrails";
+import { evaluateAsync } from "@/lib/evaluate";
 import {
   isAskLangSmithExportEnabled,
   postAskTurnToLangSmith,
@@ -274,6 +275,19 @@ export async function POST(request: Request) {
             err instanceof Error ? err.message : String(err),
           );
           /* eslint-enable no-console */
+        });
+        evaluateAsync({
+          input: safeQuestion,
+          output: event.text,
+          model: event.model?.modelId ?? resolvedModelId,
+          feature: "ask",
+          metadata: {
+            questionHash,
+            chunkCount,
+            answerLanguage: answerLanguage ?? "unset",
+            confidenceBandsVersion: ASK_CONFIDENCE_BANDS_VERSION,
+            finishReason: String(event.finishReason ?? ""),
+          },
         });
       },
     });

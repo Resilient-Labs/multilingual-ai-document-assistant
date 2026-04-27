@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { evaluateAsync } from '@/lib/evaluate'
 import { getNllbTargetCode } from '@/lib/translation/nllbLanguageMap'
 import {
   callTranslateProvider,
@@ -213,5 +214,12 @@ export async function POST(request: Request) {
     }
   )
 
+  evaluateAsync({
+    input: sanitizedText,
+    output: translatedText,
+    model: 'nllb-hf-gradio',
+    feature: 'translate',
+    metadata: { targetLang },
+  })
   return NextResponse.json({ translatedText })
 }
