@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { POST } from './route'
+import { SAFETY_DISCLAIMER, SAFETY_SEVERITY_LABELS } from '@/lib/safetyI18n'
 import type { SafetyAnalysisResponse } from '@/types'
 
 function createMockRequest(body: unknown): Request {
@@ -142,6 +143,37 @@ describe('POST /api/safety', () => {
         body.flags.nextSteps.length
       )
       expect(body.flags.confidence).toBe(75)
+    })
+
+    it('includes localization directive and Spanish presentation when outputLanguage is es', async () => {
+      ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+        createSuccessfulFetchMock({
+          category: 'Medical Bill',
+          severity: 'medium',
+          explanation: 'Document requests payment.',
+        })
+      )
+
+      const request = createMockRequest({
+        fullText: 'This is a medical bill for $500.',
+        outputLanguage: 'es',
+      })
+      const response = await POST(request)
+      const body = (await response.json()) as SafetyAnalysisResponse
+
+      expect(response.status).toBe(200)
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+      const fetchCall = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+        .calls[0]
+      const fetchBody = JSON.parse(fetchCall[1]?.body as string)
+      const systemContent = fetchBody.messages[0].content as string
+      expect(systemContent).toContain('## LOCALIZATION')
+      expect(systemContent).toContain('Spanish')
+
+      expect(body.presentation.severityLabel).toBe(
+        SAFETY_SEVERITY_LABELS.es.medium
+      )
+      expect(body.presentation.disclaimer).toBe(SAFETY_DISCLAIMER.es)
     })
   })
 

@@ -8,6 +8,7 @@ import {
   normalizeRiskLevel,
   selectNextSteps,
 } from '@/lib/safetyRecommendations'
+import { getSafetyLang, SAFETY_LANG_NAME, type SafetyLang } from '@/lib/safetyI18n'
 import { normalizeSeverity } from '@/lib/safetyNextSteps'
 import type { SafetyAnalysisRequest, SafetyFlags } from '@/types'
 import {
@@ -37,7 +38,10 @@ function pickEvidenceCharOffset(
   return undefined
 }
 
-function buildSafetyFlags(parsed: Record<string, unknown>): SafetyFlags {
+function buildSafetyFlags(
+  parsed: Record<string, unknown>,
+  lang: SafetyLang
+): SafetyFlags {
   const category =
     typeof parsed.category === 'string' && parsed.category.trim()
       ? parsed.category.trim()
@@ -50,13 +54,16 @@ function buildSafetyFlags(parsed: Record<string, unknown>): SafetyFlags {
     typeof parsed.explanation === 'string' ? parsed.explanation : undefined
   const hasExplanation = Boolean(explanation?.trim())
   const evidenceCharOffset = pickEvidenceCharOffset(parsed)
-  const nextSteps = selectNextSteps({
-    category,
-    severity,
-    confidence,
-    legitimacy,
-    hasExplanation,
-  })
+  const nextSteps = selectNextSteps(
+    {
+      category,
+      severity,
+      confidence,
+      legitimacy,
+      hasExplanation,
+    },
+    lang
+  )
 
   return {
     category,
@@ -232,6 +239,26 @@ function getTextToAnalyze(body: unknown): string | null {
   return null
 }
 
+/** Append non-English localization rules so category/explanation match the user's UI language. */
+function appendLocalizationDirective(
+  basePrompt: string,
+  lang: SafetyLang
+): string {
+  if (lang === 'en') return basePrompt
+  const languageName = SAFETY_LANG_NAME[lang]
+  return `${basePrompt}
+
+---
+
+## LOCALIZATION
+
+Write the JSON string values for \`category\` and \`explanation\` in **${languageName}**.
+
+The fields \`severity\`, \`riskLevel\`, and \`legitimacy\` MUST remain exactly one of the English enum values specified in the OUTPUT section above; do not translate those values.
+
+Numeric fields and \`evidenceCharOffset\` are unchanged.`
+}
+
 export async function POST(request: Request) {
   let body: unknown
   try {
@@ -255,6 +282,7 @@ export async function POST(request: Request) {
   }
 
   const rawFieldCandidates = (body as SafetyAnalysisRequest)?.fieldCandidates
+  const lang = getSafetyLang((body as SafetyAnalysisRequest)?.outputLanguage)
 
   const { textToAnalyze, fieldCandidates: safeFieldCandidates } =
     sanitizeSafetyInputs({
@@ -282,7 +310,8 @@ export async function POST(request: Request) {
 
   let prompt: string
   try {
-    prompt = await fs.readFile(SYSTEM_PROMPT_PATH, 'utf-8')
+    const base = await fs.readFile(SYSTEM_PROMPT_PATH, 'utf-8')
+    prompt = appendLocalizationDirective(base, lang)
   } catch {
     return NextResponse.json(
       {
@@ -375,8 +404,8 @@ export async function POST(request: Request) {
     )
   }
 
-  const flags = buildSafetyFlags(parsed)
-  const presentation = buildSafetyRecommendationPresentation(flags)
+  const flags = buildSafetyFlags(parsed, lang)
+  const presentation = buildSafetyRecommendationPresentation(flags, lang)
 
   return NextResponse.json({ flags, presentation })
 }
