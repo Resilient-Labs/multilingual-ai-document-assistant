@@ -192,22 +192,6 @@ Stateless Backend (OCR, LLM, embeddings, translation, risk classification)
 
 ---
 
-## Entity model
-
-```
-Document (root)
-├── OCRBlock → FieldCandidate
-├── Chunk → Embedding
-├── Summary
-├── RiskFlag
-├── Language
-└── ChatSession → ChatMessage
-```
-
-See `types/index.ts` for full definitions.
-
----
-
 ## Project structure
 
 ```
