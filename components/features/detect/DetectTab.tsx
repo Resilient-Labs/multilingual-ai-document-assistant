@@ -19,11 +19,19 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { useSafetyAnalysis } from '@/hooks/useSafetyAnalysis'
 import { useDocumentSession } from '@/hooks/useDocumentSession'
+import {
+  getSafetyLang,
+  SAFETY_LEGITIMACY_LABELS,
+  SAFETY_SEVERITY_LABELS,
+  SAFETY_UI_STRINGS,
+} from '@/lib/safetyI18n'
 import type { OCRResult, RiskNextStep, SafetyFlags } from '@/types'
 
 export interface DetectTabProps {
   docId: string
   className?: string
+  /** User-selected translation target language (drives safety API localization). */
+  targetLang?: string
 }
 
 type EffectiveSeverity = NonNullable<SafetyFlags['riskLevel']> | SafetyFlags['severity']
@@ -85,7 +93,9 @@ function PrimaryActionDescription({ action }: { action: RiskNextStep }) {
   return null
 }
 
-export function DetectTab({ docId, className }: DetectTabProps) {
+export function DetectTab({ docId, className, targetLang }: DetectTabProps) {
+  const lang = getSafetyLang(targetLang)
+  const t = SAFETY_UI_STRINGS[lang]
   const {
     data,
     loading: docLoading,
@@ -98,13 +108,13 @@ export function DetectTab({ docId, className }: DetectTabProps) {
     presentation,
     loading: safetyLoading,
     error: safetyError,
-  } = useSafetyAnalysis(ocr, fieldCandidates)
+  } = useSafetyAnalysis(ocr, fieldCandidates, targetLang)
 
   if (docLoading) {
     return (
       <div className={`space-y-4 ${className ?? ''}`}>
         <p className="text-sm text-muted-foreground">
-          Loading document context...
+          {t.loadingDocContext}
         </p>
       </div>
     )
@@ -113,7 +123,7 @@ export function DetectTab({ docId, className }: DetectTabProps) {
   if (docError) {
     return (
       <div className={`space-y-4 ${className ?? ''}`}>
-        <p className="text-sm text-muted-foreground">{docError}</p>
+        <p className="text-sm text-muted-foreground">{t.documentLoadFailed}</p>
       </div>
     )
   }
@@ -122,7 +132,7 @@ export function DetectTab({ docId, className }: DetectTabProps) {
     return (
       <div className={`space-y-4 ${className ?? ''}`}>
         <p className="text-sm text-muted-foreground">
-          No document text available for safety analysis.
+          {t.noDocText}
         </p>
       </div>
     )
@@ -131,7 +141,7 @@ export function DetectTab({ docId, className }: DetectTabProps) {
   if (safetyLoading) {
     return (
       <div className={`space-y-4 ${className ?? ''}`}>
-        <p className="text-sm text-muted-foreground">Analyzing document...</p>
+        <p className="text-sm text-muted-foreground">{t.analyzing}</p>
       </div>
     )
   }
@@ -140,7 +150,7 @@ export function DetectTab({ docId, className }: DetectTabProps) {
     return (
       <div className={`space-y-4 ${className ?? ''}`}>
         <p className="text-sm text-muted-foreground">
-          Safety analysis could not be completed. {safetyError}
+          {t.analysisFailedGeneric}
         </p>
       </div>
     )
@@ -150,7 +160,7 @@ export function DetectTab({ docId, className }: DetectTabProps) {
     return (
       <div className={`space-y-4 ${className ?? ''}`}>
         <p className="text-sm text-muted-foreground">
-          No analysis data available. Try again later.
+          {t.noAnalysisData}
         </p>
       </div>
     )
@@ -158,10 +168,15 @@ export function DetectTab({ docId, className }: DetectTabProps) {
 
   const riskBody =
     [flags.category, flags.explanation].filter(Boolean).join(' - ') ||
-    'Risk category was identified, but no explanation was provided.'
+    t.riskBodyFallback
 
   const effectiveSeverity = flags.riskLevel ?? flags.severity
   const tone = severityToneClasses(effectiveSeverity)
+  const severityDisplay =
+    SAFETY_SEVERITY_LABELS[lang][flags.severity] ?? flags.severity
+  const legitimacyDisplay = flags.legitimacy
+    ? SAFETY_LEGITIMACY_LABELS[lang][flags.legitimacy]
+    : ''
 
   return (
     <div className={`space-y-4 ${className ?? ''}`}>
@@ -170,7 +185,7 @@ export function DetectTab({ docId, className }: DetectTabProps) {
           <OctagonAlertIcon />
         </ItemMedia>
         <ItemContent>
-          <ItemTitle>Risk Level</ItemTitle>
+          <ItemTitle>{t.riskLevel}</ItemTitle>
           <ItemDescription className="line-clamp-none whitespace-normal text-current/90">
             {riskBody}
           </ItemDescription>
@@ -182,50 +197,56 @@ export function DetectTab({ docId, className }: DetectTabProps) {
       </Badge>
       <Item variant="muted">
         <ItemContent>
-          <ItemTitle>Confidence</ItemTitle>
+          <ItemTitle>{t.confidence}</ItemTitle>
           <ItemDescription>
             <span>
               {flags.confidence != null ? `${flags.confidence}%` : '—'}
               {flags.legitimacy
-                ? ` · Legitimacy: ${flags.legitimacy.replace(/_/g, ' ')}`
+                ? ` · ${t.legitimacyPrefix} ${legitimacyDisplay}`
                 : ''}
-              {` · Severity: ${flags.severity}`}
+              {` · ${t.severityPrefix} ${severityDisplay}`}
             </span>
           </ItemDescription>
         </ItemContent>
       </Item>
-      <div className="text-lg font-semibold">Suggested Next Steps</div>
+      <div className="text-lg font-semibold">{t.suggestedNextSteps}</div>
       <div className="space-y-4">
-        {presentation.primaryActions.map((action, index) => {
-          const desc = <PrimaryActionDescription action={action} />
-          const showDesc = Boolean(
-            (action.type === 'url' && action.value) ||
-            (action.type === 'phone' && action.value) ||
-            (action.type === 'info' && action.value)
-          )
-          return (
-            <Item key={`${action.label}-${action.type}-${index}`}>
-              <ItemMedia variant="icon">
-                <ShieldAlertIcon data-icon="inline-start" />
-              </ItemMedia>
-              <ItemContent>
-                <ItemTitle>{action.label}</ItemTitle>
-                {showDesc ? <ItemDescription>{desc}</ItemDescription> : null}
-              </ItemContent>
-              {(action.type === 'url' || action.type === 'phone') &&
-              action.value ? (
-                <ItemActions>
-                  <ExternalLinkIcon className="size-4" />
-                </ItemActions>
-              ) : null}
-            </Item>
-          )
-        })}
+        {presentation.primaryActions.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t.noNextSteps}</p>
+        ) : (
+          presentation.primaryActions.map((action, index) => {
+            const desc = <PrimaryActionDescription action={action} />
+            const showDesc = Boolean(
+              (action.type === 'url' && action.value) ||
+              (action.type === 'phone' && action.value) ||
+              (action.type === 'info' && action.value)
+            )
+            return (
+              <Item key={`${action.label}-${action.type}-${index}`}>
+                <ItemMedia variant="icon">
+                  <ShieldAlertIcon data-icon="inline-start" />
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle>{action.label}</ItemTitle>
+                  {showDesc ? <ItemDescription>{desc}</ItemDescription> : null}
+                </ItemContent>
+                {(action.type === 'url' || action.type === 'phone') &&
+                action.value ? (
+                  <ItemActions>
+                    <ExternalLinkIcon className="size-4" />
+                  </ItemActions>
+                ) : null}
+              </Item>
+            )
+          })
+        )}
       </div>
-      <div className="text-lg font-semibold">Helpful Resources</div>
+      <div className="text-lg font-semibold">{t.helpfulResources}</div>
       <div className="space-y-4">
         {presentation.resources.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No linked resources.</p>
+          <p className="text-sm text-muted-foreground">
+            {t.noLinkedResources}
+          </p>
         ) : (
           presentation.resources.map((resource, index) => (
             <Item key={`${resource.label}-${resource.value}-${index}`}>

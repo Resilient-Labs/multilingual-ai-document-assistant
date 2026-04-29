@@ -13,6 +13,7 @@ import { TranslateSummary } from '@/components/features/summary/translate-summar
 import { AskTab } from '@/components/features/ask/AskTab'
 import { DetectTab } from '@/components/features/detect/DetectTab'
 import { cn } from '@/lib/utils'
+import { getSafetyLang, SAFETY_UI_STRINGS } from '@/lib/safetyI18n'
 
 interface TranslateSession {
   fullText: string
@@ -281,16 +282,20 @@ export default function TranslatePage() {
             />
           )}
 
-          {session && (
-            <Card className="flex w-full min-w-0 flex-col overflow-hidden">
-              <CardHeader>
-                <CardTitle>Safety Analysis</CardTitle>
-              </CardHeader>
-              <CardContent className="flex min-w-0 flex-col gap-4 overflow-y-auto">
-                <DetectTab docId={id} />
-              </CardContent>
-            </Card>
-          )}
+          {session &&
+            (() => {
+              const safetyLang = getSafetyLang(session.targetLang)
+              return (
+                <Card className="flex w-full min-w-0 flex-col overflow-hidden">
+                  <CardHeader>
+                    <CardTitle>{SAFETY_UI_STRINGS[safetyLang].sectionTitle}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex min-w-0 flex-col gap-4 overflow-y-auto">
+                    <DetectTab docId={id} targetLang={session.targetLang} />
+                  </CardContent>
+                </Card>
+              )
+            })()}
 
           {session && (
             <AskTab

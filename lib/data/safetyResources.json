@@ -1,85 +1,370 @@
 {
   "urgentPrefix": {
-    "label": "This document may need attention soon. Verify deadlines on the original and keep copies of all correspondence.",
-    "type": "info"
+    "type": "info",
+    "labels": {
+      "en": "This document may need attention soon. Verify deadlines on the original and keep copies of all correspondence.",
+      "es": "Es posible que este documento requiera atención pronto. Verifique los plazos en el original y guarde copias de toda la correspondencia.",
+      "fr": "Ce document pourrait nécessiter une attention rapide. Vérifiez les échéances sur l'original et conservez des copies de toute la correspondance.",
+      "de": "Dieses Dokument könnte bald Aufmerksamkeit erfordern. Überprüfen Sie die Fristen im Original und bewahren Sie Kopien der gesamten Korrespondenz auf.",
+      "zh": "此文件可能需要尽快处理。请在原件上核实截止日期，并保留所有往来文件的副本。",
+      "zh-TW": "此文件可能需要儘快處理。請在原件上核實截止日期，並保留所有往來文件的副本。",
+      "ja": "この書類は早めの対応が必要な可能性があります。原本で期限を確認し、すべてのやり取りの控えを保管してください。",
+      "ko": "이 문서는 곧 주의가 필요할 수 있습니다. 원본에서 기한을 확인하고 모든 서신의 사본을 보관하세요.",
+      "pt": "Este documento pode exigir atenção em breve. Verifique os prazos no original e guarde cópias de toda a correspondência.",
+      "it": "Questo documento potrebbe richiedere attenzione a breve. Verifica le scadenze sull'originale e conserva copie di tutta la corrispondenza.",
+      "ru": "Этот документ может вскоре потребовать внимания. Проверьте сроки в оригинале и сохраните копии всей переписки.",
+      "ar": "قد يتطلب هذا المستند اهتمامًا قريبًا. تحقق من المواعيد النهائية في المستند الأصلي واحتفظ بنسخ من جميع المراسلات.",
+      "hi": "इस दस्तावेज़ पर जल्द ध्यान देने की आवश्यकता हो सकती है। मूल पर समय-सीमाओं की पुष्टि करें और सभी पत्राचार की प्रतियाँ रखें।",
+      "nl": "Dit document vereist mogelijk binnenkort aandacht. Controleer de deadlines op het origineel en bewaar kopieën van alle correspondentie.",
+      "pl": "Ten dokument może wkrótce wymagać uwagi. Sprawdź terminy w oryginale i zachowaj kopie całej korespondencji.",
+      "sv": "Detta dokument kan snart kräva åtgärd. Kontrollera tidsfristerna i originalet och behåll kopior av all korrespondens.",
+      "tr": "Bu belge yakında ilgilenmenizi gerektirebilir. Orijinaldeki son tarihleri doğrulayın ve tüm yazışmaların kopyalarını saklayın.",
+      "vi": "Tài liệu này có thể cần được xử lý sớm. Hãy xác minh thời hạn trên bản gốc và lưu giữ bản sao của mọi thư từ trao đổi."
+    }
   },
   "verifyOfficialStep": {
-    "label": "If you need to respond, verify using contact information from the organization’s official website—not numbers or links that appear only on this document.",
-    "type": "info"
+    "type": "info",
+    "labels": {
+      "en": "If you need to respond, verify using contact information from the organization's official website—not numbers or links that appear only on this document.",
+      "es": "Si necesita responder, verifique usando la información de contacto del sitio web oficial de la organización, no números o enlaces que aparecen solo en este documento.",
+      "fr": "Si vous devez répondre, vérifiez en utilisant les coordonnées du site web officiel de l'organisation, et non les numéros ou liens qui n'apparaissent que sur ce document.",
+      "de": "Wenn Sie antworten müssen, überprüfen Sie dies anhand der Kontaktdaten auf der offiziellen Website der Organisation – nicht anhand von Nummern oder Links, die nur in diesem Dokument erscheinen.",
+      "zh": "如需回复，请使用该机构官方网站上的联系方式进行核实，而不要使用仅出现在本文件上的电话号码或链接。",
+      "zh-TW": "如需回覆，請使用該機構官方網站上的聯絡方式進行核實，而不要使用僅出現在本文件上的電話號碼或連結。",
+      "ja": "返信が必要な場合は、この書類にのみ記載されている番号やリンクではなく、該当機関の公式ウェブサイトに掲載されている連絡先で確認してください。",
+      "ko": "응답이 필요한 경우, 이 문서에만 표시된 번호나 링크가 아니라 해당 기관의 공식 웹사이트에 있는 연락처 정보를 통해 확인하세요.",
+      "pt": "Se precisar responder, verifique usando as informações de contato do site oficial da organização — não números ou links que aparecem apenas neste documento.",
+      "it": "Se devi rispondere, verifica utilizzando i contatti del sito web ufficiale dell'organizzazione, non numeri o link che compaiono solo su questo documento.",
+      "ru": "Если вам нужно ответить, проверяйте контактные данные на официальном сайте организации, а не номера или ссылки, указанные только в этом документе.",
+      "ar": "إذا احتجت إلى الرد، فتحقق من خلال معلومات الاتصال الموجودة على الموقع الرسمي للمؤسسة، وليس الأرقام أو الروابط التي تظهر فقط في هذا المستند.",
+      "hi": "यदि आपको उत्तर देना हो, तो संगठन की आधिकारिक वेबसाइट पर दी गई संपर्क जानकारी का उपयोग करके पुष्टि करें—केवल इस दस्तावेज़ पर दिखने वाले नंबरों या लिंक का नहीं।",
+      "nl": "Als u moet reageren, verifieer dit dan via de contactgegevens op de officiële website van de organisatie, niet via nummers of links die alleen op dit document staan.",
+      "pl": "Jeśli musisz odpowiedzieć, zweryfikuj dane korzystając z informacji kontaktowych z oficjalnej strony organizacji, a nie z numerów lub linków podanych tylko w tym dokumencie.",
+      "sv": "Om du behöver svara, verifiera via kontaktuppgifterna på organisationens officiella webbplats – inte nummer eller länkar som bara finns i detta dokument.",
+      "tr": "Yanıt vermeniz gerekiyorsa, yalnızca bu belgede yer alan numaraları veya bağlantıları değil, kuruluşun resmi web sitesindeki iletişim bilgilerini kullanarak doğrulayın.",
+      "vi": "Nếu bạn cần phản hồi, hãy xác minh bằng thông tin liên hệ trên trang web chính thức của tổ chức—không sử dụng số điện thoại hay liên kết chỉ xuất hiện trên tài liệu này."
+    }
   },
   "missingExplanationStep": {
-    "label": "We could not tie specific risks to exact phrases in this text. Treat unexpected payment demands with extra caution.",
-    "type": "info"
+    "type": "info",
+    "labels": {
+      "en": "We could not tie specific risks to exact phrases in this text. Treat unexpected payment demands with extra caution.",
+      "es": "No pudimos vincular riesgos específicos a frases exactas en este texto. Trate las solicitudes de pago inesperadas con especial precaución.",
+      "fr": "Nous n'avons pas pu associer des risques spécifiques à des phrases précises dans ce texte. Traitez les demandes de paiement inattendues avec une prudence accrue.",
+      "de": "Wir konnten keine konkreten Risiken bestimmten Formulierungen in diesem Text zuordnen. Behandeln Sie unerwartete Zahlungsaufforderungen mit besonderer Vorsicht.",
+      "zh": "我们无法将具体风险与本文中的确切措辞对应起来。请对意外的付款要求格外谨慎。",
+      "zh-TW": "我們無法將具體風險與本文中的確切措辭對應起來。請對意外的付款要求格外謹慎。",
+      "ja": "本文中の具体的な表現と特定のリスクを結び付けることはできませんでした。予期しない支払い要求には特に注意してください。",
+      "ko": "이 문서의 구체적인 표현과 특정 위험을 연결할 수 없었습니다. 예상치 못한 결제 요구는 각별히 주의해서 처리하세요.",
+      "pt": "Não conseguimos associar riscos específicos a frases exatas deste texto. Trate exigências de pagamento inesperadas com cautela redobrada.",
+      "it": "Non siamo riusciti a collegare rischi specifici a frasi precise in questo testo. Tratta con particolare cautela le richieste di pagamento inattese.",
+      "ru": "Мы не смогли сопоставить конкретные риски с точными фразами в этом тексте. С особой осторожностью относитесь к неожиданным требованиям об оплате.",
+      "ar": "لم نتمكن من ربط مخاطر محددة بعبارات بعينها في هذا النص. تعامل مع طلبات الدفع غير المتوقعة بحذر إضافي.",
+      "hi": "हम इस पाठ में विशिष्ट जोखिमों को सटीक वाक्यांशों से नहीं जोड़ सके। अप्रत्याशित भुगतान मांगों को अतिरिक्त सावधानी से लें।",
+      "nl": "We konden geen specifieke risico's koppelen aan exacte zinnen in deze tekst. Wees extra voorzichtig met onverwachte betalingsverzoeken.",
+      "pl": "Nie udało nam się powiązać konkretnych zagrożeń z dokładnymi sformułowaniami w tym tekście. Z wyjątkową ostrożnością podchodź do nieoczekiwanych żądań zapłaty.",
+      "sv": "Vi kunde inte koppla specifika risker till exakta formuleringar i texten. Var extra försiktig med oväntade betalningskrav.",
+      "tr": "Bu metindeki belirli ifadeleri spesifik risklerle ilişkilendiremedik. Beklenmedik ödeme taleplerine ekstra dikkatle yaklaşın.",
+      "vi": "Chúng tôi không thể gắn các rủi ro cụ thể với các cụm từ chính xác trong văn bản này. Hãy hết sức thận trọng với những yêu cầu thanh toán bất ngờ."
+    }
   },
   "scamPrioritySteps": [
     {
-      "label": "FTC: Report fraud and learn next steps",
       "type": "url",
-      "value": "https://reportfraud.ftc.gov/"
+      "value": "https://reportfraud.ftc.gov/",
+      "labels": {
+        "en": "FTC: Report fraud and learn next steps",
+        "es": "FTC: Denuncie fraudes y conozca los próximos pasos",
+        "fr": "FTC : signaler une fraude et connaître les prochaines étapes",
+        "de": "FTC: Betrug melden und nächste Schritte erfahren",
+        "zh": "FTC：举报欺诈并了解后续步骤",
+        "zh-TW": "FTC：舉報詐騙並瞭解後續步驟",
+        "ja": "FTC: 詐欺を報告し、次のステップを確認する",
+        "ko": "FTC: 사기 신고 및 다음 단계 안내",
+        "pt": "FTC: denuncie fraudes e saiba os próximos passos",
+        "it": "FTC: segnala una frode e scopri i passi successivi",
+        "ru": "FTC: сообщить о мошенничестве и узнать дальнейшие шаги",
+        "ar": "FTC: الإبلاغ عن الاحتيال ومعرفة الخطوات التالية",
+        "hi": "FTC: धोखाधड़ी की रिपोर्ट करें और अगले कदम जानें",
+        "nl": "FTC: meld fraude en bekijk de vervolgstappen",
+        "pl": "FTC: zgłoś oszustwo i poznaj kolejne kroki",
+        "sv": "FTC: anmäl bedrägeri och se nästa steg",
+        "tr": "FTC: dolandırıcılığı bildirin ve sonraki adımları öğrenin",
+        "vi": "FTC: Báo cáo gian lận và xem các bước tiếp theo"
+      }
     },
     {
-      "label": "FBI IC3: Report internet crime",
       "type": "url",
-      "value": "https://www.ic3.gov/"
+      "value": "https://www.ic3.gov/",
+      "labels": {
+        "en": "FBI IC3: Report internet crime",
+        "es": "FBI IC3: Denuncie delitos cibernéticos",
+        "fr": "FBI IC3 : signaler un crime sur Internet",
+        "de": "FBI IC3: Internetkriminalität melden",
+        "zh": "FBI IC3：举报网络犯罪",
+        "zh-TW": "FBI IC3：舉報網路犯罪",
+        "ja": "FBI IC3: インターネット犯罪を報告する",
+        "ko": "FBI IC3: 인터넷 범죄 신고",
+        "pt": "FBI IC3: denuncie crimes pela internet",
+        "it": "FBI IC3: segnala un crimine informatico",
+        "ru": "FBI IC3: сообщить об интернет-преступлении",
+        "ar": "FBI IC3: الإبلاغ عن جرائم الإنترنت",
+        "hi": "FBI IC3: इंटरनेट अपराध की रिपोर्ट करें",
+        "nl": "FBI IC3: meld internetcriminaliteit",
+        "pl": "FBI IC3: zgłoś przestępstwo internetowe",
+        "sv": "FBI IC3: anmäl internetbrott",
+        "tr": "FBI IC3: internet suçlarını bildirin",
+        "vi": "FBI IC3: Báo cáo tội phạm trên internet"
+      }
     }
   ],
   "buckets": {
     "housing": [
       {
-        "label": "Tenant rights and housing programs (HUD)",
         "type": "url",
-        "value": "https://www.hud.gov/topics/rental_assistance"
+        "value": "https://www.hud.gov/topics/rental_assistance",
+        "labels": {
+          "en": "Tenant rights and housing programs (HUD)",
+          "es": "Derechos del inquilino y programas de vivienda (HUD)",
+          "fr": "Droits des locataires et programmes de logement (HUD)",
+          "de": "Mieterrechte und Wohnungsprogramme (HUD)",
+          "zh": "租户权益和住房项目（HUD）",
+          "zh-TW": "租戶權益和住房計畫（HUD）",
+          "ja": "テナントの権利と住宅プログラム（HUD）",
+          "ko": "세입자 권리 및 주택 프로그램 (HUD)",
+          "pt": "Direitos do inquilino e programas de habitação (HUD)",
+          "it": "Diritti degli inquilini e programmi abitativi (HUD)",
+          "ru": "Права арендаторов и жилищные программы (HUD)",
+          "ar": "حقوق المستأجرين وبرامج الإسكان (HUD)",
+          "hi": "किरायेदार अधिकार और आवास कार्यक्रम (HUD)",
+          "nl": "Huurdersrechten en huisvestingsprogramma's (HUD)",
+          "pl": "Prawa najemców i programy mieszkaniowe (HUD)",
+          "sv": "Hyresgästers rättigheter och bostadsprogram (HUD)",
+          "tr": "Kiracı hakları ve konut programları (HUD)",
+          "vi": "Quyền của người thuê nhà và các chương trình nhà ở (HUD)"
+        }
       },
       {
-        "label": "Local legal aid (search by state)",
         "type": "url",
-        "value": "https://www.lsc.gov/find-legal-aid"
+        "value": "https://www.lsc.gov/find-legal-aid",
+        "labels": {
+          "en": "Local legal aid (search by state)",
+          "es": "Asistencia legal local (busque por estado)",
+          "fr": "Aide juridique locale (recherche par État)",
+          "de": "Lokale Rechtshilfe (Suche nach Bundesstaat)",
+          "zh": "本地法律援助（按州搜索）",
+          "zh-TW": "本地法律援助（按州搜尋）",
+          "ja": "地域の法律支援（州別に検索）",
+          "ko": "지역 법률 지원 (주별 검색)",
+          "pt": "Assistência jurídica local (pesquise por estado)",
+          "it": "Assistenza legale locale (cerca per stato)",
+          "ru": "Местная юридическая помощь (поиск по штату)",
+          "ar": "المساعدة القانونية المحلية (ابحث حسب الولاية)",
+          "hi": "स्थानीय कानूनी सहायता (राज्य के अनुसार खोजें)",
+          "nl": "Lokale rechtshulp (zoek per staat)",
+          "pl": "Lokalna pomoc prawna (wyszukiwanie według stanu)",
+          "sv": "Lokal juridisk hjälp (sök per delstat)",
+          "tr": "Yerel hukuki yardım (eyalete göre arayın)",
+          "vi": "Trợ giúp pháp lý địa phương (tìm kiếm theo tiểu bang)"
+        }
       }
     ],
     "financial": [
       {
-        "label": "FTC: debt collection and scam help",
         "type": "url",
-        "value": "https://consumer.ftc.gov/debt-collection"
+        "value": "https://consumer.ftc.gov/debt-collection",
+        "labels": {
+          "en": "FTC: debt collection and scam help",
+          "es": "FTC: ayuda con cobro de deudas y estafas",
+          "fr": "FTC : aide concernant le recouvrement de dettes et les arnaques",
+          "de": "FTC: Hilfe bei Inkasso und Betrug",
+          "zh": "FTC：债务催收和诈骗帮助",
+          "zh-TW": "FTC：債務催收和詐騙協助",
+          "ja": "FTC: 債権回収と詐欺に関するサポート",
+          "ko": "FTC: 채권 추심 및 사기 관련 도움말",
+          "pt": "FTC: ajuda com cobrança de dívidas e golpes",
+          "it": "FTC: aiuto su recupero crediti e truffe",
+          "ru": "FTC: помощь по взысканию долгов и мошенничеству",
+          "ar": "FTC: المساعدة في تحصيل الديون والاحتيال",
+          "hi": "FTC: ऋण वसूली और घोटाले से जुड़ी सहायता",
+          "nl": "FTC: hulp bij incasso en oplichting",
+          "pl": "FTC: pomoc w sprawie windykacji i oszustw",
+          "sv": "FTC: hjälp med inkasso och bedrägerier",
+          "tr": "FTC: borç tahsilatı ve dolandırıcılık yardımı",
+          "vi": "FTC: hỗ trợ về đòi nợ và lừa đảo"
+        }
       },
       {
-        "label": "IRS (verify tax notices): individual assistance",
         "type": "phone",
-        "value": "1-800-829-1040"
+        "value": "1-800-829-1040",
+        "labels": {
+          "en": "IRS (verify tax notices): individual assistance",
+          "es": "IRS (verificar avisos fiscales): asistencia individual",
+          "fr": "IRS (vérifier les avis fiscaux) : assistance individuelle",
+          "de": "IRS (Steuerbescheide überprüfen): individuelle Unterstützung",
+          "zh": "IRS（核实税务通知）：个人协助",
+          "zh-TW": "IRS（核實稅務通知）：個人協助",
+          "ja": "IRS（税務通知の確認）: 個人向けサポート",
+          "ko": "IRS (세무 통지서 확인): 개인 상담",
+          "pt": "IRS (verificar avisos fiscais): assistência individual",
+          "it": "IRS (verifica gli avvisi fiscali): assistenza individuale",
+          "ru": "IRS (проверка налоговых уведомлений): индивидуальная помощь",
+          "ar": "IRS (التحقق من الإشعارات الضريبية): مساعدة فردية",
+          "hi": "IRS (कर सूचनाओं की पुष्टि करें): व्यक्तिगत सहायता",
+          "nl": "IRS (belastingberichten verifiëren): individuele hulp",
+          "pl": "IRS (weryfikacja zawiadomień podatkowych): indywidualna pomoc",
+          "sv": "IRS (verifiera skattemeddelanden): individuell hjälp",
+          "tr": "IRS (vergi bildirimlerini doğrulayın): bireysel destek",
+          "vi": "IRS (xác minh thông báo thuế): hỗ trợ cá nhân"
+        }
       }
     ],
     "medical": [
       {
-        "label": "Medicare rights and billing questions",
         "type": "url",
-        "value": "https://www.medicare.gov/basics/reporting-scams-fraud"
+        "value": "https://www.medicare.gov/basics/reporting-scams-fraud",
+        "labels": {
+          "en": "Medicare rights and billing questions",
+          "es": "Derechos de Medicare y preguntas sobre facturación",
+          "fr": "Droits Medicare et questions de facturation",
+          "de": "Medicare-Rechte und Abrechnungsfragen",
+          "zh": "Medicare 权益和账单问题",
+          "zh-TW": "Medicare 權益和帳單問題",
+          "ja": "Medicareの権利と請求に関する質問",
+          "ko": "Medicare 권리 및 청구 관련 문의",
+          "pt": "Direitos do Medicare e dúvidas sobre cobrança",
+          "it": "Diritti Medicare e domande sulla fatturazione",
+          "ru": "Права по Medicare и вопросы по счетам",
+          "ar": "حقوق Medicare والأسئلة المتعلقة بالفواتير",
+          "hi": "Medicare अधिकार और बिलिंग संबंधी प्रश्न",
+          "nl": "Medicare-rechten en factureringsvragen",
+          "pl": "Prawa w ramach Medicare i pytania o rachunki",
+          "sv": "Medicare-rättigheter och frågor om fakturering",
+          "tr": "Medicare hakları ve faturalandırma soruları",
+          "vi": "Quyền lợi Medicare và thắc mắc về hóa đơn"
+        }
       },
       {
-        "label": "Compare the bill to your explanation of benefits (EOB) and contact the provider’s billing office for itemized charges.",
-        "type": "info"
+        "type": "info",
+        "labels": {
+          "en": "Compare the bill to your explanation of benefits (EOB) and contact the provider's billing office for itemized charges.",
+          "es": "Compare la factura con su explicación de beneficios (EOB) y comuníquese con la oficina de facturación del proveedor para obtener los cargos detallados.",
+          "fr": "Comparez la facture à votre relevé de prestations (EOB) et contactez le service de facturation du prestataire pour obtenir le détail des frais.",
+          "de": "Vergleichen Sie die Rechnung mit Ihrer Leistungsabrechnung (EOB) und kontaktieren Sie die Abrechnungsstelle des Anbieters, um eine Einzelaufstellung der Kosten zu erhalten.",
+          "zh": "请将账单与您的福利说明（EOB）进行比对，并联系医疗服务方的账单部门索取明细费用。",
+          "zh-TW": "請將帳單與您的福利說明（EOB）進行比對，並聯絡醫療服務方的帳單部門索取明細費用。",
+          "ja": "請求書をご自身の給付内容説明書（EOB）と照合し、内訳について医療提供者の請求担当窓口にお問い合わせください。",
+          "ko": "청구서를 본인의 혜택 설명서(EOB)와 비교하고, 항목별 청구 내역은 의료 제공자의 청구 부서에 문의하세요.",
+          "pt": "Compare a fatura com sua explicação de benefícios (EOB) e entre em contato com o setor de cobrança do prestador para obter os encargos detalhados.",
+          "it": "Confronta la fattura con la tua spiegazione dei benefici (EOB) e contatta l'ufficio fatturazione del fornitore per ottenere il dettaglio degli addebiti.",
+          "ru": "Сравните счет с вашим разъяснением льгот (EOB) и обратитесь в биллинговый отдел поставщика услуг для получения детализации расходов.",
+          "ar": "قارن الفاتورة بكشف بيان المزايا (EOB) الخاص بك واتصل بقسم الفواتير لدى مقدم الخدمة للحصول على تفاصيل الرسوم.",
+          "hi": "बिल की तुलना अपने लाभ विवरण (EOB) से करें और मदवार शुल्क के लिए प्रदाता के बिलिंग कार्यालय से संपर्क करें।",
+          "nl": "Vergelijk de rekening met uw uitleg van vergoedingen (EOB) en neem contact op met de facturatieafdeling van de zorgverlener voor een gespecificeerd overzicht.",
+          "pl": "Porównaj rachunek ze swoim zestawieniem świadczeń (EOB) i skontaktuj się z działem rozliczeń świadczeniodawcy w sprawie szczegółowego wykazu opłat.",
+          "sv": "Jämför fakturan med din förmånsspecifikation (EOB) och kontakta vårdgivarens faktureringsavdelning för specificerade avgifter.",
+          "tr": "Faturayı sağlık yardımları açıklamanızla (EOB) karşılaştırın ve kalem bazında ücretler için hizmet sağlayıcının faturalandırma birimiyle iletişime geçin.",
+          "vi": "So sánh hóa đơn với bản giải trình quyền lợi (EOB) của bạn và liên hệ với bộ phận thanh toán của đơn vị cung cấp dịch vụ để xem các khoản phí chi tiết."
+        }
       }
     ],
     "legal": [
       {
-        "label": "U.S. Courts: understanding notices and court basics",
         "type": "url",
-        "value": "https://www.uscourts.gov/"
+        "value": "https://www.uscourts.gov/",
+        "labels": {
+          "en": "U.S. Courts: understanding notices and court basics",
+          "es": "Tribunales de EE. UU.: comprender los avisos y aspectos básicos de la corte",
+          "fr": "Tribunaux américains : comprendre les avis et les bases judiciaires",
+          "de": "US-Gerichte: Bescheide verstehen und Grundlagen der Gerichtsverfahren",
+          "zh": "美国法院：了解通知和法院基础知识",
+          "zh-TW": "美國法院：瞭解通知和法院基礎知識",
+          "ja": "米国裁判所: 通知の理解と裁判の基本",
+          "ko": "미국 법원: 통지서 이해와 법원 기본 사항",
+          "pt": "Tribunais dos EUA: entender notificações e noções básicas sobre tribunais",
+          "it": "Tribunali degli Stati Uniti: comprendere le notifiche e le nozioni di base",
+          "ru": "Суды США: понимание уведомлений и основ судопроизводства",
+          "ar": "محاكم الولايات المتحدة: فهم الإشعارات وأساسيات المحاكم",
+          "hi": "यू.एस. कोर्ट: सूचनाओं को समझना और अदालत की मूल बातें",
+          "nl": "Amerikaanse rechtbanken: kennisgevingen begrijpen en basisinformatie over de rechtbank",
+          "pl": "Sądy w USA: zrozumienie zawiadomień i podstawy postępowania sądowego",
+          "sv": "USA:s domstolar: förstå meddelanden och grunderna i domstolsärenden",
+          "tr": "ABD Mahkemeleri: bildirimleri ve mahkeme temellerini anlama",
+          "vi": "Tòa án Hoa Kỳ: hiểu các thông báo và những điều cơ bản về tòa án"
+        }
       },
       {
-        "label": "Use the court name, case number, and date on the document to confirm filings with the clerk of that court.",
-        "type": "info"
+        "type": "info",
+        "labels": {
+          "en": "Use the court name, case number, and date on the document to confirm filings with the clerk of that court.",
+          "es": "Use el nombre del tribunal, el número de caso y la fecha del documento para confirmar las presentaciones con el secretario de ese tribunal.",
+          "fr": "Utilisez le nom du tribunal, le numéro de dossier et la date figurant sur le document pour confirmer les dépôts auprès du greffier de ce tribunal.",
+          "de": "Verwenden Sie den Namen des Gerichts, das Aktenzeichen und das Datum auf dem Dokument, um die Eingänge bei der Geschäftsstelle des betreffenden Gerichts zu bestätigen.",
+          "zh": "使用文件上注明的法院名称、案件编号和日期，向该法院的书记员确认相关文件是否已提交。",
+          "zh-TW": "使用文件上註明的法院名稱、案件編號和日期，向該法院的書記官確認相關文件是否已提交。",
+          "ja": "書類に記載された裁判所名、事件番号、日付を使い、その裁判所の書記官に提出状況を確認してください。",
+          "ko": "문서에 적힌 법원 이름, 사건 번호, 날짜를 사용해 해당 법원의 서기에게 접수 여부를 확인하세요.",
+          "pt": "Use o nome do tribunal, o número do processo e a data do documento para confirmar os protocolos com o escrivão desse tribunal.",
+          "it": "Usa il nome del tribunale, il numero di procedimento e la data riportati sul documento per verificare i depositi presso la cancelleria di quel tribunale.",
+          "ru": "Используйте название суда, номер дела и дату, указанные в документе, чтобы подтвердить подачу документов у секретаря этого суда.",
+          "ar": "استخدم اسم المحكمة ورقم القضية والتاريخ الموجودين على المستند لتأكيد الإيداعات لدى كاتب تلك المحكمة.",
+          "hi": "दस्तावेज़ पर दिए गए न्यायालय के नाम, केस नंबर और तारीख का उपयोग कर उस न्यायालय के क्लर्क के साथ दाखिलों की पुष्टि करें।",
+          "nl": "Gebruik de naam van de rechtbank, het zaaknummer en de datum op het document om de indieningen bij de griffier van die rechtbank te bevestigen.",
+          "pl": "Użyj nazwy sądu, numeru sprawy i daty z dokumentu, aby potwierdzić wpłynięcie pism u sekretarza tego sądu.",
+          "sv": "Använd domstolens namn, målnummer och datum på dokumentet för att bekräfta inlämningar hos den domstolens kansli.",
+          "tr": "Belgedeki mahkeme adını, dosya numarasını ve tarihi kullanarak, ilgili mahkemenin kalemine başvuruların yapılıp yapılmadığını teyit edin.",
+          "vi": "Sử dụng tên tòa án, số vụ án và ngày ghi trên tài liệu để xác nhận các hồ sơ đã nộp với thư ký của tòa án đó."
+        }
       }
     ],
     "general": [
       {
-        "label": "USA.gov: government services and consumer help",
         "type": "url",
-        "value": "https://www.usa.gov/"
+        "value": "https://www.usa.gov/",
+        "labels": {
+          "en": "USA.gov: government services and consumer help",
+          "es": "USA.gov: servicios gubernamentales y ayuda al consumidor",
+          "fr": "USA.gov : services gouvernementaux et aide aux consommateurs",
+          "de": "USA.gov: staatliche Dienste und Verbraucherhilfe",
+          "zh": "USA.gov：政府服务和消费者援助",
+          "zh-TW": "USA.gov：政府服務和消費者協助",
+          "ja": "USA.gov: 政府サービスと消費者支援",
+          "ko": "USA.gov: 정부 서비스 및 소비자 지원",
+          "pt": "USA.gov: serviços do governo e ajuda ao consumidor",
+          "it": "USA.gov: servizi governativi e assistenza ai consumatori",
+          "ru": "USA.gov: государственные услуги и помощь потребителям",
+          "ar": "USA.gov: الخدمات الحكومية ومساعدة المستهلكين",
+          "hi": "USA.gov: सरकारी सेवाएँ और उपभोक्ता सहायता",
+          "nl": "USA.gov: overheidsdiensten en consumentenhulp",
+          "pl": "USA.gov: usługi rządowe i pomoc dla konsumentów",
+          "sv": "USA.gov: myndighetstjänster och konsumenthjälp",
+          "tr": "USA.gov: devlet hizmetleri ve tüketici desteği",
+          "vi": "USA.gov: dịch vụ chính phủ và hỗ trợ người tiêu dùng"
+        }
       },
       {
-        "label": "211 (community resources; call or visit 211.org)",
         "type": "url",
-        "value": "https://www.211.org/"
+        "value": "https://www.211.org/",
+        "labels": {
+          "en": "211 (community resources; call or visit 211.org)",
+          "es": "211 (recursos comunitarios; llame o visite 211.org)",
+          "fr": "211 (ressources communautaires ; appelez ou visitez 211.org)",
+          "de": "211 (Gemeinschaftsressourcen; rufen Sie an oder besuchen Sie 211.org)",
+          "zh": "211（社区资源；拨打电话或访问 211.org）",
+          "zh-TW": "211（社區資源；撥打電話或造訪 211.org）",
+          "ja": "211（地域資源。電話または 211.org をご覧ください）",
+          "ko": "211 (지역사회 자원; 전화하거나 211.org 방문)",
+          "pt": "211 (recursos comunitários; ligue ou visite 211.org)",
+          "it": "211 (risorse comunitarie; chiama o visita 211.org)",
+          "ru": "211 (ресурсы сообщества; позвоните или зайдите на 211.org)",
+          "ar": "211 (موارد مجتمعية؛ اتصل أو تفضل بزيارة 211.org)",
+          "hi": "211 (सामुदायिक संसाधन; कॉल करें या 211.org पर जाएँ)",
+          "nl": "211 (gemeenschapsbronnen; bel of bezoek 211.org)",
+          "pl": "211 (zasoby społecznościowe; zadzwoń lub odwiedź 211.org)",
+          "sv": "211 (samhällsresurser; ring eller besök 211.org)",
+          "tr": "211 (topluluk kaynakları; arayın veya 211.org adresini ziyaret edin)",
+          "vi": "211 (nguồn lực cộng đồng; gọi điện hoặc truy cập 211.org)"
+        }
       }
     ]
   }

@@ -22,10 +22,12 @@ export interface UseSafetyAnalysisResult {
  *
  * @param ocr - OCR result from extraction (null to skip analysis)
  * @param fieldCandidates - Regex-extracted fields from OCR blocks, forwarded to the safety API for grounding
+ * @param targetLang - User UI language (e.g. translate target); forwarded as outputLanguage for localized safety output
  */
 export function useSafetyAnalysis(
   ocr: OCRResult | null,
-  fieldCandidates: FieldCandidate[] | null = null
+  fieldCandidates: FieldCandidate[] | null = null,
+  targetLang?: string
 ): UseSafetyAnalysisResult {
   const [flags, setFlags] = useState<SafetyFlags | null>(null)
   const [presentation, setPresentation] =
@@ -58,7 +60,7 @@ export function useSafetyAnalysis(
     setFlags(null)
     setPresentation(null)
 
-    analyzeDocumentSafety(ocr, fieldCandidates)
+    analyzeDocumentSafety(ocr, fieldCandidates, targetLang)
       .then((res) => {
         if (!cancelled) {
           setFlags(res.flags)
@@ -82,7 +84,7 @@ export function useSafetyAnalysis(
     return () => {
       cancelled = true
     }
-  }, [ocr, fieldCandidates])
+  }, [ocr, fieldCandidates, targetLang])
 
   return { flags, presentation, loading, error }
 }
