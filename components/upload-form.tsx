@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDropzone } from 'react-dropzone'
 import {
@@ -27,6 +27,7 @@ import { persistOCRToEntityDB } from '@/lib/entitydb-persist'
 import type { OCRResult } from '@/types'
 import { chunkText } from '@/lib/chunking'
 import { insertChunk } from '@/lib/entitydb'
+import { useLanguagePreference } from '@/hooks/useLanguagePreference'
 
 const HEIC_BRANDS = [
   'heic',
@@ -130,12 +131,19 @@ interface UploadFormProps {
 
 export function UploadForm({ mobile = false }: UploadFormProps) {
   const router = useRouter()
+  const { preferredLanguage, setLanguage } = useLanguagePreference()
   const [file, setFile] = useState<File | null>(null)
   const [sourceLang, setSourceLang] = useState('auto')
   const [targetLang, setTargetLang] = useState('es')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [ocrProgress, setOcrProgress] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (preferredLanguage) {
+      setTargetLang(preferredLanguage)
+    }
+  }, [preferredLanguage])
 
   const isImage = file?.type.startsWith('image/') ?? false
 
@@ -329,7 +337,10 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
         </button>
 
         <div className="flex-1">
-          <Select value={targetLang} onValueChange={setTargetLang}>
+          <Select value={targetLang} onValueChange={(value) => {
+              setTargetLang(value)
+              setLanguage(value).catch(() => {})
+            }}>
             <SelectTrigger className="w-full h-9 text-sm rounded-xl">
               <SelectValue placeholder="Target" />
             </SelectTrigger>
