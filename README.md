@@ -1,5 +1,7 @@
 # Multilingual AI Document Assistant
 
+*Browser-local EntityDB/IndexedDB storage and embeddings, plus a stateless backend for translation, summarization, and citation-grounded Q&A—zero server-side document retention.*
+
 **Privacy-first** and **zero-retention** by design: built for users who rely on translating and making sense of **English-language documents**, it layers translation, summarization, and **RAG-grounded Q&A** so answers trace back to their own pages—not web-scale guesswork—via a multi-model backend. Text is processed on demand and **never stored on servers**; whatever persists stays in the **user’s browser (EntityDB)**. The backend stays **stateless** end to end.
 
 **Key points:**
