@@ -82,6 +82,18 @@ Alphabetical inventory (55). Import from `@/components/ui/<name>`.
 
 ---
 
+### LanguagePreference
+
+|                |                                                                                                                                           |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **Location**   | `components/features/language/LanguagePreference.tsx`                                                                                     |
+| **Purpose**    | Persisted language preference selector. Reads the saved preference from EntityDB on mount via `useLanguagePreference` and writes back on change. |
+| **Props**      | `className?: string`, `onLanguageChange?: (language: string) => void`                                                                     |
+| **Built with** | Select, Skeleton, `useLanguagePreference` hook                                                                                            |
+| **Usage**      | Drop into any client page/layout that needs a remembered language choice                                                                  |
+
+---
+
 ## App-level components (root of `components/`)
 
 ### UploadForm
