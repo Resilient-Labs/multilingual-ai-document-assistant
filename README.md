@@ -31,7 +31,9 @@ npm run dev
 ```
 
 Then open http://localhost:3000
+
 ---
+### In-Depth directions
 
 #### 1. Clone the repository
 
