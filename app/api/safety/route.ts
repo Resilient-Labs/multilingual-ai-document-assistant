@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { evaluateAsync } from '@/lib/evaluate'
 import { promises as fs } from 'fs'
 import { join } from 'path'
 import {
@@ -407,5 +408,13 @@ export async function POST(request: Request) {
   const flags = buildSafetyFlags(parsed, lang)
   const presentation = buildSafetyRecommendationPresentation(flags, lang)
 
+  // Evaluation hook (`lib/evaluate.ts`): optional LangSmith run `evaluation-safety`.
+  // Fire-and-forget; gated by EVALUATIONS_ENABLED + LangSmith env; does not affect this response.
+  evaluateAsync({
+    input: userContent,
+    output: rawContent,
+    model: 'openrouter/free',
+    feature: 'safety',
+  })
   return NextResponse.json({ flags, presentation })
 }

@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { NextResponse } from 'next/server'
+import { evaluateAsync } from '@/lib/evaluate'
 
 /**
  * POST /api/summarize
@@ -288,6 +289,14 @@ export async function POST(request: Request) {
       )
     }
 
+    // Evaluation hook (`lib/evaluate.ts`): optional LangSmith run `evaluation-summarize`.
+    // Fire-and-forget; active only when EVALUATIONS_ENABLED=true and LangSmith is configured.
+    evaluateAsync({
+      input: trimmed,
+      output: summary,
+      model,
+      feature: 'summarize',
+    })
     return NextResponse.json({ summary })
   } catch {
     return NextResponse.json({ error: 'Summarization failed' }, { status: 500 })

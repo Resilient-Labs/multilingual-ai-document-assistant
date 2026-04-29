@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { evaluateAsync } from '@/lib/evaluate'
 import { synthesizeSpeech } from '@/lib/tts/router'
 import { TtsError } from '@/lib/tts/types'
 import {
@@ -94,6 +95,19 @@ export async function POST(request: Request) {
     contentType: out.value.contentType,
   })
 
+  // Evaluation hook (`lib/evaluate.ts`): optional LangSmith run `evaluation-tts`.
+  // Fire-and-forget; gated by EVALUATIONS_ENABLED + LangSmith env. `output` is a short descriptor (binary audio is not sent as text).
+  evaluateAsync({
+    input: cleanedText,
+    output: `audio/${out.value.contentType} — ${out.value.audio.byteLength} bytes`,
+    model: result.model,
+    feature: 'tts',
+    metadata: {
+      provider: result.provider,
+      audioBytes: out.value.audio.byteLength,
+      contentType: out.value.contentType,
+    },
+  })
   return new NextResponse(out.value.audio, {
     status: 200,
     headers: {

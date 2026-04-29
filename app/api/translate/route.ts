@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { evaluateAsync } from '@/lib/evaluate'
 import { getNllbTargetCode } from '@/lib/translation/nllbLanguageMap'
 import {
   callTranslateProvider,
@@ -213,5 +214,14 @@ export async function POST(request: Request) {
     }
   )
 
+  // Evaluation hook (`lib/evaluate.ts`): optional LangSmith run `evaluation-translate`.
+  // Fire-and-forget; gated by EVALUATIONS_ENABLED + LangSmith env; NLLB model label is fixed here.
+  evaluateAsync({
+    input: sanitizedText,
+    output: translatedText,
+    model: 'nllb-hf-gradio',
+    feature: 'translate',
+    metadata: { targetLang },
+  })
   return NextResponse.json({ translatedText })
 }

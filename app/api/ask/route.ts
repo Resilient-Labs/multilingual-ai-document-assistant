@@ -11,6 +11,7 @@ import {
   sanitizeAskInputs,
   validateAskRequestInputs,
 } from "@/lib/askGuardrails";
+import { evaluateAsync } from "@/lib/evaluate";
 import {
   isAskLangSmithExportEnabled,
   postAskTurnToLangSmith,
@@ -124,12 +125,9 @@ function hashForAskLog(value: string): string {
 }
 
 /** Inline guard: refuse to emit log lines that accidentally include long strings (raw question / document). */
-/** True when LangSmith / LangChain tracing keys are set (boolean only — never log secrets). */
+/** True when LangSmith API key is set (boolean only — never log secrets). */
 function langsmithTracingEnvPresent(): boolean {
-  return Boolean(
-    process.env.LANGSMITH_API_KEY?.trim() ||
-      process.env.LANGCHAIN_API_KEY?.trim(),
-  );
+  return Boolean(process.env.LANGSMITH_API_KEY?.trim());
 }
 
 function assertAskLogHasNoRawTextPayload(
@@ -274,6 +272,21 @@ export async function POST(request: Request) {
             err instanceof Error ? err.message : String(err),
           );
           /* eslint-enable no-console */
+        });
+        // Evaluation hook (`lib/evaluate.ts`): optional LangSmith run `evaluation-ask` when
+        // EVALUATIONS_ENABLED=true (alongside `postAskTurnToLangSmith` when tracing is on).
+        evaluateAsync({
+          input: safeQuestion,
+          output: event.text,
+          model: event.model?.modelId ?? resolvedModelId,
+          feature: "ask",
+          metadata: {
+            questionHash,
+            chunkCount,
+            answerLanguage: answerLanguage ?? "unset",
+            confidenceBandsVersion: ASK_CONFIDENCE_BANDS_VERSION,
+            finishReason: String(event.finishReason ?? ""),
+          },
         });
       },
     });
