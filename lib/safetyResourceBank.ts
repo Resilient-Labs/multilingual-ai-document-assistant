@@ -1,47 +1,55 @@
 import raw from '@/lib/data/safetyResources.json'
+import type { SafetyLang } from '@/lib/safetyI18n'
 import type { RiskNextStep, SafetyResourceBucket } from '@/types'
 
-type StepJson = {
-  label: string
+type LabeledStepJson = {
+  labels: Record<string, string>
   type: 'phone' | 'url' | 'info'
   value?: string
 }
 
-function asSteps(s: StepJson[]): RiskNextStep[] {
-  return s.map((x) =>
+function labelFor(step: LabeledStepJson, lang: SafetyLang): string {
+  return step.labels[lang] ?? step.labels.en ?? ''
+}
+
+function asSteps(steps: LabeledStepJson[], lang: SafetyLang): RiskNextStep[] {
+  return steps.map((x) =>
     x.value !== undefined
-      ? { label: x.label, type: x.type, value: x.value }
-      : { label: x.label, type: x.type }
+      ? { label: labelFor(x, lang), type: x.type, value: x.value }
+      : { label: labelFor(x, lang), type: x.type }
   )
 }
 
 const data = raw as {
-  urgentPrefix: StepJson
-  verifyOfficialStep: StepJson
-  missingExplanationStep: StepJson
-  scamPrioritySteps: StepJson[]
-  buckets: Record<SafetyResourceBucket, StepJson[]>
+  urgentPrefix: LabeledStepJson
+  verifyOfficialStep: LabeledStepJson
+  missingExplanationStep: LabeledStepJson
+  scamPrioritySteps: LabeledStepJson[]
+  buckets: Record<SafetyResourceBucket, LabeledStepJson[]>
 }
 
-export const SAFETY_URGENT_PREFIX: RiskNextStep = {
-  label: data.urgentPrefix.label,
-  type: data.urgentPrefix.type,
+export function getUrgentPrefix(lang: SafetyLang): RiskNextStep {
+  const u = data.urgentPrefix
+  return { label: labelFor(u, lang), type: u.type }
 }
 
-export const SAFETY_VERIFY_OFFICIAL: RiskNextStep = {
-  label: data.verifyOfficialStep.label,
-  type: data.verifyOfficialStep.type,
+export function getVerifyOfficialStep(lang: SafetyLang): RiskNextStep {
+  const v = data.verifyOfficialStep
+  return { label: labelFor(v, lang), type: v.type }
 }
 
-export const SAFETY_MISSING_EXPLANATION: RiskNextStep = {
-  label: data.missingExplanationStep.label,
-  type: data.missingExplanationStep.type,
+export function getMissingExplanationStep(lang: SafetyLang): RiskNextStep {
+  const m = data.missingExplanationStep
+  return { label: labelFor(m, lang), type: m.type }
 }
 
-export const SAFETY_SCAM_PRIORITY_STEPS: RiskNextStep[] = asSteps(
-  data.scamPrioritySteps
-)
+export function getScamPrioritySteps(lang: SafetyLang): RiskNextStep[] {
+  return asSteps(data.scamPrioritySteps, lang)
+}
 
-export function getBucketSteps(bucket: SafetyResourceBucket): RiskNextStep[] {
-  return asSteps(data.buckets[bucket] ?? data.buckets.general)
+export function getBucketSteps(
+  bucket: SafetyResourceBucket,
+  lang: SafetyLang
+): RiskNextStep[] {
+  return asSteps(data.buckets[bucket] ?? data.buckets.general, lang)
 }

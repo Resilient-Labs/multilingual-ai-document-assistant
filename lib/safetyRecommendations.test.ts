@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
+  SAFETY_DISCLAIMER,
+  SAFETY_SEVERITY_LABELS,
+} from '@/lib/safetyI18n'
+import type { SafetyFlags } from '@/types'
+import {
   buildSafetyRecommendationPresentation,
   normalizeConfidence,
   normalizeLegitimacy,
@@ -7,7 +12,6 @@ import {
   selectNextSteps,
 } from './safetyRecommendations'
 import { normalizeSeverity } from './safetyNextSteps'
-import type { SafetyFlags } from '@/types'
 
 describe('normalizeConfidence', () => {
   it('maps 0–1 to 0–100', () => {
@@ -108,5 +112,35 @@ describe('buildSafetyRecommendationPresentation', () => {
     expect(p.primaryActions).toHaveLength(2)
     expect(p.resources).toHaveLength(1)
     expect(p.disclaimer.length).toBeGreaterThan(10)
+  })
+
+  it('uses Spanish severity label and disclaimer when lang is es', () => {
+    const flags: SafetyFlags = {
+      category: 'Medical Bill',
+      severity: 'medium',
+      detectedAt: 1,
+      nextSteps: [
+        { label: 'Read this', type: 'info' },
+        { label: 'Help', type: 'url', value: 'https://example.com' },
+      ],
+    }
+    const p = buildSafetyRecommendationPresentation(flags, 'es')
+    expect(p.severityLabel).toBe(SAFETY_SEVERITY_LABELS.es.medium)
+    expect(p.disclaimer).toBe(SAFETY_DISCLAIMER.es)
+    expect(p.headline).toContain(SAFETY_SEVERITY_LABELS.es.medium)
+  })
+})
+
+describe('selectNextSteps localization', () => {
+  it('returns the same step count for es as en for identical inputs', () => {
+    const input = {
+      category: 'Medical Bill',
+      severity: normalizeSeverity('low'),
+      confidence: 80,
+      hasExplanation: true,
+    }
+    const en = selectNextSteps(input, 'en')
+    const es = selectNextSteps(input, 'es')
+    expect(es.length).toBe(en.length)
   })
 })

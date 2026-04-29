@@ -7,11 +7,16 @@ import {
   SAFETY_CONFIDENCE_MIN_FOR_SCAM_RESOURCE_ADJUSTMENT,
 } from '@/lib/safetyConstants'
 import {
-  SAFETY_MISSING_EXPLANATION,
-  SAFETY_SCAM_PRIORITY_STEPS,
-  SAFETY_URGENT_PREFIX,
-  SAFETY_VERIFY_OFFICIAL,
+  type SafetyLang,
+  SAFETY_DISCLAIMER,
+  SAFETY_SEVERITY_LABELS,
+} from '@/lib/safetyI18n'
+import {
   getBucketSteps,
+  getMissingExplanationStep,
+  getScamPrioritySteps,
+  getUrgentPrefix,
+  getVerifyOfficialStep,
 } from '@/lib/safetyResourceBank'
 import type {
   RiskNextStep,
@@ -93,21 +98,6 @@ export function normalizeRiskLevel(raw: unknown): SafetySeverity | undefined {
   return undefined
 }
 
-function severityLabel(severity: SafetySeverity): string {
-  switch (severity) {
-    case 'low':
-      return 'Low urgency'
-    case 'medium':
-      return 'Medium attention'
-    case 'high':
-      return 'High — review soon'
-    case 'urgent':
-      return 'Urgent — act quickly'
-    default:
-      return 'Medium attention'
-  }
-}
-
 function filterInstitutionPhonesForScam(
   bucket: SafetyResourceBucket,
   steps: RiskNextStep[],
@@ -133,7 +123,10 @@ export interface SelectNextStepsInput {
   hasExplanation: boolean
 }
 
-export function selectNextSteps(input: SelectNextStepsInput): RiskNextStep[] {
+export function selectNextSteps(
+  input: SelectNextStepsInput,
+  lang: SafetyLang = 'en'
+): RiskNextStep[] {
   const {
     category,
     severity,
@@ -151,45 +144,46 @@ export function selectNextSteps(input: SelectNextStepsInput): RiskNextStep[] {
     bucket = 'general'
   }
 
-  let steps = [...getBucketSteps(bucket)]
+  let steps = [...getBucketSteps(bucket, lang)]
   if (legitimacy === 'likely_scam') {
     steps = filterInstitutionPhonesForScam(bucket, steps, confidence)
   }
 
   const prefix: RiskNextStep[] = []
   if (severity === 'urgent' || severity === 'high') {
-    prefix.push(SAFETY_URGENT_PREFIX)
+    prefix.push(getUrgentPrefix(lang))
   }
   if (legitimacy === 'likely_scam') {
-    prefix.push(...SAFETY_SCAM_PRIORITY_STEPS)
+    prefix.push(...getScamPrioritySteps(lang))
   }
   if (lowConfidence) {
-    prefix.push(SAFETY_VERIFY_OFFICIAL)
+    prefix.push(getVerifyOfficialStep(lang))
   }
   if (!hasExplanation) {
-    prefix.push(SAFETY_MISSING_EXPLANATION)
+    prefix.push(getMissingExplanationStep(lang))
   }
 
   return [...prefix, ...steps]
 }
 
-const PRESENTATION_DISCLAIMER =
-  'This information is for education only. It is not legal, medical, or financial advice.'
-
 export function buildSafetyRecommendationPresentation(
-  flags: SafetyFlags
+  flags: SafetyFlags,
+  lang: SafetyLang = 'en'
 ): SafetyRecommendationPresentation {
   const { category, severity, nextSteps } = flags
-  const headline = `${category} · ${severityLabel(severity)}`
+  const severityLabel =
+    SAFETY_SEVERITY_LABELS[lang][severity] ??
+    SAFETY_SEVERITY_LABELS[lang].medium
+  const headline = `${category} · ${severityLabel}`
   const resources = nextSteps.filter(
     (s) => s.type === 'url' || s.type === 'phone'
   )
   return {
     headline,
-    severityLabel: severityLabel(severity),
+    severityLabel,
     summary: null,
     primaryActions: nextSteps,
     resources,
-    disclaimer: PRESENTATION_DISCLAIMER,
+    disclaimer: SAFETY_DISCLAIMER[lang],
   }
 }
