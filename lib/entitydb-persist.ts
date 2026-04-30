@@ -110,6 +110,59 @@ export async function persistOCRToEntityDB(
   await store.add(record)
 }
 
+/** One row per document id for landing / “open recent” lists. */
+export interface SavedDocumentListItem {
+  docId: string
+  filename: string
+  extractedAt: number
+}
+
+/**
+ * All canonical extracted documents currently in the vectors store (browser only).
+ * Deduplicates by `document.id`, keeping the row with the latest `extractedAt` / `updatedAt`.
+ */
+export async function listSavedDocumentsFromEntityDB(): Promise<
+  SavedDocumentListItem[]
+> {
+  if (typeof window === 'undefined') {
+    return []
+  }
+
+  const db = await getIdbFrom(getEntityDB())
+  const tx = db.transaction(ENTITYDB_VECTORS_STORE, 'readonly')
+  const store = tx.objectStore(ENTITYDB_VECTORS_STORE)
+  const records = await store.getAll()
+
+  const byDocId = new Map<string, SavedDocumentListItem>()
+
+  for (const r of records) {
+    if (r['entityKey'] !== EXTRACTED_DOCUMENT_ENTITY_KEY) continue
+    const doc = r['document'] as { id?: string; filename?: string } | undefined
+    const id = doc?.id
+    if (!id || typeof doc.filename !== 'string') continue
+
+    const extractedAt =
+      typeof r['extractedAt'] === 'number'
+        ? r['extractedAt']
+        : typeof r['updatedAt'] === 'number'
+          ? r['updatedAt']
+          : 0
+
+    const prev = byDocId.get(id)
+    if (!prev || extractedAt >= prev.extractedAt) {
+      byDocId.set(id, {
+        docId: id,
+        filename: doc.filename,
+        extractedAt,
+      })
+    }
+  }
+
+  return Array.from(byDocId.values()).sort(
+    (a, b) => b.extractedAt - a.extractedAt
+  )
+}
+
 export async function getDocumentFromEntityDB(
   docId: string
 ): Promise<CanonicalDocument | null> {

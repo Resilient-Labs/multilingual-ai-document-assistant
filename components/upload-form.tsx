@@ -168,6 +168,8 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     setError(null)
     setOcrProgress('Loading OCR engine…')
 
+    // Only set while on translate; cleared on landing (`app/page.tsx`) so
+    // uploads from home do not delete unrelated saved documents.
     const previousDocId = sessionStorage.getItem('current-doc-id')
     if (previousDocId) {
       localStorage.removeItem(`translate-cache-ids-${previousDocId}`)

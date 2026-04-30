@@ -71,6 +71,12 @@ export async function getIdbFrom(entityDB: EntityDB): Promise<EntityDBIdb> {
  * Deletes every row in the vectors store whose resolved document id matches
  * `docId` (RAG chunks, chat, translate session cache, extracted document, etc.).
  */
+function rowPrimaryKey(record: Record<string, unknown>): IDBValidKey | undefined {
+  const id = record.id
+  if (typeof id === 'number' || typeof id === 'string') return id
+  return undefined
+}
+
 export async function deleteAllVectorsForDocId(
   entityDB: EntityDB,
   docId: string
@@ -82,9 +88,21 @@ export async function deleteAllVectorsForDocId(
   const tx = idb.transaction(ENTITYDB_VECTORS_STORE, 'readwrite')
   const store = tx.objectStore(ENTITYDB_VECTORS_STORE)
   const records = await store.getAll()
+
   for (const r of records) {
-    if (resolveRecordDocId(r) === docId && typeof r.id === 'number') {
-      await store.delete(r.id)
+    const row = r as Record<string, unknown>
+    if (resolveRecordDocId(row) !== docId) continue
+    const key = rowPrimaryKey(row)
+    if (key !== undefined) {
+      await store.delete(key)
     }
+  }
+
+  // `idb`-wrapped DB: without awaiting `done`, the readwrite transaction can
+  // finish the JS turn before deletes commit (user sees storage cleared but
+  // rows still in IndexedDB).
+  const done = (tx as { done?: Promise<void> }).done
+  if (done) {
+    await done
   }
 }

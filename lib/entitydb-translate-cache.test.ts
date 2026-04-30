@@ -27,6 +27,7 @@ const { storedRecords, mockDb, resetStore, lsStore, memoryLocalStorage } =
   const mockDb = {
     transaction(_store: string, _mode: string) {
       return {
+        done: Promise.resolve(),
         objectStore(_name: string) {
           return {
             getAll: async () => [...storedRecords],
@@ -118,7 +119,7 @@ describe('entitydb-translate-cache', () => {
       'window',
       Object.assign(globalThis, {
         localStorage: memoryLocalStorage,
-      }) as Window & typeof globalThis,
+      }) as unknown as Window & typeof globalThis,
     )
   })
 
