@@ -11,6 +11,12 @@ export default defineConfig({
   projectId: '51aa3d',
   allowCypressEnv: false,
 
+  e2e: {
+    baseUrl: 'http://localhost:3000',
+    specPattern: 'cypress/e2e/**/*.cy.{js,jsx,ts,tsx}',
+    supportFile: 'cypress/support/e2e.ts',
+  },
+
   component: {
     devServer: {
       framework: "next",

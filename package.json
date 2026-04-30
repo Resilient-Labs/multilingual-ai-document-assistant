@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:cypress": "next dev -p 3055",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -15,6 +16,11 @@
     "test:e2e": "npx playwright test",
     "test:e2e:headed": "npx playwright test --headed --project=chromium",
     "test:report": "npx playwright show-report",
+    "test:cypress": "cypress run --e2e",
+    "test:cypress:open": "cypress open",
+    "test:cypress:translation-tts": "cypress run --e2e --spec cypress/e2e/translation-tts.cy.ts",
+    "test:cypress:full": "start-server-and-test dev:cypress http://localhost:3055 \"cypress run --e2e --config baseUrl=http://localhost:3055\"",
+    "test:cypress:translation-tts:full": "start-server-and-test dev:cypress http://localhost:3055 \"cypress run --e2e --spec cypress/e2e/translation-tts.cy.ts --config baseUrl=http://localhost:3055\"",
     "test": "npm run test:unit && npm run test:e2e"
   },
   "dependencies": {
@@ -64,9 +70,11 @@
     "@types/react-dom": "^18.2.0",
     "@types/uuid": "^9.0.0",
     "@types/word-extractor": "^1.0.6",
+    "cypress": "^15.14.2",
     "eslint": "^8.0.0",
     "eslint-config-next": "^14.0.0",
     "prettier": "^3.8.1",
+    "start-server-and-test": "^3.0.2",
     "typescript": "^5.0.0",
     "vitest": "^2.0.0"
   }

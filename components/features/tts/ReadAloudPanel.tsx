@@ -34,6 +34,8 @@ export function ReadAloudPanel({
   const [isReadAloudOpen, setIsReadAloudOpen] = useState(false)
   const [ttsLoading, setTtsLoading] = useState(false)
   const [ttsError, setTtsError] = useState<string | null>(null)
+  /** Autoplay blocked (e.g. browser policy) — not a generation failure; separate from `ttsError`. */
+  const [ttsPlaybackHint, setTtsPlaybackHint] = useState<string | null>(null)
   const [ttsAudioUrl, setTtsAudioUrl] = useState<string | null>(null)
   const [voiceGender, setVoiceGender] = useState<Gender>('feminine')
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -53,11 +55,15 @@ export function ReadAloudPanel({
   useEffect(() => {
     if (!ttsAudioUrl || !audioRef.current) return
 
+    setTtsPlaybackHint(null)
+
     const maybePlay = async () => {
       try {
         await audioRef.current?.play()
       } catch {
-        setTtsError('Audio is ready. Tap Play in AI Read Aloud to start playback.')
+        setTtsPlaybackHint(
+          'Audio is ready. Tap Play in AI Read Aloud to start playback.'
+        )
       }
     }
 
@@ -69,6 +75,7 @@ export function ReadAloudPanel({
 
     setTtsLoading(true)
     setTtsError(null)
+    setTtsPlaybackHint(null)
     try {
       const response = await fetch('/api/tts', {
         method: 'POST',
@@ -168,6 +175,13 @@ export function ReadAloudPanel({
           </p>
         )}
       </div>
+
+      {ttsPlaybackHint && (
+        <Alert>
+          <AlertTitle>Ready to play</AlertTitle>
+          <AlertDescription>{ttsPlaybackHint}</AlertDescription>
+        </Alert>
+      )}
 
       {ttsError && (
         <Alert variant="destructive">
