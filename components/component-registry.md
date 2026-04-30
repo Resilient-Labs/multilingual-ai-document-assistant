@@ -58,6 +58,18 @@ Alphabetical inventory (55). Import from `@/components/ui/<name>`.
 
 ---
 
+### ErrorPopup
+
+|                |                                                                                     |
+| -------------- | ----------------------------------------------------------------------------------- |
+| **Location**   | `components/features/error/ErrorPopup.tsx`                                          |
+| **Purpose**    | Global service failure modal rendered from the root layout via `useErrorPopup`.     |
+| **Props**      | None — consumes `ErrorProvider` state from `hooks/useErrorPopup.tsx`.               |
+| **Built with** | AlertDialog, lucide-react icons                                                     |
+| **Usage**      | `app/layout.tsx` — available to service-backed feature modules through the provider |
+
+---
+
 ### ReadAloudPanel
 
 |                |                                                                                                                                                                      |

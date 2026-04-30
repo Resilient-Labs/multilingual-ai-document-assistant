@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Progress } from '@/components/ui/progress'
+import { useErrorPopup } from '@/hooks/useErrorPopup'
 
 function formatDate(timestamp: number): string {
   return new Date(timestamp).toLocaleString(undefined, {
@@ -65,6 +66,7 @@ export function ExtractedDataPanel({
   jobStatus = 'file_selected',
 }: ExtractedDataPanelProps): React.ReactElement {
   const { data, loading, error } = useDocumentSession(sessionId)
+  const { showError } = useErrorPopup()
 
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false)
@@ -80,6 +82,21 @@ export function ExtractedDataPanel({
       setValidationError(null)
     }
   }, [data])
+
+  useEffect(() => {
+    if (!error) return
+    showError('Failed to load document', error)
+  }, [error, showError])
+
+  useEffect(() => {
+    if (!isJobError) return
+    showError('Processing failed', JOB_STATUS_LABEL[jobStatus])
+  }, [isJobError, jobStatus, showError])
+
+  useEffect(() => {
+    if (!validationError) return
+    showError('Incomplete form', validationError)
+  }, [showError, validationError])
 
   function handleTabChange(): void {
     setIsSubmitted(false)
@@ -124,13 +141,6 @@ export function ExtractedDataPanel({
           </div>
         )}
 
-        {!loading && error && (
-          <Alert variant="destructive">
-            <AlertTitle>Failed to load document</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
         {!loading && !error && data === null && (
           <p className="py-4 text-center text-sm text-muted-foreground">
             No document loaded.
@@ -139,14 +149,7 @@ export function ExtractedDataPanel({
 
         {!loading && !error && data !== null && !isReady && (
           <div className="flex flex-col gap-3 py-4">
-            {isJobError ? (
-              <Alert variant="destructive">
-                <AlertTitle>Processing failed</AlertTitle>
-                <AlertDescription>
-                  {JOB_STATUS_LABEL[jobStatus]}
-                </AlertDescription>
-              </Alert>
-            ) : (
+            {!isJobError && (
               <>
                 <p className="text-sm text-muted-foreground">
                   {JOB_STATUS_LABEL[jobStatus]}
@@ -253,10 +256,9 @@ export function ExtractedDataPanel({
 
               <div aria-live="polite">
                 {validationError && (
-                  <Alert variant="destructive" id="form-validation-error">
-                    <AlertTitle>Incomplete form</AlertTitle>
-                    <AlertDescription>{validationError}</AlertDescription>
-                  </Alert>
+                  <p id="form-validation-error" className="sr-only">
+                    {validationError}
+                  </p>
                 )}
 
                 {isSubmitted && (

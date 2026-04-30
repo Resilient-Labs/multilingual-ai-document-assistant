@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import { Nunito, Nunito_Sans } from 'next/font/google'
+import { ErrorPopup } from '@/components/features/error/ErrorPopup'
+import { ErrorProvider } from '@/hooks/useErrorPopup'
 import './globals.css'
 
 const nunito = Nunito({
@@ -30,7 +32,10 @@ export default function RootLayout({
         suppressHydrationWarning
         className={`${nunito.variable} ${nunitoSans.variable} font-sans`}
       >
-        {children}
+        <ErrorProvider>
+          {children}
+          <ErrorPopup />
+        </ErrorProvider>
       </body>
     </html>
   )

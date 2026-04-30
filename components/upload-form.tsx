@@ -28,6 +28,7 @@ import type { OCRResult } from '@/types'
 import { chunkText } from '@/lib/chunking'
 import { insertChunk } from '@/lib/entitydb'
 import { useLanguagePreference } from '@/hooks/useLanguagePreference'
+import { useErrorPopup } from '@/hooks/useErrorPopup'
 
 const HEIC_BRANDS = [
   'heic',
@@ -132,6 +133,7 @@ interface UploadFormProps {
 export function UploadForm({ mobile = false }: UploadFormProps) {
   const router = useRouter()
   const { preferredLanguage, setLanguage } = useLanguagePreference()
+  const { showError } = useErrorPopup()
   const [file, setFile] = useState<File | null>(null)
   const [sourceLang, setSourceLang] = useState('auto')
   const [targetLang, setTargetLang] = useState('es')
@@ -145,12 +147,17 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     }
   }, [preferredLanguage])
 
+  useEffect(() => {
+    if (!error) return
+    showError('Upload failed', error)
+  }, [error, showError])
+
   const isImage = file?.type.startsWith('image/') ?? false
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    logDocumentSubmission(sourceLang, targetLang).catch(() => {})
+    logDocumentSubmission(sourceLang, targetLang).catch(() => { })
     if (!file) return
 
     setIsSubmitting(true)
@@ -338,9 +345,9 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
 
         <div className="flex-1">
           <Select value={targetLang} onValueChange={(value) => {
-              setTargetLang(value)
-              setLanguage(value).catch(() => {})
-            }}>
+            setTargetLang(value)
+            setLanguage(value).catch(() => { })
+          }}>
             <SelectTrigger className="w-full h-9 text-sm rounded-xl">
               <SelectValue placeholder="Target" />
             </SelectTrigger>
@@ -362,12 +369,6 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
 
   const submitLabel =
     isSubmitting && ocrProgress ? ocrProgress : 'Translate document'
-
-  const ErrorMessage = error && (
-    <div className="rounded-2xl border border-destructive/40 bg-destructive/5 text-destructive p-4 text-sm">
-      {error}
-    </div>
-  )
 
   /* ── Mobile layout ─────────────────────────────────────────────── */
   if (mobile) {
@@ -426,7 +427,6 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
         </div>
 
         {TranslationDirection}
-        {ErrorMessage}
 
         <Button
           type="submit"
@@ -502,8 +502,6 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
           </>
         )}
       </div>
-
-      {ErrorMessage}
 
       <Button
         type="submit"

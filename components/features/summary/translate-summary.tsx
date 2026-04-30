@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
+import { useErrorPopup } from '@/hooks/useErrorPopup'
 
 interface TranslateSummaryProps {
   translatedText: string | null
@@ -22,6 +22,7 @@ export function TranslateSummary({
   const [summary, setSummary] = useState<string | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [summaryError, setSummaryError] = useState<string | null>(null)
+  const { showError } = useErrorPopup()
 
   // Auto-generate summary when translation updates
   useEffect(() => {
@@ -67,6 +68,11 @@ export function TranslateSummary({
     runSummary()
   }, [translatedText, outputLanguage])
 
+  useEffect(() => {
+    if (!summaryError) return
+    showError('Summary failed', summaryError)
+  }, [showError, summaryError])
+
   return (
     <Card className="flex w-full min-w-0 flex-col overflow-hidden">
       <CardHeader>
@@ -86,14 +92,6 @@ export function TranslateSummary({
           <div className="flex items-center justify-center py-8">
             <Spinner className="size-6" aria-label="Summarizing document" />
           </div>
-        )}
-
-        {/* Error */}
-        {!summaryLoading && summaryError && (
-          <Alert variant="destructive">
-            <AlertTitle>Summary failed</AlertTitle>
-            <AlertDescription>{summaryError}</AlertDescription>
-          </Alert>
         )}
 
         {/* Success */}

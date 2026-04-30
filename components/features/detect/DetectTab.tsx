@@ -25,6 +25,8 @@ import {
   SAFETY_SEVERITY_LABELS,
   SAFETY_UI_STRINGS,
 } from '@/lib/safetyI18n'
+import { useEffect } from 'react'
+import { useErrorPopup } from '@/hooks/useErrorPopup'
 import type { OCRResult, RiskNextStep, SafetyFlags } from '@/types'
 
 export interface DetectTabProps {
@@ -96,6 +98,7 @@ function PrimaryActionDescription({ action }: { action: RiskNextStep }) {
 export function DetectTab({ docId, className, targetLang }: DetectTabProps) {
   const lang = getSafetyLang(targetLang)
   const t = SAFETY_UI_STRINGS[lang]
+  const { showError } = useErrorPopup()
   const {
     data,
     loading: docLoading,
@@ -110,6 +113,16 @@ export function DetectTab({ docId, className, targetLang }: DetectTabProps) {
     error: safetyError,
   } = useSafetyAnalysis(ocr, fieldCandidates, targetLang)
 
+  useEffect(() => {
+    if (!docError) return
+    showError(t.documentLoadFailed, docError)
+  }, [docError, showError, t.documentLoadFailed])
+
+  useEffect(() => {
+    if (!safetyError) return
+    showError(t.analysisFailedGeneric, safetyError)
+  }, [safetyError, showError, t.analysisFailedGeneric])
+
   if (docLoading) {
     return (
       <div className={`space-y-4 ${className ?? ''}`}>
@@ -121,11 +134,7 @@ export function DetectTab({ docId, className, targetLang }: DetectTabProps) {
   }
 
   if (docError) {
-    return (
-      <div className={`space-y-4 ${className ?? ''}`}>
-        <p className="text-sm text-muted-foreground">{t.documentLoadFailed}</p>
-      </div>
-    )
+    return <div className={`space-y-4 ${className ?? ''}`} />
   }
 
   if (!ocr || !ocr.fullText?.trim()) {
@@ -147,13 +156,7 @@ export function DetectTab({ docId, className, targetLang }: DetectTabProps) {
   }
 
   if (safetyError) {
-    return (
-      <div className={`space-y-4 ${className ?? ''}`}>
-        <p className="text-sm text-muted-foreground">
-          {t.analysisFailedGeneric}
-        </p>
-      </div>
-    )
+    return <div className={`space-y-4 ${className ?? ''}`} />
   }
 
   if (!flags || !presentation) {
@@ -231,7 +234,7 @@ export function DetectTab({ docId, className, targetLang }: DetectTabProps) {
                   {showDesc ? <ItemDescription>{desc}</ItemDescription> : null}
                 </ItemContent>
                 {(action.type === 'url' || action.type === 'phone') &&
-                action.value ? (
+                  action.value ? (
                   <ItemActions>
                     <ExternalLinkIcon className="size-4" />
                   </ItemActions>

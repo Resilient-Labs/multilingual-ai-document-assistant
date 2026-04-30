@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeftIcon, ArrowRightIcon } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -12,6 +11,7 @@ import { ReadAloudPanel } from '@/components/features/tts/ReadAloudPanel'
 import { TranslateSummary } from '@/components/features/summary/translate-summary'
 import { AskTab } from '@/components/features/ask/AskTab'
 import { DetectTab } from '@/components/features/detect/DetectTab'
+import { useErrorPopup } from '@/hooks/useErrorPopup'
 import { cn } from '@/lib/utils'
 import { getSafetyLang, SAFETY_UI_STRINGS } from '@/lib/safetyI18n'
 
@@ -57,6 +57,7 @@ export default function TranslatePage() {
   const [translateLoading, setTranslateLoading] = useState(false)
   const [translateError, setTranslateError] = useState<string | null>(null)
   const originalDocTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const { showError } = useErrorPopup()
 
   const jumpToSource = useCallback(
     (range: { charStart: number; matchLen: number }) => {
@@ -124,16 +125,23 @@ export default function TranslatePage() {
     runTranslation()
   }, [session])
 
+  useEffect(() => {
+    if (!sessionMissing) return
+    showError(
+      'Session expired',
+      'No document data found. Please upload your document again.'
+    )
+  }, [sessionMissing, showError])
+
+  useEffect(() => {
+    if (!translateError) return
+    showError('Translation failed', translateError)
+  }, [showError, translateError])
+
   if (sessionMissing) {
     return (
       <div className="flex min-h-screen items-center justify-center px-6">
         <div className="w-full max-w-md flex flex-col gap-4">
-          <Alert variant="destructive">
-            <AlertTitle>Session expired</AlertTitle>
-            <AlertDescription>
-              No document data found. Please upload your document again.
-            </AlertDescription>
-          </Alert>
           <Button
             variant="outline"
             onClick={() => router.push('/')}
@@ -242,13 +250,6 @@ export default function TranslatePage() {
                     aria-label="Translating document"
                   />
                 </div>
-              )}
-
-              {!translateLoading && translateError && (
-                <Alert variant="destructive">
-                  <AlertTitle>Translation failed</AlertTitle>
-                  <AlertDescription>{translateError}</AlertDescription>
-                </Alert>
               )}
 
               {!translateLoading &&
