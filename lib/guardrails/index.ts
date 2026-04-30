@@ -196,6 +196,22 @@ export function runTranslateGuardrails(
     })
   }
 
+  if (sanitizedText.trim().length === 0) {
+    logReject(route, 'input-validation', 'Text is empty after sanitization', {
+      originalLength: rawText.length,
+    })
+    return {
+      ok: false,
+      status: 422,
+      response: {
+        error: 'text must not be empty',
+        code: 'INVALID_INPUT',
+        layer: 'input-validation',
+        details: { path: 'text', reason: 'empty_after_sanitize' },
+      },
+    }
+  }
+
   // ── Layer 1: Input PII detection ──────────────────────────────────────────
   const piiResult = checkInputPii(sanitizedText, route, 'input-validation')
   if (!piiResult.ok) {

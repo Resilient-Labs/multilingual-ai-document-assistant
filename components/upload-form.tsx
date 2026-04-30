@@ -24,9 +24,13 @@ import { cn } from '@/lib/utils'
 import { Spinner } from '@/components/ui/spinner'
 import { logDocumentSubmission } from '@/app/actions/logging'
 import { persistOCRToEntityDB } from '@/lib/entitydb-persist'
+import { getEntityDB, insertChunk } from '@/lib/entitydb'
+import {
+  deleteAllVectorsForDocId,
+  persistTranslateSessionCache,
+} from '@/lib/entitydb-translate-cache'
 import type { OCRResult } from '@/types'
 import { chunkText } from '@/lib/chunking'
-import { insertChunk } from '@/lib/entitydb'
 import { useLanguagePreference } from '@/hooks/useLanguagePreference'
 import { useErrorPopup } from '@/hooks/useErrorPopup'
 
@@ -164,6 +168,17 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     setError(null)
     setOcrProgress('Loading OCR engine…')
 
+    const previousDocId = sessionStorage.getItem('current-doc-id')
+    if (previousDocId) {
+      localStorage.removeItem(`translate-cache-ids-${previousDocId}`)
+      await deleteAllVectorsForDocId(previousDocId).catch((err) => {
+        console.error(
+          '[upload] deleteAllVectorsForDocId(previous):',
+          err
+        )
+      })
+    }
+
     try {
       let fullText: string
       let docId: string
@@ -255,15 +270,23 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
         }
       })
 
+      const translateSession = {
+        fullText,
+        filename: file.name,
+        sourceLang,
+        targetLang,
+      }
       sessionStorage.setItem(
         `translate-${docId}`,
-        JSON.stringify({
-          fullText,
-          filename: file.name,
-          sourceLang,
-          targetLang,
-        })
+        JSON.stringify(translateSession)
       )
+      void persistTranslateSessionCache(
+        getEntityDB(),
+        docId,
+        translateSession
+      ).catch((err) => {
+        console.error('[translate-cache] persist failed:', err)
+      })
       sessionStorage.setItem('current-doc-id', docId)
       router.push(`/translate/${docId}`)
     } catch (err) {

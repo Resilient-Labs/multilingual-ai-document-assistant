@@ -111,7 +111,7 @@ export function DetectTab({ docId, className, targetLang }: DetectTabProps) {
     presentation,
     loading: safetyLoading,
     error: safetyError,
-  } = useSafetyAnalysis(ocr, fieldCandidates, targetLang)
+  } = useSafetyAnalysis(ocr, fieldCandidates, targetLang, docId)
 
   useEffect(() => {
     if (!docError) return

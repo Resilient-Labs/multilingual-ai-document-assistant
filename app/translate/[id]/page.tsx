@@ -14,6 +14,13 @@ import { DetectTab } from '@/components/features/detect/DetectTab'
 import { useErrorPopup } from '@/hooks/useErrorPopup'
 import { cn } from '@/lib/utils'
 import { getSafetyLang, SAFETY_UI_STRINGS } from '@/lib/safetyI18n'
+import { getEntityDB } from '@/lib/entitydb'
+import {
+  getTranslateSessionByDocId,
+  persistTranslationCache,
+  readCachedTranslation,
+  translationInputFingerprint,
+} from '@/lib/entitydb-translate-cache'
 
 interface TranslateSession {
   fullText: string
@@ -77,32 +84,74 @@ export default function TranslatePage() {
 
   useEffect(() => {
     if (!id) return
+
+    setSession(null)
+    setSessionMissing(false)
+
     const raw = sessionStorage.getItem(`translate-${id}`)
-    if (!raw) {
-      setSessionMissing(true)
-      return
+    if (raw) {
+      try {
+        const parsed: TranslateSession = JSON.parse(raw)
+        setSession(parsed)
+        return
+      } catch {
+        setSessionMissing(true)
+        return
+      }
     }
-    try {
-      const parsed: TranslateSession = JSON.parse(raw)
-      setSession(parsed)
-    } catch {
-      setSessionMissing(true)
+
+    let cancelled = false
+    void (async () => {
+      try {
+        const fromIdb = await getTranslateSessionByDocId(getEntityDB(), id)
+        if (cancelled) return
+        if (fromIdb) {
+          setSession(fromIdb)
+        } else {
+          setSessionMissing(true)
+        }
+      } catch {
+        if (!cancelled) {
+          setSessionMissing(true)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
     }
   }, [id])
 
   useEffect(() => {
-    if (!session) return
+    if (!session || !id) return
 
-    async function runTranslation() {
+    let cancelled = false
+    const fingerprint = translationInputFingerprint(
+      session.fullText,
+      session.targetLang
+    )
+
+    void (async () => {
       setTranslateLoading(true)
       setTranslateError(null)
       try {
+        const cached = await readCachedTranslation(
+          getEntityDB(),
+          id,
+          fingerprint
+        )
+        if (cancelled) return
+        if (cached !== null) {
+          setTranslatedText(cached)
+          return
+        }
+
         const res = await fetch('/api/translate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            text: session!.fullText,
-            targetLang: session!.targetLang,
+            text: session.fullText,
+            targetLang: session.targetLang,
           }),
         })
 
@@ -112,18 +161,36 @@ export default function TranslatePage() {
           throw new Error(data.error ?? 'Translation failed')
         }
 
-        setTranslatedText(data.translatedText)
-      } catch (err) {
-        setTranslateError(
-          err instanceof Error ? err.message : 'Translation failed'
-        )
-      } finally {
-        setTranslateLoading(false)
-      }
-    }
+        const nextText = data.translatedText
+        if (typeof nextText !== 'string') {
+          throw new Error('Translation failed')
+        }
 
-    runTranslation()
-  }, [session])
+        if (cancelled) return
+        setTranslatedText(nextText)
+        await persistTranslationCache(
+          getEntityDB(),
+          id,
+          fingerprint,
+          nextText
+        )
+      } catch (err) {
+        if (!cancelled) {
+          setTranslateError(
+            err instanceof Error ? err.message : 'Translation failed'
+          )
+        }
+      } finally {
+        if (!cancelled) {
+          setTranslateLoading(false)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [session, id])
 
   useEffect(() => {
     if (!sessionMissing) return
@@ -277,6 +344,7 @@ export default function TranslatePage() {
           {/* Summary */}
           {translatedText && session && (
             <TranslateSummary
+              docId={id}
               translatedText={translatedText}
               targetLangLabel={targetLangLabel}
               outputLanguage={session.targetLang}
