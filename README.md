@@ -64,23 +64,6 @@ Optional. Copy `.env.local.example` to `.env.local` when you add OCR, LLM, or ot
 cp .env.local.example .env.local
 ```
 
-#### Important Environment Variables
-| Variable | Purpose |
-| -------- | ------- |
-| `HF_TOKEN` | Hugging Face token for **Ask (Q&A)** and **Summarize** (Inference Providers / router). Optional for **Translate**; when set it is forwarded as `Authorization` on Space calls used by Translate. |
-| `HF_TTS_SPACE_URL` | Base URL of the Hugging Face Space for **Read Aloud** (`/api/tts`); requests go to `{base}/synthesize`. |
-| `COQUI_TTS_FEMININE_SPEAKER`, `COQUI_TTS_MASCULINE_SPEAKER` | TTS Space provider: English VCTK speaker IDs (defaults `p228` / `p226` if unset). |
-| `HF_ASK_BASE_URL` | Optional override for Ask’s OpenAI-compatible API base (default `https://router.huggingface.co/v1`; use a custom Inference Endpoint base when needed). |
-| `ASK_LANGSMITH_RECORD_IO` | LangSmith Ask export: when `true`, can record fuller I/O (staging/eval only). |
-| `HF_TRANSLATE_SPACE_URL` | Base URL only (no path) of the NLLB **Translate** Gradio Space; required for non-English translation targets (`/api/translate`). |
-| `HF_ASK_MODEL` | Optional Ask **model id** override if the default router model is unavailable (see [`app/api/ask/route.ts`](app/api/ask/route.ts)). |
-| `LANGSMITH_TRACING` | Set to `true` to export completed **Ask** runs to LangSmith (requires API key; see [`lib/langsmithAskRun.ts`](lib/langsmithAskRun.ts)). |
-| `LANGSMITH_API_KEY` | LangSmith secret used when tracing is enabled (`LANGCHAIN_API_KEY` is also honored as a fallback). |
-| `LANGSMITH_PROJECT` | LangSmith **project name** used to bucket Ask traces in the LangSmith UI. |
-| `HF_SUMMARIZE_MODEL` | Optional **Summarize** model override ([`app/api/summarize/route.ts`](app/api/summarize/route.ts)). |
-| `OPEN_ROUTER_API_TOKEN` | **Safety** upstream classifier ([`app/api/safety/route.ts`](app/api/safety/route.ts)). |
-| `PLAYWRIGHT_BASE_URL`, `CI` | Tests only (Playwright config). |
-
 #### 5. Run the development server
 
 ```bash
