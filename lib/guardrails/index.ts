@@ -105,11 +105,11 @@ import {
   type TtsSupportedLang,
 } from './schemas'
 import { sanitizeText } from './sanitize'
-import { checkInputPii } from './pii'
+import { checkInputPii, detectPii } from './pii'
 import { checkTranslateLang, checkTtsLang, checkDomain } from './domain'
 import { hardenTranslateRequest, hardenTtsRequest, type DeepLRequestBody, type HfSpaceRequestBody } from './request-hardening'
 import { getCircuitBreaker, type CircuitBreaker } from './circuit-breaker'
-import { guardrailLog, logPass, logReject, logSanitize } from './logger'
+import { guardrailLog, logPass, logReject, logSanitize, logWarn } from './logger'
 import type { Gender } from '@/lib/tts/types'
 
 // ── Translate ────────────────────────────────────────────────────────────────
@@ -196,6 +196,9 @@ export function runTranslateGuardrails(
     })
   }
 
+  // ── Layer 1: Empty-after-sanitize guard ───────────────────────────────────
+  // If the entire input was stripped by sanitization (e.g. it was all HTML
+  // or zero-width characters), reject before running any further checks.
   if (sanitizedText.trim().length === 0) {
     logReject(route, 'input-validation', 'Text is empty after sanitization', {
       originalLength: rawText.length,
@@ -212,13 +215,26 @@ export function runTranslateGuardrails(
     }
   }
 
-  // ── Layer 1: Input PII detection ──────────────────────────────────────────
-  const piiResult = checkInputPii(sanitizedText, route, 'input-validation')
-  if (!piiResult.ok) {
-    logReject(route, 'input-validation', 'PII detected in input text', {
-      textLength: sanitizedText.length,
-    })
-    return piiResult
+  // ── Layer 1: Input PII detection (DETECT-ONLY — never blocks) ─────────────
+  // The translate route is built for users whose documents *will* contain
+  // sensitive data: immigration paperwork, court filings, benefits letters,
+  // medical bills. Refusing to translate is the failure mode, not a
+  // safeguard — the user already has the document and needs to read it.
+  //
+  // We still run the detector so ops have a metadata-only audit trail of how
+  // many translations contain sensitive categories (no raw text, no values —
+  // just types + counts via the standard guardrail logger).
+  const piiMatches = detectPii(sanitizedText)
+  if (piiMatches.length > 0) {
+    logWarn(
+      route,
+      'input-validation',
+      'PII detected in input text — passing through (translate route policy)',
+      {
+        textLength: sanitizedText.length,
+        detectedTypes: piiMatches.map((m) => m.type),
+      }
+    )
   }
 
   // ── Layer 2: Domain checks (injection + content policy) ───────────────────
