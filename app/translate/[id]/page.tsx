@@ -2,19 +2,38 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeftIcon, ArrowRightIcon } from 'lucide-react'
+import { ArrowLeftIcon, ArrowRightIcon, Trash2Icon } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { ReadAloudPanel } from '@/components/features/tts/ReadAloudPanel'
 import { TranslateSummary } from '@/components/features/summary/translate-summary'
-import { AskTab } from '@/components/features/ask/AskTab'
+import { AskTab, askPrivacyStorageKey } from '@/components/features/ask/AskTab'
 import { DetectTab } from '@/components/features/detect/DetectTab'
 import { useErrorPopup } from '@/hooks/useErrorPopup'
 import { cn } from '@/lib/utils'
 import { getSafetyLang, SAFETY_UI_STRINGS } from '@/lib/safetyI18n'
 import { detectPii } from '@/lib/guardrails/pii'
+import { getEntityDB } from '@/lib/entitydb'
+import {
+  deleteAllVectorsForDocId,
+  getTranslateSessionByDocId,
+  persistTranslationCache,
+  readCachedTranslation,
+  translateCacheIdsStorageKey,
+  translationInputFingerprint,
+} from '@/lib/entitydb-translate-cache'
 
 interface TranslateSession {
   fullText: string
@@ -58,6 +77,8 @@ export default function TranslatePage() {
   const [translatedText, setTranslatedText] = useState<string | null>(null)
   const [translateLoading, setTranslateLoading] = useState(false)
   const [translateError, setTranslateError] = useState<string | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleteBusy, setDeleteBusy] = useState(false)
   const originalDocTextareaRef = useRef<HTMLTextAreaElement>(null)
   const { showError } = useErrorPopup()
 
@@ -79,10 +100,20 @@ export default function TranslatePage() {
 
   useEffect(() => {
     if (!id) return
+
+    setSession(null)
+    setSessionMissing(false)
+
     const raw = sessionStorage.getItem(`translate-${id}`)
-    if (!raw) {
-      setSessionMissing(true)
-      return
+    if (raw) {
+      try {
+        const parsed: TranslateSession = JSON.parse(raw)
+        setSession(parsed)
+        return
+      } catch {
+        setSessionMissing(true)
+        return
+      }
     }
     try {
       const parsed: TranslateSession = JSON.parse(raw)
@@ -105,22 +136,59 @@ export default function TranslatePage() {
       setSession(parsed)
     } catch {
       setSessionMissing(true)
+
+    let cancelled = false
+    void (async () => {
+      try {
+        const fromIdb = await getTranslateSessionByDocId(getEntityDB(), id)
+        if (cancelled) return
+        if (fromIdb) {
+          setSession(fromIdb)
+        } else {
+          setSessionMissing(true)
+        }
+      } catch {
+        if (!cancelled) {
+          setSessionMissing(true)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
     }
   }, [id, showError])
 
   useEffect(() => {
-    if (!session) return
+    if (!session || !id) return
 
-    async function runTranslation() {
+    let cancelled = false
+    const fingerprint = translationInputFingerprint(
+      session.fullText,
+      session.targetLang
+    )
+
+    void (async () => {
       setTranslateLoading(true)
       setTranslateError(null)
       try {
+        const cached = await readCachedTranslation(
+          getEntityDB(),
+          id,
+          fingerprint
+        )
+        if (cancelled) return
+        if (cached !== null) {
+          setTranslatedText(cached)
+          return
+        }
+
         const res = await fetch('/api/translate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            text: session!.fullText,
-            targetLang: session!.targetLang,
+            text: session.fullText,
+            targetLang: session.targetLang,
           }),
         })
 
@@ -130,18 +198,36 @@ export default function TranslatePage() {
           throw new Error(data.error ?? 'Translation failed')
         }
 
-        setTranslatedText(data.translatedText)
-      } catch (err) {
-        setTranslateError(
-          err instanceof Error ? err.message : 'Translation failed'
-        )
-      } finally {
-        setTranslateLoading(false)
-      }
-    }
+        const nextText = data.translatedText
+        if (typeof nextText !== 'string') {
+          throw new Error('Translation failed')
+        }
 
-    runTranslation()
-  }, [session])
+        if (cancelled) return
+        setTranslatedText(nextText)
+        await persistTranslationCache(
+          getEntityDB(),
+          id,
+          fingerprint,
+          nextText
+        )
+      } catch (err) {
+        if (!cancelled) {
+          setTranslateError(
+            err instanceof Error ? err.message : 'Translation failed'
+          )
+        }
+      } finally {
+        if (!cancelled) {
+          setTranslateLoading(false)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [session, id])
 
   useEffect(() => {
     if (!sessionMissing) return
@@ -158,6 +244,30 @@ export default function TranslatePage() {
   }, [showError, translateError])
 
   if (sessionMissing || piiBlocked) {
+  const deleteDocumentFromDevice = useCallback(async () => {
+    if (!id) return
+    setDeleteBusy(true)
+    try {
+      localStorage.removeItem(translateCacheIdsStorageKey(id))
+      sessionStorage.removeItem(`translate-${id}`)
+      sessionStorage.removeItem(askPrivacyStorageKey(id))
+      if (sessionStorage.getItem('current-doc-id') === id) {
+        sessionStorage.removeItem('current-doc-id')
+      }
+      await deleteAllVectorsForDocId(id)
+      setDeleteDialogOpen(false)
+      router.push('/')
+    } catch (err) {
+      showError(
+        'Could not delete document',
+        err instanceof Error ? err.message : 'Please try again.',
+      )
+    } finally {
+      setDeleteBusy(false)
+    }
+  }, [id, router, showError])
+
+  if (sessionMissing) {
     return (
       <div className="flex min-h-screen items-center justify-center px-6">
         <div className="w-full max-w-md flex flex-col gap-4">
@@ -197,9 +307,22 @@ export default function TranslatePage() {
 
           {session && (
             <div className="flex min-w-0 flex-col items-end gap-0.5 text-right">
-              <p className="max-w-[200px] truncate text-sm font-medium md:max-w-xs">
-                {session.filename}
-              </p>
+              <div className="flex max-w-full items-center justify-end gap-1">
+                <p className="max-w-[200px] truncate text-sm font-medium md:max-w-xs">
+                  {session.filename}
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                  aria-label="Delete this document from this device"
+                  disabled={deleteBusy}
+                  onClick={() => setDeleteDialogOpen(true)}
+                >
+                  <Trash2Icon className="size-4" aria-hidden />
+                </Button>
+              </div>
               <p className="flex items-center gap-1 text-xs text-muted-foreground">
                 {sourceLangLabel}
                 <ArrowRightIcon className="size-3" />
@@ -296,6 +419,7 @@ export default function TranslatePage() {
           {/* Summary */}
           {translatedText && session && (
             <TranslateSummary
+              docId={id}
               translatedText={translatedText}
               targetLangLabel={targetLangLabel}
               outputLanguage={session.targetLang}
@@ -329,6 +453,32 @@ export default function TranslatePage() {
         </div>
       </main>
 
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes everything stored in your browser for{' '}
+              {session?.filename ?? 'this document'}—the upload, translation,
+              summaries, safety analysis, and chat. This only affects this device
+              and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={deleteBusy}
+              onClick={(e) => {
+                e.preventDefault()
+                void deleteDocumentFromDevice()
+              }}
+            >
+              {deleteBusy ? 'Deleting…' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
