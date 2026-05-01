@@ -105,7 +105,6 @@ import {
   type TtsSupportedLang,
 } from './schemas'
 import { sanitizeText } from './sanitize'
-import { checkInputPii } from './pii'
 import { checkTranslateLang, checkTtsLang, checkDomain } from './domain'
 import { hardenTranslateRequest, hardenTtsRequest, type DeepLRequestBody, type HfSpaceRequestBody } from './request-hardening'
 import { getCircuitBreaker, type CircuitBreaker } from './circuit-breaker'
@@ -140,10 +139,12 @@ export interface TranslateGuardrailsOutput {
  * Layers applied in order:
  * 1. Zod schema validation (text length, targetLang enum)
  * 2. Text sanitization (HTML strip, zero-width removal, Unicode NFC, whitespace)
- * 3. Input PII detection
- * 4. Domain checks (language whitelist, prompt injection, content policy)
- * 5. Request hardening (source_lang forced to EN, DEEPL_LANG_MAP mapping)
- * 6. Circuit breaker preflight (short-circuit if DeepL is OPEN)
+ * 3. Domain checks (language whitelist, prompt injection, content policy)
+ * 4. Request hardening (source_lang forced to EN, DEEPL_LANG_MAP mapping)
+ * 5. Circuit breaker preflight (short-circuit if DeepL is OPEN)
+ *
+ * Input PII blocking is not applied: translated text is expected to be full
+ * document content (see comment inside the function).
  *
  * Returns `{ ok: true, value: TranslateGuardrailsOutput }` on success, or a
  * structured `{ ok: false, response, status }` failure at the first rejection.
@@ -196,14 +197,9 @@ export function runTranslateGuardrails(
     })
   }
 
-  // ── Layer 1: Input PII detection ──────────────────────────────────────────
-  const piiResult = checkInputPii(sanitizedText, route, 'input-validation')
-  if (!piiResult.ok) {
-    logReject(route, 'input-validation', 'PII detected in input text', {
-      textLength: sanitizedText.length,
-    })
-    return piiResult
-  }
+  // Input PII detection is intentionally omitted: this route translates full
+  // document/OCR text, which routinely includes phones, emails, and numbers that
+  // match heuristic PII patterns. Output-side checks still apply where relevant.
 
   // ── Layer 2: Domain checks (injection + content policy) ───────────────────
   const domainResult = checkDomain(sanitizedText, route)
@@ -292,11 +288,13 @@ export interface TtsGuardrailsOutput {
  * Layers applied in order:
  * 1. Zod schema validation (text length, targetLang TTS enum, gender enum)
  * 2. Text sanitization (HTML strip, zero-width removal, Unicode NFC, whitespace)
- * 3. Input PII detection
- * 4. Domain checks (language whitelist, prompt injection, content policy)
- * 5. Request hardening (language derived from validated targetLang, speaker_idx
+ * 3. Domain checks (language whitelist, prompt injection, content policy)
+ * 4. Request hardening (language derived from validated targetLang, speaker_idx
  *    resolved from env vars and validated against safe pattern)
- * 6. Circuit breaker preflight (short-circuit if HF Space TTS is OPEN)
+ * 5. Circuit breaker preflight (short-circuit if HF Space TTS is OPEN)
+ *
+ * Input PII blocking is not applied: spoken text is typically excerpted from
+ * user documents (same rationale as `/api/translate`).
  *
  * Returns `{ ok: true, value: TtsGuardrailsOutput }` on success, or a
  * structured `{ ok: false, response, status }` failure at the first rejection.
@@ -349,14 +347,8 @@ export function runTtsGuardrails(
     })
   }
 
-  // ── Layer 1: Input PII detection ──────────────────────────────────────────
-  const piiResult = checkInputPii(sanitizedText, route, 'input-validation')
-  if (!piiResult.ok) {
-    logReject(route, 'input-validation', 'PII detected in input text', {
-      textLength: sanitizedText.length,
-    })
-    return piiResult
-  }
+  // Input PII detection omitted — document-derived excerpts may match heuristic
+  // PII patterns (see runTranslateGuardrails).
 
   // ── Layer 2: TTS language whitelist ──────────────────────────────────────
   const langResult = checkTtsLang(targetLang)

@@ -9,7 +9,6 @@ import {
   runTranslateGuardrails,
   translateFallback,
   internalErrorFallback,
-  checkOutputPii,
   guardrailLog,
   logPass,
   type GuardrailResult,
@@ -37,10 +36,10 @@ const ROUTE = '/api/translate'
  *   is intentionally ignored here; `callTranslateProvider` builds its own
  *   provider-specific Gradio payload from the already-sanitized text and
  *   the FLORES-200 target code.
- * - L4 uses a minimal NLLB-appropriate output check (non-empty string +
- *   `checkOutputPii`) because NLLB returns a plain string rather than the
- *   DeepL `{ translations: [{ text, detected_source_language }] }` shape
- *   that `validateTranslateOutput` expects.
+ * - L4 uses a minimal NLLB-appropriate output check (non-empty string).
+ *   Output PII heuristics are not applied: translated document text still
+ *   contains phones, emails, and ID-like numbers by design (same rationale as
+ *   skipping input PII in `runTranslateGuardrails`).
  * - L5 fallbacks use `translateFallback` / `internalErrorFallback`.
  */
 
@@ -185,7 +184,7 @@ export async function POST(request: Request) {
   // ── Layer 4: Output validation (NLLB-shaped) ─────────────────────────────
   // NLLB returns a plain translated string (no detected_source_language),
   // so the DeepL-specific `validateTranslateOutput` does not apply. Enforce
-  // non-empty output + output PII re-detection here.
+  // non-empty output only (no output PII scan — see module comment above).
   if (!translatedText || translatedText.trim() === '') {
     guardrailLog('error', {
       route: ROUTE,
@@ -196,11 +195,6 @@ export async function POST(request: Request) {
     return fallbackResponse(
       translateFallback({ inputLength: sanitizedText.length })
     )
-  }
-
-  const outPii = checkOutputPii(translatedText, ROUTE)
-  if (!outPii.ok) {
-    return NextResponse.json(outPii.response, { status: outPii.status })
   }
 
   logPass(
