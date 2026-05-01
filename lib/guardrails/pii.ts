@@ -2,15 +2,20 @@
  * PII detection for the guardrails pipeline.
  *
  * Single source of truth for the PII pattern registry — used by all routes
- * that scan user input or model output:
+ * that scan user input. Every active route currently uses the same
+ * detect-only policy because this app exists to help users understand
+ * documents they already have, which routinely contain sensitive data
+ * (immigration paperwork, court filings, benefits letters, medical bills):
+ *
  *   - `/api/translate` (detect-only via `detectPii` + `logWarn`)
  *   - `/api/summarize` (detect-only via `detectPii` + `logWarn`)
- *   - `/api/tts`       (strict block via `checkInputPii`)
+ *   - `/api/tts`       (detect-only via `detectPii` + `logWarn`)
  *
- * Per-route policy (block vs. detect-only) lives at the call site, not
- * inside this module. The summarize route used to keep an inline copy of
- * this registry; that has been deleted in favour of importing `detectPii`
- * from here.
+ * `checkInputPii` / `checkOutputPii` remain exported as primitives for any
+ * future deployment that does need a strict block (e.g. a third-party
+ * embedding of this app where the threat model is different), but no
+ * production route currently uses them. Per-route policy lives at the call
+ * site, not inside this module.
  */
 
 import type { GuardrailResult } from './types'
@@ -95,14 +100,10 @@ const SENSITIVE_PATTERNS: ReadonlyArray<PiiMatch & { pattern: RegExp }> = [
  * Returns every category detected; each type appears at most once
  * (per-category deduplication). An empty array means no PII was found.
  *
- * Routes that should never block on PII (e.g. `/api/translate`, which
- * exists specifically to help users read documents that contain sensitive
- * data) call this directly and feed the result into `logWarn` for
- * detect-only observability.
- *
- * Routes that should block on PII (e.g. `/api/tts`, where the threat model
- * differs because the synthesized audio reads the data aloud) call
- * `checkInputPii` / `checkOutputPii` instead.
+ * All production routes (`/api/translate`, `/api/summarize`, `/api/tts`)
+ * currently call this directly and feed the result into `logWarn` for
+ * detect-only observability. `checkInputPii` / `checkOutputPii` remain
+ * available for future deployments that need to fail-closed instead.
  */
 export function detectPii(text: string): PiiMatch[] {
   const found: PiiMatch[] = []
@@ -124,12 +125,14 @@ export function detectPii(text: string): PiiMatch[] {
  * - If no PII is found, returns `{ ok: true, value: text }`.
  * - If PII is detected, returns a structured 422 error with `code: "PII_DETECTED"`.
  *
- * Used by routes that *should* block on PII (currently `/api/tts`). The
- * translate route deliberately does **not** call this — see `detectPii` and
- * the docstring at the top of `app/api/translate/route.ts` for rationale.
+ * **Currently has no production callers** — every active route uses
+ * `detectPii` + `logWarn` for detect-only observability. Retained as a
+ * primitive for any future deployment that needs to fail-closed (e.g. a
+ * third-party embedding of this app where the user is not the document
+ * owner).
  *
  * @param text    - The text to scan (already sanitized is fine; sanitization is a separate layer).
- * @param route   - The API route string, used only in the error `details` (e.g. "/api/tts").
+ * @param route   - The API route string, used only in the error `details`.
  * @param layer   - Which guardrail layer is calling this (defaults to "input-validation").
  */
 export function checkInputPii(

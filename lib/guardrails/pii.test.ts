@@ -1,22 +1,20 @@
 /**
  * Unit tests for the PII detector and the route-level policies that use it.
  *
- * Two policies live in this codebase:
+ * Every active production route currently uses the same DETECT-ONLY policy:
+ * `detectPii` runs for observability (logged through `logWarn`), but the
+ * request always continues to the upstream provider. The translate and TTS
+ * route policies are asserted end-to-end through their composite guardrail
+ * helpers, the same ones the route handlers call in production.
  *
- *   1. Strict block-on-detect — used by `/api/tts` via `checkInputPii`.
- *      Any detected PII produces a 422 with `code: "PII_DETECTED"`.
- *   2. Detect-only — used by `/api/translate` via `runTranslateGuardrails`.
- *      `detectPii` runs for observability (logged through `logWarn`), but
- *      the request always continues to the upstream provider.
- *
- * The translate-route policy is asserted end-to-end through
- * `runTranslateGuardrails`, the same composite helper the route handler
- * calls in production.
+ * `checkInputPii` (strict block-on-detect) has no production callers but is
+ * tested as a unit because it remains exported as a primitive for future
+ * fail-closed deployments.
  */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { detectPii, checkInputPii } from './pii'
-import { runTranslateGuardrails } from './index'
+import { runTranslateGuardrails, runTtsGuardrails } from './index'
 
 describe('detectPii — passport (labelled)', () => {
   it('flags passport numbers with an explicit label', () => {
@@ -105,30 +103,32 @@ describe('detectPii — other registry rules (smoke)', () => {
   })
 })
 
-describe('checkInputPii (strict block-on-detect — used by /api/tts)', () => {
+describe('checkInputPii — strict block-on-detect primitive (no current callers)', () => {
+  // No production route uses this — kept as a primitive for future
+  // fail-closed deployments. Locked in as a unit so the shape is stable.
+  const ANY_ROUTE = '/api/example'
+
   it('returns ok=true for clean text', () => {
-    const result = checkInputPii('Hello world.', '/api/tts')
+    const result = checkInputPii('Hello world.', ANY_ROUTE)
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.value).toBe('Hello world.')
   })
 
   it('returns a 422 PII_DETECTED response when PII is present', () => {
-    const result = checkInputPii('Email: a@b.co', '/api/tts')
+    const result = checkInputPii('Email: a@b.co', ANY_ROUTE)
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.status).toBe(422)
       expect(result.response.code).toBe('PII_DETECTED')
       expect(result.response.layer).toBe('input-validation')
-      expect(result.response.details).toMatchObject({
-        route: '/api/tts',
-      })
+      expect(result.response.details).toMatchObject({ route: ANY_ROUTE })
     }
   })
 
   it('does not block bare alphanumeric codes that previously triggered passport false positives', () => {
     const result = checkInputPii(
-      'Please synthesize: model AB1234567 (manufactured in 2024).',
-      '/api/tts'
+      'Synthesize this: model AB1234567 (manufactured in 2024).',
+      ANY_ROUTE
     )
     expect(result.ok).toBe(true)
   })
@@ -259,6 +259,103 @@ describe('runTranslateGuardrails — translate route policy (detect-only PII)', 
     const result = runTranslateGuardrails(
       { text: 'Hello', targetLang: 'xx-NOT-A-LANG' },
       '/api/translate'
+    )
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.status).toBe(422)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// /api/tts route policy: detect-only (Read Aloud)
+// ---------------------------------------------------------------------------
+
+describe('runTtsGuardrails — TTS route policy (detect-only PII)', () => {
+  // The TTS route ("Read Aloud") exists for users listening to documents
+  // they already own and are the only person who needs to hear. Same
+  // detect-only treatment as translate / summarize.
+
+  let consoleWarnSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    consoleWarnSpy.mockRestore()
+  })
+
+  function getWarnLines(): Array<Record<string, unknown>> {
+    return consoleWarnSpy.mock.calls.map((args) => {
+      const first = args[0]
+      try {
+        return typeof first === 'string'
+          ? (JSON.parse(first) as Record<string, unknown>)
+          : {}
+      } catch {
+        return {}
+      }
+    })
+  }
+
+  it('passes a Spanish read-aloud request containing PII through to upstream', () => {
+    const result = runTtsGuardrails(
+      {
+        text: 'Llame al (555) 123-4567 o escriba a info@example.org. SSN: 123-45-6789.',
+        targetLang: 'es',
+        gender: 'feminine',
+      },
+      '/api/tts'
+    )
+    expect(result.ok).toBe(true)
+  })
+
+  it('passes an English read-aloud request containing PII through to upstream', () => {
+    const result = runTtsGuardrails(
+      {
+        text: 'Your case number is 123-45-6789. Email follow-up to caseworker@example.org.',
+        targetLang: 'en',
+        gender: 'masculine',
+      },
+      '/api/tts'
+    )
+    expect(result.ok).toBe(true)
+  })
+
+  it('logs detected PII as a structured warning (categories only, no raw text)', () => {
+    const result = runTtsGuardrails(
+      {
+        text: 'Read aloud — SSN: 123-45-6789. Email: applicant@example.org.',
+        targetLang: 'es',
+        gender: 'feminine',
+      },
+      '/api/tts'
+    )
+    expect(result.ok).toBe(true)
+
+    const warns = getWarnLines()
+    const piiWarn = warns.find(
+      (w) =>
+        w.route === '/api/tts' &&
+        w.layer === 'input-validation' &&
+        w.action === 'warn'
+    )
+    expect(piiWarn).toBeDefined()
+
+    const meta = piiWarn?.meta as { detectedTypes?: string[] } | undefined
+    expect(meta?.detectedTypes).toEqual(
+      expect.arrayContaining(['ssn', 'email'])
+    )
+
+    // CRITICAL: no raw user values may appear anywhere in log output.
+    const serialized = JSON.stringify(warns)
+    expect(serialized).not.toContain('123-45-6789')
+    expect(serialized).not.toContain('applicant@example.org')
+  })
+
+  it('still rejects truly invalid input (e.g. unsupported gender)', () => {
+    const result = runTtsGuardrails(
+      { text: 'Hello', targetLang: 'en', gender: 'robot' },
+      '/api/tts'
     )
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.status).toBe(422)
