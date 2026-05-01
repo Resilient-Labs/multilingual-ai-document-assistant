@@ -4,6 +4,7 @@ import { promises as fs } from 'fs'
 import { join } from 'path'
 import {
   buildSafetyRecommendationPresentation,
+  maxSeverity,
   normalizeConfidence,
   normalizeLegitimacy,
   normalizeRiskLevel,
@@ -48,9 +49,12 @@ function buildSafetyFlags(
       ? parsed.category.trim()
       : 'Unknown'
   const severity = normalizeSeverity(parsed.severity)
-  const riskLevel = normalizeRiskLevel(parsed.riskLevel) ?? severity
+  let riskLevel = normalizeRiskLevel(parsed.riskLevel) ?? severity
   const confidence = normalizeConfidence(parsed.confidence)
   const legitimacy = normalizeLegitimacy(parsed.legitimacy)
+  if (legitimacy === 'likely_scam') {
+    riskLevel = maxSeverity(maxSeverity(riskLevel, severity), 'high')
+  }
   const explanation =
     typeof parsed.explanation === 'string' ? parsed.explanation : undefined
   const hasExplanation = Boolean(explanation?.trim())
