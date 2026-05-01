@@ -9,9 +9,10 @@ import {
   runTranslateGuardrails,
   translateFallback,
   internalErrorFallback,
-  checkOutputPii,
+  detectPii,
   guardrailLog,
   logPass,
+  logWarn,
   type GuardrailResult,
 } from '@/lib/guardrails'
 
@@ -37,10 +38,13 @@ const ROUTE = '/api/translate'
  *   is intentionally ignored here; `callTranslateProvider` builds its own
  *   provider-specific Gradio payload from the already-sanitized text and
  *   the FLORES-200 target code.
- * - L4 uses a minimal NLLB-appropriate output check (non-empty string +
- *   `checkOutputPii`) because NLLB returns a plain string rather than the
- *   DeepL `{ translations: [{ text, detected_source_language }] }` shape
- *   that `validateTranslateOutput` expects.
+ * - L4 uses a minimal NLLB-appropriate output check (non-empty string).
+ *   PII is *detected* in the translated output for observability but never
+ *   blocks the response — the translate route exists specifically to help
+ *   users read documents that contain sensitive data (immigration forms,
+ *   benefits letters, court filings, medical bills). Refusing to return a
+ *   translation because it contains an SSN that the user can already see
+ *   in their original document is the failure mode, not a safeguard.
  * - L5 fallbacks use `translateFallback` / `internalErrorFallback`.
  */
 
@@ -198,9 +202,21 @@ export async function POST(request: Request) {
     )
   }
 
-  const outPii = checkOutputPii(translatedText, ROUTE)
-  if (!outPii.ok) {
-    return NextResponse.json(outPii.response, { status: outPii.status })
+  // Detect-only PII observability on the translated output. Never blocks —
+  // see the file-level docstring for rationale. We log the categories
+  // (no values) so ops can see how often translations contain sensitive
+  // data without it ever turning into a 4xx for the user.
+  const outputPiiMatches = detectPii(translatedText)
+  if (outputPiiMatches.length > 0) {
+    logWarn(
+      ROUTE,
+      'output-validation',
+      'PII detected in translated output — passing through (translate route policy)',
+      {
+        outputLength: translatedText.length,
+        detectedTypes: outputPiiMatches.map((m) => m.type),
+      }
+    )
   }
 
   logPass(

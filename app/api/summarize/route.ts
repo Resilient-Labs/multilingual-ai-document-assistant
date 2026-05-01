@@ -2,6 +2,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { NextResponse } from 'next/server'
 import { evaluateAsync } from '@/lib/evaluate'
+import { detectPii, logWarn } from '@/lib/guardrails'
 
 /**
  * POST /api/summarize
@@ -12,6 +13,17 @@ import { evaluateAsync } from '@/lib/evaluate'
  *
  * When `outputLanguage` is a non-English BCP-47 code (e.g. `es`, `zh-TW`), the
  * model is instructed to write the full summary in that language.
+ *
+ * PII policy (matches `/api/translate`):
+ * The summarize route is meant for users whose documents *will* contain
+ * sensitive data — immigration paperwork, court filings, benefits letters,
+ * medical bills. Refusing to summarize is the failure mode, not a
+ * safeguard, because the user already has the document and is trying to
+ * understand it. PII is *detected* via the shared `detectPii` registry for
+ * observability (categories logged, never values), but never blocks the
+ * request. If you need stricter behaviour for a future deployment, swap
+ * the `logWarn` below for `checkInputPii` (still exported from
+ * `@/lib/guardrails`).
  */
 
 const SUMMARIZATION_PROMPT_PATH = path.join(
@@ -19,86 +31,9 @@ const SUMMARIZATION_PROMPT_PATH = path.join(
   'app/api/summarize/summarizationPrompt.txt'
 )
 
-// guardrails
+const ROUTE = '/api/summarize'
 
 const MAX_TEXT_LENGTH = 100_000
-
-type SensitiveMatch = {
-  type: string
-  label: string
-}
-
-const SENSITIVE_PATTERNS: Array<{
-  type: string
-  label: string
-  pattern: RegExp
-}> = [
-  {
-    type: 'ssn',
-    label: 'Social Security Number (SSN)',
-    // Matches XXX-XX-XXXX, XXX XX XXXX, or 9 consecutive digits
-    pattern: /\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b/,
-  },
-  {
-    type: 'credit_card',
-    label: 'Credit or Debit Card Number',
-    // Matches 16-digit card numbers with optional spaces/dashes between groups
-    pattern: /\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b/,
-  },
-  {
-    type: 'phone',
-    label: 'Phone Number',
-    // Matches US/international phone formats: (555) 555-5555, +1 555.555.5555, etc.
-    pattern: /\b(?:\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}\b/,
-  },
-  {
-    type: 'email',
-    label: 'Email Address',
-    pattern: /\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b/,
-  },
-  {
-    type: 'credential',
-    label: 'Password or API Key',
-    // Matches patterns like "password: abc123", "api_key=xyz", "token: ..."
-    pattern:
-      /(?:password|passwd|pwd|api[_\s]?key|secret|bearer|token)\s*[:=]\s*\S{4,}/i,
-  },
-  {
-    type: 'bank_account',
-    label: 'Bank Account or Routing Number',
-    // Matches explicit account/routing number labels followed by digits
-    pattern:
-      /\b(?:account|routing|acct)[\s_\-]?(?:number|num|no\.?|#)?\s*[:=]?\s*\d{8,17}\b/i,
-  },
-  {
-    type: 'passport',
-    label: 'Passport Number',
-    // Matches common passport formats: letter(s) followed by 6-9 digits
-    pattern: /\b[A-Z]{1,2}\d{6,9}\b/,
-  },
-  {
-    type: 'drivers_license',
-    label: "Driver's License Number",
-    // Matches a label followed by an alphanumeric ID
-    pattern:
-      /\b(?:driver['s]*\s*licen[sc]e|dl|d\.l\.)\s*(?:number|num|no\.?|#)?\s*[:=]?\s*[A-Z0-9]{5,15}\b/i,
-  },
-]
-
-/**
- Scans text for sensitive PII patterns. Returns every category detected.
- Uses per-category deduplification so each type appears at most once.
- 
- */
-function detectSensitiveInfo(text: string): SensitiveMatch[] {
-  const found: SensitiveMatch[] = []
-  for (const { type, label, pattern } of SENSITIVE_PATTERNS) {
-    if (pattern.test(text)) {
-      found.push({ type, label })
-    }
-  }
-  return found
-}
 
 // ---------------------------------------------------------------------------
 
@@ -169,16 +104,21 @@ export async function POST(request: Request) {
       )
     }
 
-    // -- Guardrail: sensitive information detection ----------------------------
-    const sensitiveMatches = detectSensitiveInfo(trimmed)
-    if (sensitiveMatches.length > 0) {
-      return NextResponse.json(
+    // -- Guardrail: sensitive information detection (DETECT-ONLY — never blocks) ---
+    // See file-level docstring for rationale. We log categories only — no
+    // raw text and no values — through the structured guardrail logger so
+    // ops can monitor how often summaries process sensitive data without
+    // any of it leaking into logs.
+    const piiMatches = detectPii(trimmed)
+    if (piiMatches.length > 0) {
+      logWarn(
+        ROUTE,
+        'input-validation',
+        'PII detected in input text — passing through (summarize route policy)',
         {
-          error:
-            'Submission blocked: your document appears to contain sensitive personal information. Please remove it before summarizing.',
-          detectedTypes: sensitiveMatches,
-        },
-        { status: 422 }
+          textLength: trimmed.length,
+          detectedTypes: piiMatches.map((m) => m.type),
+        }
       )
     }
     // --------------------------------------------------------------------------
