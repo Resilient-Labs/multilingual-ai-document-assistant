@@ -137,6 +137,8 @@ export interface RiskNextStep {
 export interface SafetyRecommendationPresentation {
   headline: string
   severityLabel: string
+  /** When set (e.g. likely scam), time-urgency is shown separately from seriousness. */
+  urgencyLabel?: string | null
   summary: string | null
   primaryActions: RiskNextStep[]
   resources: RiskNextStep[]

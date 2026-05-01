@@ -9,6 +9,7 @@ import {
 import {
   type SafetyLang,
   SAFETY_DISCLAIMER,
+  SAFETY_SERIOUSNESS_LABELS,
   SAFETY_SEVERITY_LABELS,
 } from '@/lib/safetyI18n'
 import {
@@ -98,6 +99,18 @@ export function normalizeRiskLevel(raw: unknown): SafetySeverity | undefined {
   return undefined
 }
 
+const SEVERITY_RANK: Record<SafetySeverity, number> = {
+  low: 0,
+  medium: 1,
+  high: 2,
+  urgent: 3,
+}
+
+/** Higher of two severity buckets (for merging model severity with scam seriousness floor). */
+export function maxSeverity(a: SafetySeverity, b: SafetySeverity): SafetySeverity {
+  return SEVERITY_RANK[a] >= SEVERITY_RANK[b] ? a : b
+}
+
 function filterInstitutionPhonesForScam(
   bucket: SafetyResourceBucket,
   steps: RiskNextStep[],
@@ -118,6 +131,11 @@ function filterInstitutionPhonesForScam(
 export interface SelectNextStepsInput {
   category: string
   severity: SafetySeverity
+  /**
+   * Time-urgency tier for deadline-style lead-ins. Defaults to `severity`.
+   * For likely scams, pass `low` so we do not urge fast “completion” on a fraudulent document.
+   */
+  urgencyTier?: SafetySeverity
   confidence?: number
   legitimacy?: SafetyLegitimacy
   hasExplanation: boolean
@@ -130,10 +148,16 @@ export function selectNextSteps(
   const {
     category,
     severity,
+    urgencyTier: urgencyTierInput,
     confidence,
     legitimacy = 'uncertain',
     hasExplanation,
   } = input
+
+  const urgencyTier =
+    legitimacy === 'likely_scam'
+      ? 'low'
+      : (urgencyTierInput ?? severity)
 
   const lowConfidence =
     confidence !== undefined && confidence < SAFETY_CONFIDENCE_LOW
@@ -150,7 +174,7 @@ export function selectNextSteps(
   }
 
   const prefix: RiskNextStep[] = []
-  if (severity === 'urgent' || severity === 'high') {
+  if (urgencyTier === 'urgent' || urgencyTier === 'high') {
     prefix.push(getUrgentPrefix(lang))
   }
   if (legitimacy === 'likely_scam') {
@@ -170,17 +194,29 @@ export function buildSafetyRecommendationPresentation(
   flags: SafetyFlags,
   lang: SafetyLang = 'en'
 ): SafetyRecommendationPresentation {
-  const { category, severity, nextSteps } = flags
-  const severityLabel =
+  const { category, severity, legitimacy, riskLevel, nextSteps } = flags
+  const seriousness = riskLevel ?? severity
+  const urgencyStyleLabel =
     SAFETY_SEVERITY_LABELS[lang][severity] ??
     SAFETY_SEVERITY_LABELS[lang].medium
+  const seriousnessLabel =
+    SAFETY_SERIOUSNESS_LABELS[lang][seriousness] ??
+    SAFETY_SERIOUSNESS_LABELS[lang].medium
+
+  const isScam = legitimacy === 'likely_scam'
+  const severityLabel = isScam ? seriousnessLabel : urgencyStyleLabel
   const headline = `${category} · ${severityLabel}`
+  const urgencyLabel = isScam
+    ? SAFETY_SEVERITY_LABELS[lang].low
+    : null
+
   const resources = nextSteps.filter(
     (s) => s.type === 'url' || s.type === 'phone'
   )
   return {
     headline,
     severityLabel,
+    urgencyLabel,
     summary: null,
     primaryActions: nextSteps,
     resources,

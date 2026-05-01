@@ -88,6 +88,7 @@ export type SafetyUiStrings = {
   riskLevel: string
   confidence: string
   severityPrefix: string
+  urgencyPrefix: string
   legitimacyPrefix: string
   suggestedNextSteps: string
   helpfulResources: string
@@ -109,6 +110,7 @@ export const SAFETY_UI_STRINGS: Record<SafetyLang, SafetyUiStrings> = {
     riskLevel: 'Risk Level',
     confidence: 'Confidence',
     severityPrefix: 'Severity:',
+    urgencyPrefix: 'Urgency:',
     legitimacyPrefix: 'Legitimacy:',
     suggestedNextSteps: 'Suggested Next Steps',
     helpfulResources: 'Helpful Resources',
@@ -135,6 +137,7 @@ export const SAFETY_UI_STRINGS: Record<SafetyLang, SafetyUiStrings> = {
     riskLevel: 'Nivel de riesgo',
     confidence: 'Confianza',
     severityPrefix: 'Gravedad:',
+    urgencyPrefix: 'Urgencia:',
     legitimacyPrefix: 'Legitimidad:',
     suggestedNextSteps: 'Pasos siguientes sugeridos',
     helpfulResources: 'Recursos útiles',
@@ -161,6 +164,7 @@ export const SAFETY_UI_STRINGS: Record<SafetyLang, SafetyUiStrings> = {
     riskLevel: 'Niveau de risque',
     confidence: 'Confiance',
     severityPrefix: 'Gravité :',
+    urgencyPrefix: 'Urgence :',
     legitimacyPrefix: 'Légitimité :',
     suggestedNextSteps: 'Prochaines étapes suggérées',
     helpfulResources: 'Ressources utiles',
@@ -187,6 +191,7 @@ export const SAFETY_UI_STRINGS: Record<SafetyLang, SafetyUiStrings> = {
     riskLevel: 'Risikostufe',
     confidence: 'Vertrauen',
     severityPrefix: 'Schwere:',
+    urgencyPrefix: 'Dringlichkeit:',
     legitimacyPrefix: 'Legitimität:',
     suggestedNextSteps: 'Vorgeschlagene nächste Schritte',
     helpfulResources: 'Hilfreiche Ressourcen',
@@ -210,6 +215,7 @@ export const SAFETY_UI_STRINGS: Record<SafetyLang, SafetyUiStrings> = {
     riskLevel: '风险等级',
     confidence: '置信度',
     severityPrefix: '严重程度：',
+    urgencyPrefix: '紧迫性：',
     legitimacyPrefix: '可信度：',
     suggestedNextSteps: '建议的后续步骤',
     helpfulResources: '有用资源',
@@ -229,6 +235,7 @@ export const SAFETY_UI_STRINGS: Record<SafetyLang, SafetyUiStrings> = {
     riskLevel: '風險等級',
     confidence: '信心度',
     severityPrefix: '嚴重程度：',
+    urgencyPrefix: '緊迫性：',
     legitimacyPrefix: '可信度：',
     suggestedNextSteps: '建議的後續步驟',
     helpfulResources: '實用資源',
@@ -249,6 +256,7 @@ export const SAFETY_UI_STRINGS: Record<SafetyLang, SafetyUiStrings> = {
     riskLevel: 'リスクレベル',
     confidence: '信頼度',
     severityPrefix: '深刻度：',
+    urgencyPrefix: '緊急度：',
     legitimacyPrefix: '正当性：',
     suggestedNextSteps: '推奨される次のステップ',
     helpfulResources: '役立つリソース',
@@ -272,6 +280,7 @@ export const SAFETY_UI_STRINGS: Record<SafetyLang, SafetyUiStrings> = {
     riskLevel: '위험 수준',
     confidence: '신뢰도',
     severityPrefix: '심각도:',
+    urgencyPrefix: '긴급도:',
     legitimacyPrefix: '정당성:',
     suggestedNextSteps: '권장 다음 단계',
     helpfulResources: '유용한 자료',
@@ -296,6 +305,7 @@ export const SAFETY_UI_STRINGS: Record<SafetyLang, SafetyUiStrings> = {
     riskLevel: 'Nível de risco',
     confidence: 'Confiança',
     severityPrefix: 'Gravidade:',
+    urgencyPrefix: 'Urgência:',
     legitimacyPrefix: 'Legitimidade:',
     suggestedNextSteps: 'Próximos passos sugeridos',
     helpfulResources: 'Recursos úteis',
@@ -322,6 +332,7 @@ export const SAFETY_UI_STRINGS: Record<SafetyLang, SafetyUiStrings> = {
     riskLevel: 'Livello di rischio',
     confidence: 'Affidabilità',
     severityPrefix: 'Gravità:',
+    urgencyPrefix: 'Urgenza:',
     legitimacyPrefix: 'Legittimità:',
     suggestedNextSteps: 'Passaggi successivi suggeriti',
     helpfulResources: 'Risorse utili',
@@ -347,6 +358,7 @@ export const SAFETY_UI_STRINGS: Record<SafetyLang, SafetyUiStrings> = {
     riskLevel: 'Уровень риска',
     confidence: 'Уверенность',
     severityPrefix: 'Серьёзность:',
+    urgencyPrefix: 'Срочность:',
     legitimacyPrefix: 'Легитимность:',
     suggestedNextSteps: 'Рекомендуемые следующие шаги',
     helpfulResources: 'Полезные ресурсы',
@@ -370,6 +382,7 @@ export const SAFETY_UI_STRINGS: Record<SafetyLang, SafetyUiStrings> = {
     riskLevel: 'مستوى الخطر',
     confidence: 'الثقة',
     severityPrefix: 'الخطورة:',
+    urgencyPrefix: 'الإلحاح:',
     legitimacyPrefix: 'المشروعية:',
     suggestedNextSteps: 'الخطوات التالية المقترحة',
     helpfulResources: 'موارد مفيدة',
@@ -395,6 +408,7 @@ export const SAFETY_UI_STRINGS: Record<SafetyLang, SafetyUiStrings> = {
     riskLevel: 'जोखिम स्तर',
     confidence: 'विश्वास',
     severityPrefix: 'गंभीरता:',
+    urgencyPrefix: 'तात्कालिकता:',
     legitimacyPrefix: 'वैधता:',
     suggestedNextSteps: 'सुझाए गए अगले चरण',
     helpfulResources: 'उपयोगी संसाधन',
@@ -420,6 +434,7 @@ export const SAFETY_UI_STRINGS: Record<SafetyLang, SafetyUiStrings> = {
     riskLevel: 'Risiconiveau',
     confidence: 'Vertrouwen',
     severityPrefix: 'Ernst:',
+    urgencyPrefix: 'Urgentie:',
     legitimacyPrefix: 'Legitimiteit:',
     suggestedNextSteps: 'Voorgestelde vervolgstappen',
     helpfulResources: 'Nuttige bronnen',
@@ -445,6 +460,7 @@ export const SAFETY_UI_STRINGS: Record<SafetyLang, SafetyUiStrings> = {
     riskLevel: 'Poziom ryzyka',
     confidence: 'Pewność',
     severityPrefix: 'Powaga:',
+    urgencyPrefix: 'Pilność:',
     legitimacyPrefix: 'Legitymacja:',
     suggestedNextSteps: 'Zalecane kolejne kroki',
     helpfulResources: 'Przydatne zasoby',
@@ -470,6 +486,7 @@ export const SAFETY_UI_STRINGS: Record<SafetyLang, SafetyUiStrings> = {
     riskLevel: 'Risknivå',
     confidence: 'Förtroende',
     severityPrefix: 'Allvar:',
+    urgencyPrefix: 'Brådska:',
     legitimacyPrefix: 'Legitimitet:',
     suggestedNextSteps: 'Föreslagna nästa steg',
     helpfulResources: 'Hjälpsamma resurser',
@@ -495,6 +512,7 @@ export const SAFETY_UI_STRINGS: Record<SafetyLang, SafetyUiStrings> = {
     riskLevel: 'Risk düzeyi',
     confidence: 'Güven',
     severityPrefix: 'Önem derecesi:',
+    urgencyPrefix: 'Aciliyet:',
     legitimacyPrefix: 'Meşruiyet:',
     suggestedNextSteps: 'Önerilen sonraki adımlar',
     helpfulResources: 'Yararlı kaynaklar',
@@ -519,6 +537,7 @@ export const SAFETY_UI_STRINGS: Record<SafetyLang, SafetyUiStrings> = {
     riskLevel: 'Mức độ rủi ro',
     confidence: 'Độ tin cậy',
     severityPrefix: 'Mức độ nghiêm trọng:',
+    urgencyPrefix: 'Mức khẩn cấp:',
     legitimacyPrefix: 'Tính hợp pháp:',
     suggestedNextSteps: 'Các bước tiếp theo đề xuất',
     helpfulResources: 'Tài nguyên hữu ích',
@@ -532,6 +551,304 @@ export const SAFETY_UI_STRINGS: Record<SafetyLang, SafetyUiStrings> = {
       'Không có bước tiếp theo cụ thể nào được tạo cho tài liệu này.',
     riskBodyFallback:
       'Đã xác định danh mục rủi ro nhưng không có giải thích.',
+  },
+}
+
+/** Plain-language copy shown before details when a document is flagged as likely scam. */
+export type ScamAckUiStrings = {
+  scamAlertTitle: string
+  scamAlertLead: string
+  scamBulletNoPayment: string
+  scamBulletOfficialOnly: string
+  scamBulletNoRush: string
+  scamAckCheckbox: string
+  scamAckButton: string
+  /** Shown in the safety card while the scam modal is open (dialog is portaled to the page). */
+  scamWaitingHint: string
+}
+
+export const SCAM_ACK_UI_STRINGS: Record<SafetyLang, ScamAckUiStrings> = {
+  en: {
+    scamAlertTitle: 'Likely scam — read this before you act',
+    scamAlertLead:
+      'Our analysis suggests this document may be fraudulent. Please read every point below. Do not pay, sign, or share sensitive information until you verify independently.',
+    scamBulletNoPayment:
+      'Do not send money, gift cards, wire transfers, or cryptocurrency based only on this document.',
+    scamBulletOfficialOnly:
+      'If it claims to be from a bank, government agency, or company, look up their official phone number or website yourself—do not use contact details that appear only here.',
+    scamBulletNoRush:
+      'Scammers push urgency so you act without thinking. A fake bill or threat often has no real deadline.',
+    scamAckCheckbox:
+      'I have read the warnings above and understand I must not trust this document without checking through official channels.',
+    scamAckButton: 'I understand — show analysis and resources',
+    scamWaitingHint:
+      'A security alert is open on this page. Complete it to view the full analysis.',
+  },
+  es: {
+    scamAlertTitle: 'Posible estafa — léalo antes de actuar',
+    scamAlertLead:
+      'Nuestro análisis sugiere que este documento podría ser fraudulento. Lea cada punto. No pague, firme ni comparta datos sensibles hasta verificarlo por su cuenta.',
+    scamBulletNoPayment:
+      'No envíe dinero, tarjetas regalo, transferencias ni criptomonedas solo por este documento.',
+    scamBulletOfficialOnly:
+      'Si dice ser de un banco, organismo o empresa, busque usted mismo el teléfono o la web oficial—no use los datos de contacto que solo aparecen aquí.',
+    scamBulletNoRush:
+      'Las estafas apelan a la urgencia. Una factura o amenaza falsa suele no tener un plazo real.',
+    scamAckCheckbox:
+      'He leído las advertencias y entiendo que no debo confiar en este documento sin comprobarlo por canales oficiales.',
+    scamAckButton: 'Entiendo — mostrar análisis y recursos',
+    scamWaitingHint:
+      'Hay una alerta de seguridad abierta. Complétela para ver el análisis completo.',
+  },
+  fr: {
+    scamAlertTitle: 'Probable arnaque — lisez ceci avant d’agir',
+    scamAlertLead:
+      'Notre analyse indique que ce document est peut-être frauduleux. Lisez chaque point. Ne payez, ne signez et ne partagez pas d’informations sensibles avant une vérification indépendante.',
+    scamBulletNoPayment:
+      'N’envoyez pas d’argent, cartes-cadeaux, virements ni cryptomonnaie sur la seule base de ce document.',
+    scamBulletOfficialOnly:
+      'S’il prétend provenir d’une banque, administration ou entreprise, retrouvez vous-même le numéro ou le site officiel—pas les coordonnées indiquées uniquement ici.',
+    scamBulletNoRush:
+      'Les arnaques créent de l’urgence. Une fausse facture ou menace n’a souvent aucune échéance réelle.',
+    scamAckCheckbox:
+      'J’ai lu les avertissements et je comprends que je ne dois pas me fier à ce document sans vérification officielle.',
+    scamAckButton: 'J’ai compris — afficher l’analyse et les ressources',
+    scamWaitingHint:
+      'Une alerte de sécurité est ouverte. Complétez-la pour voir l’analyse complète.',
+  },
+  de: {
+    scamAlertTitle: 'Wahrscheinlich Betrug — bitte zuerst lesen',
+    scamAlertLead:
+      'Unsere Analyse deutet darauf hin, dass dieses Dokument betrügerisch sein könnte. Lesen Sie jeden Punkt. Zahlen, unterschreiben oder sensible Daten nicht weitergeben, bis Sie selbst geprüft haben.',
+    scamBulletNoPayment:
+      'Senden Sie kein Geld, keine Geschenkkarten, Überweisungen oder Kryptowährung allein aufgrund dieses Dokuments.',
+    scamBulletOfficialOnly:
+      'Behauptet es, von einer Bank, Behörde oder Firma zu stammen, suchen Sie selbst die offizielle Telefonnummer oder Website—nicht nur die hier genannten Kontaktdaten.',
+    scamBulletNoRush:
+      'Betrüger erzeugen Zeitdruck. Eine gefälschte Rechnung oder Drohung hat oft keine echte Frist.',
+    scamAckCheckbox:
+      'Ich habe die Hinweise gelesen und verstehe, dass ich diesem Dokument nicht vertrauen darf, ohne offiziell nachzuprüfen.',
+    scamAckButton: 'Verstanden — Analyse und Hilfsangebote anzeigen',
+    scamWaitingHint:
+      'Ein Sicherheitshinweis ist geöffnet. Schließen Sie ihn ab, um die vollständige Analyse zu sehen.',
+  },
+  zh: {
+    scamAlertTitle: '可能是诈骗 — 请先阅读再行动',
+    scamAlertLead:
+      '分析显示此文件可能具有欺诈性。请读完下列每一点。在自行核实之前，请勿付款、签字或提供敏感信息。',
+    scamBulletNoPayment: '请勿仅依据此文件汇款、购买礼品卡、转账或支付加密货币。',
+    scamBulletOfficialOnly:
+      '若声称来自银行、政府机构或公司，请自行查找官方电话或网站—不要使用仅出现在此处的联系方式。',
+    scamBulletNoRush: '诈骗常制造紧迫感。虚假账单或威胁往往没有真正的截止日期。',
+    scamAckCheckbox:
+      '我已阅读上述警告，并理解在未通过官方渠道核实前不应轻信此文件。',
+    scamAckButton: '我已了解 — 显示分析与资源',
+    scamWaitingHint: '安全提示窗口已打开。请先完成操作后再查看完整分析。',
+  },
+  'zh-TW': {
+    scamAlertTitle: '可能是詐騙 — 請先閱讀再行動',
+    scamAlertLead:
+      '分析顯示此文件可能具有欺詐性。請讀完下列每一點。在自行查證前，請勿付款、簽署或提供敏感資訊。',
+    scamBulletNoPayment: '請勿僅依此文件匯款、購買禮品卡、轉帳或支付加密貨幣。',
+    scamBulletOfficialOnly:
+      '若聲稱來自銀行、政府機關或公司，請自行查找官方電話或網站—不要使用僅出現在此的聯絡方式。',
+    scamBulletNoRush: '詐騙常製造緊迫感。虛假帳單或威脅往往沒有真正的截止期限。',
+    scamAckCheckbox:
+      '我已閱讀上述警告，並理解在未經官方管道查證前不應輕信此文件。',
+    scamAckButton: '我已了解 — 顯示分析與資源',
+    scamWaitingHint: '安全性提示視窗已開啟。請先完成後再查看完整分析。',
+  },
+  ja: {
+    scamAlertTitle: '詐欺の可能性があります — 行動前に必ずお読みください',
+    scamAlertLead:
+      '分析の結果、この書類は詐欺である可能性があります。以下をすべてお読みください。ご自身で確認するまで、支払い・署名・個人情報の提供はしないでください。',
+    scamBulletNoPayment:
+      'この書類だけを理由に、現金・ギフトカード・送金・暗号資産を送らないでください。',
+    scamBulletOfficialOnly:
+      '銀行・官公庁・企業を名乗る場合は、ご自身で公式の電話番号やサイトを調べてください。この書類にしか載っていない連絡先は使わないでください。',
+    scamBulletNoRush:
+      '詐欺は緊急性をあおります。偽の請求や脅しに、本物の期限はないことが多いです。',
+    scamAckCheckbox:
+      '上記の警告を読み、公式の経路で確認するまでこの書類を信じてはならないことを理解しました。',
+    scamAckButton: '理解しました — 分析と情報を表示',
+    scamWaitingHint:
+      'セキュリティに関する通知が開いています。完了すると詳しい分析を表示できます。',
+  },
+  ko: {
+    scamAlertTitle: '사기 가능성이 있습니다 — 조치 전에 읽어 주세요',
+    scamAlertLead:
+      '분석 결과 이 문서는 사기일 수 있습니다. 아래 내용을 모두 읽어 주세요. 직접 확인하기 전에는 결제·서명·민감 정보 제공을 하지 마세요.',
+    scamBulletNoPayment:
+      '이 문서만 보고 송금, 기프트 카드, 암호화폐 등을 보내지 마세요.',
+    scamBulletOfficialOnly:
+      '은행·정부 기관·회사를 사칭한다면 공식 전화번호나 웹사이트를 직접 찾으세요. 이 문서에만 적힌 연락처는 사용하지 마세요.',
+    scamBulletNoRush:
+      '사기꾼은 급하게 행동하라고 합니다. 가진 청구나 협박에는 실제 마감이 없는 경우가 많습니다.',
+    scamAckCheckbox:
+      '위 경고를 읽었으며 공식 경로로 확인하기 전에는 이 문서를 믿지 않겠습니다.',
+    scamAckButton: '이해했습니다 — 분석 및 자료 표시',
+    scamWaitingHint:
+      '보안 알림 창이 열려 있습니다. 완료한 뒤 전체 분석을 볼 수 있습니다.',
+  },
+  pt: {
+    scamAlertTitle: 'Provável fraude — leia antes de agir',
+    scamAlertLead:
+      'A nossa análise sugere que este documento pode ser fraudulento. Leia cada ponto. Não pague, assine nem partilhe dados sensíveis até verificar por si.',
+    scamBulletNoPayment:
+      'Não envie dinheiro, cartões-presente, transferências ou criptomoedas só com base neste documento.',
+    scamBulletOfficialOnly:
+      'Se alegar ser de um banco, serviço público ou empresa, procure o telefone ou site oficial—não use contactos que apareçam apenas aqui.',
+    scamBulletNoRush:
+      'Os fraudadores criam urgência. Uma fatura ou ameaça falsa muitas vezes não tem prazo real.',
+    scamAckCheckbox:
+      'Li os avisos e compreendo que não devo confiar neste documento sem verificação oficial.',
+    scamAckButton: 'Compreendo — mostrar análise e recursos',
+    scamWaitingHint:
+      'Há um alerta de segurança aberto. Conclua-o para ver a análise completa.',
+  },
+  it: {
+    scamAlertTitle: 'Probabile truffa — leggere prima di agire',
+    scamAlertLead:
+      'La nostra analisi indica che questo documento potrebbe essere fraudulento. Legga ogni punto. Non paghi, firmi né condivida dati sensibili finché non verifica in modo indipendente.',
+    scamBulletNoPayment:
+      'Non invii denaro, gift card, bonifici o criptovalute solo sulla base di questo documento.',
+    scamBulletOfficialOnly:
+      'Se dichiara di provenire da una banca, ente o azienda, cerchi lei il numero o il sito ufficiale—non usi i recapiti riportati solo qui.',
+    scamBulletNoRush:
+      'Le truffe creano urgenza. Una falsa richiesta di pagamento o minaccia spesso non ha una scadenza reale.',
+    scamAckCheckbox:
+      'Ho letto gli avvisi e capisco di non dover fidarmi di questo documento senza verifica ufficiale.',
+    scamAckButton: 'Ho capito — mostra analisi e risorse',
+    scamWaitingHint:
+      'È aperto un avviso di sicurezza. Completalo per vedere l’analisi completa.',
+  },
+  ru: {
+    scamAlertTitle: 'Вероятное мошенничество — прочитайте перед действиями',
+    scamAlertLead:
+      'Анализ показывает: документ может быть мошенническим. Прочитайте каждый пункт. Не платите, не подписывайте и не передавайте конфиденциональные данные, пока не проверите самостоятельно.',
+    scamBulletNoPayment:
+      'Не переводите деньги, не покупайте подарочные карты и криптовалюту только из‑за этого документа.',
+    scamBulletOfficialOnly:
+      'Если указано имя банка, ведомства или компании, найдите официальный телефон или сайт сами — не используйте контакты, которые есть только здесь.',
+    scamBulletNoRush:
+      'Мошенники давят срочностью. У поддельного счета или угрозы часто нет реального срока.',
+    scamAckCheckbox:
+      'Я прочитал(а) предупреждения и понимаю, что нельзя доверять документу без проверки через официальные каналы.',
+    scamAckButton: 'Понимаю — показать анализ и ресурсы',
+    scamWaitingHint:
+      'Открыто предупреждение безопасности. Завершите его, чтобы увидеть полный анализ.',
+  },
+  ar: {
+    scamAlertTitle: 'احتمال احتيال — اقرأ هذا قبل أن تتصرف',
+    scamAlertLead:
+      'يشير تحليلنا إلى أن هذا المستند قد يكون احتياليًا. اقرأ كل نقطة. لا تدفع ولا توقّع ولا تشارك معلومات حسّاسة حتى تتحقق بنفسك.',
+    scamBulletNoPayment:
+      'لا ترسل أموالًا أو بطاقات هدايا أو تحويلات أو عملات مشفّرة اعتمادًا على هذا المستند فقط.',
+    scamBulletOfficialOnly:
+      'إذا زعم أنه من بنك أو جهة حكومية أو شركة، فابحث عن رقم أو موقع رسمي بنفسك—ولا تستخدم بيانات التواصل الموجودة هنا فقط.',
+    scamBulletNoRush:
+      'المحتالون يخلقون استعجالًا. غالبًا لا يوجد موعد نهائي حقيقي لتهديد أو فاتورة مزيّفة.',
+    scamAckCheckbox:
+      'لقد قرأت التحذيرات وأفهم أنني لا يجب أن أثق بهذا المستند دون التحقق عبر القنوات الرسمية.',
+    scamAckButton: 'أفهم — عرض التحليل والموارد',
+    scamWaitingHint:
+      'تنبيه أمان مفتوح. أكمله لعرض التحليل الكامل.',
+  },
+  hi: {
+    scamAlertTitle: 'संभावित घोटाला — कार्रवाई से पहले पढ़ें',
+    scamAlertLead:
+      'हमारा विश्लेषण बताता है कि यह दस्तावेज़ धोखाधड़ी वाला हो सकता है। हर बिंदु पढ़ें। स्वतंत्र रूप से जाँच किए बिना भुगतान, हस्ताक्षर या संवेदनशील जानकारी साझा न करें।',
+    scamBulletNoPayment:
+      'केवल इस दस्तावेज़ के आधार पर पैसा, गिफ्ट कार्ड, ट्रांसफ़र या क्रिप्टो न भेजें।',
+    scamBulletOfficialOnly:
+      'यदि बैंक, सरकारी विभाग या कंपनी का दावा है, तो खुद आधिकारिक फोन या वेबसाइट खोजें—केवल यहाँ दिए गए संपर्क का उपयोग न करें।',
+    scamBulletNoRush:
+      'ठग तुरंत कार्रवाई का दबाव डालते हैं। नकली बिल या धमकी में अक्सर कोई असली समयसीमा नहीं होती।',
+    scamAckCheckbox:
+      'मैने चेतावनियाँ पढ़ ली हैं और समझता/समझती हूँ कि आधिकारिक जाँच के बिना इस दस्तावेज़ पर भरोसा नहीं करना चाहिए।',
+    scamAckButton: 'समझ गया — विश्लेषण और संसाधन दिखाएँ',
+    scamWaitingHint:
+      'एक सुरक्षा चेतावनी खुली है। पूरा विश्लेषण देखने के लिए इसे पूरा करें।',
+  },
+  nl: {
+    scamAlertTitle: 'Waarschijnlijk oplichting — lees dit eerst',
+    scamAlertLead:
+      'Onze analyse suggereert dat dit document frauduleus kan zijn. Lees elk punt. Betaal, teken of deel geen gevoelige gegevens tot u zelf heeft gecontroleerd.',
+    scamBulletNoPayment:
+      'Stuur geen geld, cadeaukaarten, overschrijvingen of crypto alleen op basis van dit document.',
+    scamBulletOfficialOnly:
+      'Als het zich voordoet als bank, overheidsinstantie of bedrijf, zoek zelf het officiële nummer of de website—gebruik geen contactgegevens die alleen hier staan.',
+    scamBulletNoRush:
+      'Oplichters creëren urgentie. Een nepfactuur of dreigement heeft vaak geen echte deadline.',
+    scamAckCheckbox:
+      'Ik heb de waarschuwingen gelezen en begrijp dat ik dit document niet zonder officiële verificatie moet vertrouwen.',
+    scamAckButton: 'Ik begrijp het — toon analyse en hulpbronnen',
+    scamWaitingHint:
+      'Er is een beveiligingsmelding open. Voltooi deze om de volledige analyse te zien.',
+  },
+  pl: {
+    scamAlertTitle: 'Prawdopodobne oszustwo — przeczytaj przed działaniem',
+    scamAlertLead:
+      'Nasza analiza wskazuje, że dokument może być fałszywy. Przeczytaj każdy punkt. Nie płać, nie podpisuj ani nie udostępniaj wrażliwych danych, dopóki samodzielnie tego nie zweryfikujesz.',
+    scamBulletNoPayment:
+      'Nie wysyłaj pieniędzy, kart podarunkowych, przelewów ani kryptowalut wyłącznie na podstawie tego dokumentu.',
+    scamBulletOfficialOnly:
+      'Jeśli podaje się za bank, urząd lub firmę, sam znajdź oficjalny numer lub stronę—nie używaj danych kontaktowych podanych tylko tutaj.',
+    scamBulletNoRush:
+      'Oszuści wywołują pośpiech. Fałszywy rachunek lub groźba często nie mają realnego terminu.',
+    scamAckCheckbox:
+      'Przeczytałem/am ostrzeżenia i rozumiem, że nie mogę ufać temu dokumentowi bez weryfikacji urzędowej.',
+    scamAckButton: 'Rozumiem — pokaż analizę i zasoby',
+    scamWaitingHint:
+      'Otwarto alert bezpieczeństwa. Dokończ go, aby zobaczyć pełną analizę.',
+  },
+  sv: {
+    scamAlertTitle: 'Troligen bedrägeri — läs detta först',
+    scamAlertLead:
+      'Vår analys tyder på att dokumentet kan vara bedrägligt. Läs varje punkt. Betala inte, skriv inte under och dela inte känsliga uppgifter förrän du själv har kontrollerat.',
+    scamBulletNoPayment:
+      'Skicka inte pengar, presentkort, överföringar eller kryptovaluta bara utifrån detta dokument.',
+    scamBulletOfficialOnly:
+      'Om det utger sig för att komma från en bank, myndighet eller företag, slå själv upp officiellt nummer eller webbplats—anv inte kontaktuppgifter som bara finns här.',
+    scamBulletNoRush:
+      'Bedragare skapar brådska. En falsk faktura eller hot har ofta ingen verklig deadline.',
+    scamAckCheckbox:
+      'Jag har läst varningarna och förstår att jag inte ska lita på dokumentet utan officiell kontroll.',
+    scamAckButton: 'Jag förstår — visa analys och resurser',
+    scamWaitingHint:
+      'En säkerhetsvarning är öppen. Slutför den för att se hela analysen.',
+  },
+  tr: {
+    scamAlertTitle: 'Muhtemel dolandırıcılık — önce bunu okuyun',
+    scamAlertLead:
+      'Analizimize göre bu belge sahte olabilir. Her maddeyi okuyun. Kendiniz doğrulamadan ödeme yapmayın, imzalamayın veya hassas bilgi paylaşmayın.',
+    scamBulletNoPayment:
+      'Yalnızca bu belgeye dayanarak para, hediye kartı, havale veya kripto göndermeyin.',
+    scamBulletOfficialOnly:
+      'Banka, kamu kurumu veya şirket adına olduğunu iddia ediyorsa resmi telefon veya siteyi kendiniz bulun—yalnızca burada yazan iletişimi kullanmayın.',
+    scamBulletNoRush:
+      'Dolandırıcılar acele ettirir. Sahte fatura veya tehditte çoğu zaman gerçek bir son tarih yoktur.',
+    scamAckCheckbox:
+      'Uyarıları okudum; resmi kanallardan doğrulama yapmadan bu belgeye güvenmemem gerektiğini anlıyorum.',
+    scamAckButton: 'Anladım — analiz ve kaynakları göster',
+    scamWaitingHint:
+      'Bir güvenlik uyarısı açık. Tam analizi görmek için tamamlayın.',
+  },
+  vi: {
+    scamAlertTitle: 'Có thể là lừa đảo — đọc kỹ trước khi làm gì',
+    scamAlertLead:
+      'Phân tích cho thấy tài liệu này có thể gian lận. Hãy đọc hết từng ý. Đừng trả tiền, ký tên hay cung cấp thông tin nhạy cảm cho đến khi bạn tự kiểm chứng.',
+    scamBulletNoPayment:
+      'Không chuyển tiền, thẻ quà, chuyển khoản hay tiền mã hóa chỉ vì tài liệu này.',
+    scamBulletOfficialOnly:
+      'Nếu tự nhận là ngân hàng, cơ quan nhà nước hay công ty, hãy tự tra số điện thoại hoặc website chính thức—đừng dùng thông tin liên hệ chỉ xuất hiện ở đây.',
+    scamBulletNoRush:
+      'Lừa đảo thường gây áp lực khẩn cấp. Hóa đơn hoặc đe dọa giả thường không có hạn thực sự.',
+    scamAckCheckbox:
+      'Tôi đã đọc các cảnh báo và hiểu không được tin tài liệu này nếu chưa xác minh qua kênh chính thức.',
+    scamAckButton: 'Tôi đã hiểu — hiển thị phân tích và tài nguyên',
+    scamWaitingHint:
+      'Cửa sổ cảnh báo bảo mật đang mở. Hoàn tất để xem phân tích đầy đủ.',
   },
 }
 
@@ -650,6 +967,111 @@ export const SAFETY_SEVERITY_LABELS: Record<
     'Mức chú ý trung bình',
     'Cao — xem xét sớm',
     'Khẩn cấp — hành động nhanh'
+  ),
+}
+
+/** Impact / seriousness (not the same as deadline urgency). Used when separating scam seriousness from low time-urgency. */
+export const SAFETY_SERIOUSNESS_LABELS: Record<
+  SafetyLang,
+  Record<SafetySeverity, string>
+> = {
+  en: severityBlock(
+    'Low concern',
+    'Moderate concern',
+    'High concern',
+    'Very high concern'
+  ),
+  es: severityBlock(
+    'Preocupación baja',
+    'Preocupación moderada',
+    'Preocupación alta',
+    'Preocupación muy alta'
+  ),
+  fr: severityBlock(
+    'Faible préoccupation',
+    'Préoccupation modérée',
+    'Préoccupation élevée',
+    'Préoccupation très élevée'
+  ),
+  de: severityBlock(
+    'Geringe Besorgnis',
+    'Mittlere Besorgnis',
+    'Hohe Besorgnis',
+    'Sehr hohe Besorgnis'
+  ),
+  zh: severityBlock('较低关注', '中等关注', '高度关注', '极高关注'),
+  'zh-TW': severityBlock('較低關注', '中度關注', '高度關注', '極高關注'),
+  ja: severityBlock(
+    '軽い懸念',
+    '中程度の懸念',
+    '強い懸念',
+    '非常に強い懸念'
+  ),
+  ko: severityBlock(
+    '낮은 우려',
+    '보통 우려',
+    '높은 우려',
+    '매우 높은 우려'
+  ),
+  pt: severityBlock(
+    'Baixa preocupação',
+    'Preocupação moderada',
+    'Alta preocupação',
+    'Preocupação muito alta'
+  ),
+  it: severityBlock(
+    'Preoccupazione bassa',
+    'Preoccupazione moderata',
+    'Preoccupazione alta',
+    'Preoccupazione molto alta'
+  ),
+  ru: severityBlock(
+    'Низкая степень обеспокоенности',
+    'Умеренная обеспокоенность',
+    'Высокая обеспокоенность',
+    'Очень высокая обеспокоенность'
+  ),
+  ar: severityBlock(
+    'قلق منخفض',
+    'قلق متوسط',
+    'قلق مرتفع',
+    'قلق مرتفع جدًا'
+  ),
+  hi: severityBlock(
+    'कम चिंता',
+    'मध्यम चिंता',
+    'अधिक चिंता',
+    'बहुत अधिक चिंता'
+  ),
+  nl: severityBlock(
+    'Lage zorg',
+    'Gemiddelde zorg',
+    'Hoge zorg',
+    'Zeer hoge zorg'
+  ),
+  pl: severityBlock(
+    'Niskie zaniepokojenie',
+    'Umiarkowane zaniepokojenie',
+    'Wysokie zaniepokojenie',
+    'Bardzo wysokie zaniepokojenie'
+  ),
+  sv: severityBlock(
+    'Låg oro',
+    'Måttlig oro',
+    'Hög oro',
+    'Mycket hög oro'
+  ),
+  tr: severityBlock(
+    'Düşük endişe',
+    'Orta düzeyde endişe',
+    'Yüksek endişe',
+    'Çok yüksek endişe'
+  ),
+  vi: severityBlock(
+    'Mức lo ngại thấp',
+    'Mức lo ngại trung bình',
+    'Mức lo ngại cao',
+    'Mức lo ngại rất cao'
   ),
 }
 

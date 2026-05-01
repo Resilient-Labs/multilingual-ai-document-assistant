@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   SAFETY_DISCLAIMER,
+  SAFETY_SERIOUSNESS_LABELS,
   SAFETY_SEVERITY_LABELS,
 } from '@/lib/safetyI18n'
 import type { SafetyFlags } from '@/types'
@@ -85,6 +86,17 @@ describe('selectNextSteps', () => {
     expect(steps.some((s) => s.value?.includes('829-1040'))).toBe(false)
   })
 
+  it('does not prepend deadline urgency when likely_scam even if severity is urgent', () => {
+    const steps = selectNextSteps({
+      category: 'Debt Collection Letter',
+      severity: 'urgent',
+      legitimacy: 'likely_scam',
+      confidence: 90,
+      hasExplanation: true,
+    })
+    expect(steps[0].label.toLowerCase()).not.toContain('deadline')
+  })
+
   it('adds missing-explanation hint when hasExplanation is false', () => {
     const steps = selectNextSteps({
       category: 'Bank Statement',
@@ -128,6 +140,21 @@ describe('buildSafetyRecommendationPresentation', () => {
     expect(p.severityLabel).toBe(SAFETY_SEVERITY_LABELS.es.medium)
     expect(p.disclaimer).toBe(SAFETY_DISCLAIMER.es)
     expect(p.headline).toContain(SAFETY_SEVERITY_LABELS.es.medium)
+  })
+
+  it('for likely_scam uses seriousness label and low urgency label', () => {
+    const flags: SafetyFlags = {
+      category: 'Tax notice',
+      severity: 'urgent',
+      riskLevel: 'high',
+      legitimacy: 'likely_scam',
+      detectedAt: 1,
+      nextSteps: [{ label: 'FTC', type: 'url', value: 'https://example.com' }],
+    }
+    const p = buildSafetyRecommendationPresentation(flags, 'en')
+    expect(p.severityLabel).toBe(SAFETY_SERIOUSNESS_LABELS.en.high)
+    expect(p.urgencyLabel).toBe(SAFETY_SEVERITY_LABELS.en.low)
+    expect(p.headline).toContain(SAFETY_SERIOUSNESS_LABELS.en.high)
   })
 })
 
