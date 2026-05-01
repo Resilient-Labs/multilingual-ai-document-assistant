@@ -13,26 +13,15 @@
  */
 
 import { useEffect, useState } from 'react'
-import type { EntityDB } from '@babycommando/entity-db'
 import { getEntityDB } from '@/lib/entitydb'
+import {
+  ENTITYDB_VECTORS_STORE,
+  getIdbFrom,
+} from '@/lib/entitydb-idb'
 import type { CanonicalDocument } from '@/types/CanonicalDocument'
 
 /** The metadata field used to identify the extracted-document record. */
 const EXTRACTED_DOCUMENT_KEY = 'extracted_document' as const
-
-/** Internal shape of the EntityDB instance to access the raw IDB promise. */
-interface EntityDBInternal {
-  dbPromise: Promise<{
-    transaction(
-      store: string,
-      mode: 'readonly' | 'readwrite'
-    ): {
-      objectStore(name: string): {
-        getAll(): Promise<Array<Record<string, unknown>>>
-      }
-    }
-  }>
-}
 
 export interface UseDocumentSessionResult {
   data: CanonicalDocument | null
@@ -60,12 +49,10 @@ export function useDocumentSession(
 
     async function fetchDocument(): Promise<void> {
       try {
-        const entityDB: EntityDB = getEntityDB()
-        const internal = entityDB as unknown as EntityDBInternal
-        const idb = await internal.dbPromise
+        const idb = await getIdbFrom(getEntityDB())
 
-        const tx = idb.transaction('vectors', 'readonly')
-        const store = tx.objectStore('vectors')
+        const tx = idb.transaction(ENTITYDB_VECTORS_STORE, 'readonly')
+        const store = tx.objectStore(ENTITYDB_VECTORS_STORE)
         const records = await store.getAll()
 
         if (cancelled) return

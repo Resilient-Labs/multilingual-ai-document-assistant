@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { POST } from '@/app/api/translate/route'
+import { getCircuitBreaker } from '@/lib/guardrails/circuit-breaker'
 import { extractTranslatedTextFromNllbResponse } from '@/lib/translation/parseNllbResponse'
 
 function jsonRequest(body: unknown): Request {
@@ -153,17 +154,21 @@ describe('extractTranslatedTextFromNllbResponse', () => {
  *     collect requests so private Spaces / paid HF Inference Endpoints
  *     behind the same base URL remain a one-env-var rollback.
  *   - A single `AbortController` bounds the whole round-trip against
- *     `TRANSLATE_TIMEOUT_MS`, so timeouts/network failures can occur on
- *     either step and must map to the same HTTP statuses as before
- *     (502 for `timeout` / `upstream_http_error` / `invalid_response` /
- *     `empty_response`, 503 for `network`).
+ *     `TRANSLATE_TIMEOUT_MS`. Provider failures and most thrown errors are
+ *     surfaced via `translateFallback` (**503** + user-safe message, same as
+ *     missing Space URL).
  */
+const TRANSLATE_UNAVAILABLE =
+  'The translation service is temporarily unavailable. Your text has been preserved — please try again in a moment.'
+
 describe('POST /api/translate', () => {
   const fetchMock = vi.fn()
 
   beforeEach(() => {
     process.env.HF_TRANSLATE_SPACE_URL = TEST_SPACE_URL
     vi.stubGlobal('fetch', fetchMock)
+    // Isolate failures: consecutive 503s in this file trip the shared breaker.
+    getCircuitBreaker('deepl').reset()
   })
 
   afterEach(() => {
@@ -173,27 +178,28 @@ describe('POST /api/translate', () => {
     delete process.env.HF_TRANSLATE_SPACE_URL
   })
 
-  it('returns 400 when text is missing', async () => {
+  it('returns 422 when text is missing', async () => {
     const res = await POST(jsonRequest({ targetLang: 'es' }))
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(422)
   })
 
-  it('returns 400 when text is only whitespace', async () => {
+  it('returns 422 when text is only whitespace', async () => {
     const res = await POST(jsonRequest({ text: '   \n\t', targetLang: 'es' }))
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(422)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('returns 400 when targetLang is missing', async () => {
+  it('returns 422 when targetLang is missing', async () => {
     const res = await POST(jsonRequest({ text: 'Hello' }))
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(422)
   })
 
-  it('returns 400 for unsupported targetLang', async () => {
+  it('returns 422 for unsupported targetLang', async () => {
     const res = await POST(jsonRequest({ text: 'Hello', targetLang: 'xx' }))
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(422)
     const j = (await res.json()) as { error?: string }
-    expect(j.error).toMatch(/Unsupported/)
+    // Rejected by Zod enum before domain `checkTranslateLang`.
+    expect(j.error).toMatch(/targetLang must be one of:/)
   })
 
   it('returns original text for English target without calling fetch', async () => {
@@ -209,7 +215,7 @@ describe('POST /api/translate', () => {
     const res = await POST(jsonRequest({ text: 'Hello', targetLang: 'es' }))
     expect(res.status).toBe(503)
     const j = (await res.json()) as { error?: string }
-    expect(j.error).toBe('Translation service is not configured')
+    expect(j.error).toBe(TRANSLATE_UNAVAILABLE)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -218,7 +224,7 @@ describe('POST /api/translate', () => {
     const res = await POST(jsonRequest({ text: 'Hello', targetLang: 'es' }))
     expect(res.status).toBe(503)
     const j = (await res.json()) as { error?: string }
-    expect(j.error).toBe('Translation service is not configured')
+    expect(j.error).toBe(TRANSLATE_UNAVAILABLE)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -299,42 +305,44 @@ describe('POST /api/translate', () => {
     expect(pollInit.headers?.Authorization).toBe('Bearer test-hf-token')
   })
 
-  it('returns 502 when the submit step returns a non-2xx HTTP status', async () => {
+  it('returns 503 when the submit step returns a non-2xx HTTP status', async () => {
     // Step-1 failure: Space temporarily unavailable / malformed request at
-    // the Gradio API layer. The helper tags this `upstream_http_error` so
-    // the route maps it to 502 without making the collect call.
+    // the Gradio API layer. The route uses translateFallback (503) for all
+    // provider failures.
     fetchMock.mockImplementationOnce(async () =>
       textResponse(503, 'upstream unavailable')
     )
     const res = await POST(jsonRequest({ text: 'Hello', targetLang: 'de' }))
-    expect(res.status).toBe(502)
+    expect(res.status).toBe(503)
+    const j = (await res.json()) as { error?: string }
+    expect(j.error).toBe(TRANSLATE_UNAVAILABLE)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('returns 502 when the submit step returns no event_id (invalid JSON shape)', async () => {
+  it('returns 503 when the submit step returns no event_id (invalid JSON shape)', async () => {
     // Step-1 2xx but payload does not carry `event_id` — the helper
-    // cannot proceed to collect. Maps to `invalid_response` → 502.
+    // cannot proceed to collect. Maps to translateFallback (503).
     fetchMock.mockImplementationOnce(async () =>
       textResponse(200, JSON.stringify({ not_an_event_id: true }))
     )
     const res = await POST(jsonRequest({ text: 'Hello', targetLang: 'it' }))
-    expect(res.status).toBe(502)
+    expect(res.status).toBe(503)
     const j = (await res.json()) as { error?: string }
-    expect(j.error).toBe('Translation service returned an error')
+    expect(j.error).toBe(TRANSLATE_UNAVAILABLE)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('returns 502 when the collect step returns a malformed SSE body (no data frame)', async () => {
+  it('returns 503 when the collect step returns a malformed SSE body (no data frame)', async () => {
     // Step-2 2xx but the body has no `data:` line — Gradio contract
-    // violated. Maps to `invalid_response` → 502.
+    // violated. Route surfaces translateFallback (503).
     fetchMock
       .mockImplementationOnce(async () => submitResponse('evt_garbage'))
       .mockImplementationOnce(async () => textResponse(200, 'garbage\n'))
 
     const res = await POST(jsonRequest({ text: 'Hello', targetLang: 'it' }))
-    expect(res.status).toBe(502)
+    expect(res.status).toBe(503)
     const j = (await res.json()) as { error?: string }
-    expect(j.error).toBe('Translation service returned an error')
+    expect(j.error).toBe(TRANSLATE_UNAVAILABLE)
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
@@ -357,26 +365,23 @@ describe('POST /api/translate', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it('returns 502 when the collect stream emits event: error before complete', async () => {
+  it('returns 503 when the collect stream emits event: error before complete', async () => {
     // Space crashed / raised mid-stream. Gradio terminates the SSE with
-    // `event: error` instead of `event: complete`. The helper surfaces
-    // this as `upstream_http_error` so the route maps it to 502 (not a
-    // contract-violation bucket) and includes the error snippet.
+    // `event: error` instead of `event: complete`. Route uses translateFallback.
     fetchMock
       .mockImplementationOnce(async () => submitResponse('evt_err'))
       .mockImplementationOnce(async () => errorSseResponse('Space crashed'))
 
     const res = await POST(jsonRequest({ text: 'Hello', targetLang: 'de' }))
-    expect(res.status).toBe(502)
+    expect(res.status).toBe(503)
     const j = (await res.json()) as { error?: string }
-    expect(j.error).toBe('Translation service returned an error')
+    expect(j.error).toBe(TRANSLATE_UNAVAILABLE)
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it('returns 502 when the collect stream has only heartbeat frames (no complete frame)', async () => {
+  it('returns 503 when the collect stream has only heartbeat frames (no complete frame)', async () => {
     // Stream ended without a terminal `event: complete` frame — e.g.
-    // the connection dropped during cold-start. No usable payload, so
-    // the helper maps this to `invalid_response` → 502.
+    // the connection dropped during cold-start. No usable payload → 503.
     fetchMock
       .mockImplementationOnce(async () => submitResponse('evt_heartbeat_only'))
       .mockImplementationOnce(async () =>
@@ -384,56 +389,56 @@ describe('POST /api/translate', () => {
       )
 
     const res = await POST(jsonRequest({ text: 'Hello', targetLang: 'it' }))
-    expect(res.status).toBe(502)
+    expect(res.status).toBe(503)
     const j = (await res.json()) as { error?: string }
-    expect(j.error).toBe('Translation service returned an error')
+    expect(j.error).toBe(TRANSLATE_UNAVAILABLE)
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it('returns 502 when the collect step returns a non-2xx HTTP status', async () => {
+  it('returns 503 when the collect step returns a non-2xx HTTP status', async () => {
     // Step-2 upstream HTTP error (e.g. event expired / Space worker died).
-    // Also an `upstream_http_error`, also 502.
     fetchMock
       .mockImplementationOnce(async () => submitResponse('evt_gone'))
       .mockImplementationOnce(async () => textResponse(500, 'poll failure'))
 
     const res = await POST(jsonRequest({ text: 'Hello', targetLang: 'de' }))
-    expect(res.status).toBe(502)
+    expect(res.status).toBe(503)
+    const j = (await res.json()) as { error?: string }
+    expect(j.error).toBe(TRANSLATE_UNAVAILABLE)
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it('returns 502 when the collect step returns an empty translation', async () => {
-    // Step-2 well-formed SSE but `data: [""]` — provider returned an
-    // empty string. Maps to `empty_response` → 502.
+  it('returns 503 when the collect step returns an empty translation', async () => {
+    // Step-2 well-formed SSE but `data: [""]` — route rejects after provider.
     fetchMock
       .mockImplementationOnce(async () => submitResponse('evt_empty'))
       .mockImplementationOnce(async () => sseResponse(''))
 
     const res = await POST(jsonRequest({ text: 'Hello', targetLang: 'ko' }))
-    expect(res.status).toBe(502)
+    expect(res.status).toBe(503)
+    const j = (await res.json()) as { error?: string }
+    expect(j.error).toBe(TRANSLATE_UNAVAILABLE)
   })
 
-  it('returns 502 when upstream fetch aborts (timeout) on the submit step', async () => {
-    // A single AbortController bounds the round-trip; an AbortError at
-    // step 1 must surface as `timeout` → 502.
+  it('returns 503 when upstream fetch aborts (timeout) on the submit step', async () => {
+    // AbortError at step 1 still goes through translateFallback (503).
     const err = new Error('Aborted')
     err.name = 'AbortError'
     fetchMock.mockRejectedValueOnce(err)
     const res = await POST(jsonRequest({ text: 'Hello', targetLang: 'pt' }))
-    expect(res.status).toBe(502)
+    expect(res.status).toBe(503)
     const j = (await res.json()) as { error?: string }
-    expect(j.error).toBe('Translation service returned an error')
+    expect(j.error).toBe(TRANSLATE_UNAVAILABLE)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('returns 503 when upstream fetch fails without AbortError on the submit step', async () => {
-    // Pre-flight network failure (DNS/TCP/TLS). Maps to `network` → 503,
-    // which is distinct from upstream 5xx handling above.
+    // Network failure (DNS/TCP/TLS) — same user-facing fallback as other errors.
     fetchMock.mockRejectedValueOnce(new Error('ECONNRESET'))
     const res = await POST(jsonRequest({ text: 'Hello', targetLang: 'ru' }))
     expect(res.status).toBe(503)
     const j = (await res.json()) as { error?: string }
-    expect(j.error).toBe('Translation service is not configured')
+    expect(j.error).toBe(TRANSLATE_UNAVAILABLE)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })

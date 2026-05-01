@@ -58,6 +58,18 @@ Alphabetical inventory (55). Import from `@/components/ui/<name>`.
 
 ---
 
+### SavedDocumentsList
+
+|                |                                                                                                                                                           |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Location**   | `components/features/document/SavedDocumentsList.tsx`                                                                                                    |
+| **Purpose**    | Lists `extracted_document` rows from EntityDB (this browser); opening an item restores `sessionStorage` translate session (or builds from OCR + defaults) and navigates to `/translate/[docId]`. |
+| **Props**      | `className?`                                                                                                                                              |
+| **Built with** | Button, Spinner, lucide-react; `listSavedDocumentsFromEntityDB` / `getDocumentFromEntityDB` (`lib/entitydb-persist`), `getTranslateSessionByDocId` (`lib/entitydb-translate-cache`) |
+| **Usage**      | `app/page.tsx` — under Upload on desktop and inside the mobile Upload tab                                                                                  |
+
+---
+
 ### ErrorPopup
 
 |                |                                                                                     |
@@ -106,6 +118,17 @@ Alphabetical inventory (55). Import from `@/components/ui/<name>`.
 
 ---
 
+## App routes (reference)
+
+### Translate document page (`app/translate/[id]/page.tsx`)
+
+|                |                                                                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Purpose**    | Client translate flow: session restore, translation + summary + safety + Ask; header **Delete document** (trash) removes all browser-stored data for that upload (EntityDB rows + related client keys), then navigates home. |
+| **Built with** | Card, Button, Textarea, Spinner, AlertDialog, lucide-react                                                                                              |
+
+---
+
 ## App-level components (root of `components/`)
 
 ### UploadForm
@@ -113,7 +136,7 @@ Alphabetical inventory (55). Import from `@/components/ui/<name>`.
 |                |                                                                                                                                    |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | **Location**   | `components/upload-form.tsx`                                                                                                       |
-| **Purpose**    | File upload (dropzone), processing, OCR persistence, navigation to translate flow; writes `sessionStorage` keys consumed by the translate page. |
+| **Purpose**    | File upload (dropzone), processing, OCR persistence, navigation to translate flow; writes `sessionStorage` keys consumed by the translate page. Landing uses `SavedDocumentsList` for reopening prior uploads. |
 | **Built with** | Button, Select, Spinner, react-dropzone, lucide-react                                                                              |
 
 ---
