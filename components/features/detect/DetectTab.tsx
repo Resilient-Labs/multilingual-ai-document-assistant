@@ -115,12 +115,12 @@ export function DetectTab({ docId, className, targetLang }: DetectTabProps) {
 
   useEffect(() => {
     if (!docError) return
-    showError(t.documentLoadFailed, docError)
+    showError(t.documentLoadFailed, docError, '/')
   }, [docError, showError, t.documentLoadFailed])
 
   useEffect(() => {
     if (!safetyError) return
-    showError(t.analysisFailedGeneric, safetyError)
+    showError(t.analysisFailedGeneric, safetyError, '/')
   }, [safetyError, showError, t.analysisFailedGeneric])
 
   if (docLoading) {
