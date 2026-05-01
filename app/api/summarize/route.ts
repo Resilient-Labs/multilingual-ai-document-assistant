@@ -14,7 +14,7 @@ import { detectPii, logWarn } from '@/lib/guardrails'
  * When `outputLanguage` is a non-English BCP-47 code (e.g. `es`, `zh-TW`), the
  * model is instructed to write the full summary in that language.
  *
- * PII policy (matches `/api/translate`):
+ * PII policy (matches `/api/translate` and `/api/tts`):
  * The summarize route is meant for users whose documents *will* contain
  * sensitive data — immigration paperwork, court filings, benefits letters,
  * medical bills. Refusing to summarize is the failure mode, not a
