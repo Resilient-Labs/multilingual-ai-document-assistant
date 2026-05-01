@@ -87,8 +87,8 @@ export default function Page() {
   /* ── Desktop ─────────────────────────────────────────────────────── */
   return (
     <div className="flex min-h-screen bg-background">
-      {/* Left — branding panel */}
-      <div className="hidden lg:flex flex-col justify-center px-16 py-12 w-[42%] bg-muted/20 border-r border-border">
+      {/* Left — branding panel (lg+ only) */}
+      <div className="hidden lg:flex flex-col justify-center px-10 py-12 w-[42%] bg-muted/20 border-r border-border xl:px-16">
         <div className="max-w-sm">
           <div className="flex items-center gap-3 mb-10">
             <Image
@@ -103,7 +103,7 @@ export default function Page() {
             </span>
           </div>
 
-          <h1 className="text-4xl font-bold font-display leading-tight mb-4">
+          <h1 className="text-3xl xl:text-4xl font-bold font-display leading-tight mb-4">
             Breaking Language Barriers
           </h1>
           <p className="text-muted-foreground text-base leading-relaxed mb-10">
@@ -129,9 +129,9 @@ export default function Page() {
       </div>
 
       {/* Right — form */}
-      <div className="flex flex-1 flex-col items-center justify-center px-6 py-12 lg:px-16">
-        {/* Logo shown on md screens where left panel is hidden */}
-        <div className="lg:hidden flex items-center gap-3 mb-8 self-start">
+      <div className="flex flex-1 flex-col items-center justify-center px-6 py-10 md:px-10 md:py-12 lg:px-12 xl:px-16">
+        {/* Logo shown on md/tablet screens where left panel is hidden */}
+        <div className="lg:hidden flex w-full max-w-2xl items-center gap-3 mb-6 sm:mb-8">
           <Image
             src="/logo.svg"
             alt="Resilient Labs"
@@ -143,13 +143,13 @@ export default function Page() {
         </div>
 
         <div className="w-full max-w-2xl">
-          <h2 className="text-3xl font-bold font-display mb-2">
+          <h2 className="text-2xl sm:text-3xl font-bold font-display mb-2">
             Upload a document
           </h2>
-          <p className="text-base text-muted-foreground mb-8">
+          <p className="text-sm sm:text-base text-muted-foreground mb-6 sm:mb-8">
             Supports PDF, DOC, DOCX, TXT, and images up to 10 MB.
           </p>
-          <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-8">
             <UploadForm />
           </div>
         </div>

@@ -134,7 +134,7 @@ export function ReadAloudPanel({
         <Button
           type="button"
           variant="outline"
-          className="gap-2"
+          className="h-10 w-full gap-2 sm:w-auto"
           onClick={handleReadAloudClick}
           disabled={ttsLoading || isReadAloudDisabled}
         >
@@ -179,7 +179,7 @@ export function ReadAloudPanel({
         open={isReadAloudOpen && hasVoiceFilters}
         onOpenChange={setIsReadAloudOpen}
       >
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md sm:w-full">
           <DialogHeader>
             <DialogTitle>Read Aloud voice settings</DialogTitle>
             <DialogDescription>
@@ -209,10 +209,11 @@ export function ReadAloudPanel({
             )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
             <Button
               type="button"
               variant="outline"
+              className="h-10 w-full sm:w-auto"
               onClick={() => setIsReadAloudOpen(false)}
               disabled={ttsLoading}
             >
@@ -222,7 +223,7 @@ export function ReadAloudPanel({
               type="button"
               onClick={handleReadAloudGenerate}
               disabled={ttsLoading || isReadAloudDisabled}
-              className="gap-2"
+              className="h-10 w-full gap-2 sm:w-auto"
             >
               {ttsLoading && <Spinner className="size-4" aria-hidden="true" />}
               {ttsLoading ? 'Generating...' : 'Start'}

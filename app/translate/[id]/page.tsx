@@ -163,140 +163,147 @@ export default function TranslatePage() {
     : ''
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="shrink-0 border-b border-border px-6 py-4">
-        <div className="mx-auto flex max-w-2xl items-center justify-between gap-4">
+    <div className="flex min-h-[100dvh] flex-col bg-background">
+      <header className="sticky top-0 z-20 shrink-0 border-b border-border bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-6 sm:py-4">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 sm:gap-4">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => router.push('/')}
-            className="-ml-2 gap-2 text-muted-foreground"
+            className="-ml-2 h-10 gap-2 text-muted-foreground sm:h-9"
           >
             <ArrowLeftIcon className="size-4" />
-            Back
+            <span className="hidden sm:inline">Back</span>
+            <span className="sr-only sm:not-sr-only">Back</span>
           </Button>
 
           {session && (
             <div className="flex min-w-0 flex-col items-end gap-0.5 text-right">
-              <p className="max-w-[200px] truncate text-sm font-medium md:max-w-xs">
+              <p className="max-w-[55vw] truncate text-sm font-medium sm:max-w-xs md:max-w-md">
                 {session.filename}
               </p>
               <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                {sourceLangLabel}
-                <ArrowRightIcon className="size-3" />
-                {targetLangLabel}
+                <span className="truncate">{sourceLangLabel}</span>
+                <ArrowRightIcon className="size-3 shrink-0" />
+                <span className="truncate">{targetLangLabel}</span>
               </p>
             </div>
           )}
         </div>
       </header>
 
-      <main className="min-w-0 flex-1 px-6 py-8">
-        <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-6">
-          {/* Original document */}
-          <Card className="flex w-full min-w-0 flex-col overflow-hidden">
-            <CardHeader>
-              <CardTitle>Original Document</CardTitle>
-            </CardHeader>
-            <CardContent className="flex min-w-0 flex-col gap-4 overflow-y-auto">
-              {!session ? (
-                <div className="flex items-center justify-center py-8">
-                  <Spinner className="size-6" aria-label="Loading document" />
-                </div>
-              ) : (
-                <>
-                  <textarea
-                    ref={originalDocTextareaRef}
-                    id="ask-original-document"
-                    readOnly
-                    value={session.fullText}
-                    className={cn(
-                      'block min-h-16 min-w-0 w-full max-w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base transition-colors outline-none md:text-sm dark:bg-input/30',
-                      'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
-                      'min-h-[120px] max-h-64 resize-none overflow-y-auto',
-                      'cursor-default'
-                    )}
-                    aria-label="Original document text"
-                  />
-                  {TTS_SUPPORTED_LANGS.has(session.sourceLang) && (
-                    <ReadAloudPanel
-                      text={session.fullText}
-                      language={session.sourceLang}
-                      labelSuffix={sourceLangLabel}
-                    />
-                  )}
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Translation */}
-          <Card className="flex w-full min-w-0 flex-col overflow-hidden">
-            <CardHeader>
-              <CardTitle>
-                Translation
-                {session && (
-                  <span className="ml-2 text-sm font-normal text-muted-foreground">
-                    ({targetLangLabel})
-                  </span>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex min-w-0 flex-col gap-4 overflow-y-auto">
-              {translateLoading && (
-                <div className="flex items-center justify-center py-8">
-                  <Spinner
-                    className="size-6"
-                    aria-label="Translating document"
-                  />
-                </div>
-              )}
-
-              {!translateLoading &&
-                !translateError &&
-                translatedText !== null &&
-                session && (
+      <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-8">
+        <div className="mx-auto flex w-full min-w-0 max-w-6xl flex-col gap-4 sm:gap-6">
+          {/* Original + Translation: stack on mobile/tablet, side-by-side on desktop */}
+          <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
+            {/* Original document */}
+            <Card className="flex w-full min-w-0 flex-col overflow-hidden">
+              <CardHeader>
+                <CardTitle>Original Document</CardTitle>
+              </CardHeader>
+              <CardContent className="flex min-w-0 flex-col gap-4 overflow-y-auto">
+                {!session ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Spinner className="size-6" aria-label="Loading document" />
+                  </div>
+                ) : (
                   <>
-                    <Textarea
+                    <textarea
+                      ref={originalDocTextareaRef}
+                      id="ask-original-document"
                       readOnly
-                      value={translatedText}
-                      className="min-h-[120px] max-h-64 min-w-0 resize-none overflow-y-auto"
-                      aria-label="Translated text"
+                      value={session.fullText}
+                      className={cn(
+                        'block min-h-16 min-w-0 w-full max-w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base transition-colors outline-none md:text-sm dark:bg-input/30',
+                        'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
+                        'min-h-[160px] max-h-64 sm:min-h-[180px] lg:max-h-[22rem] resize-none overflow-y-auto',
+                        'cursor-default'
+                      )}
+                      aria-label="Original document text"
                     />
-                    {TTS_SUPPORTED_LANGS.has(session.targetLang) && (
+                    {TTS_SUPPORTED_LANGS.has(session.sourceLang) && (
                       <ReadAloudPanel
-                        text={translatedText}
-                        language={session.targetLang}
-                        labelSuffix={targetLangLabel}
+                        text={session.fullText}
+                        language={session.sourceLang}
+                        labelSuffix={sourceLangLabel}
                       />
                     )}
                   </>
                 )}
-            </CardContent>
-          </Card>
-          {/* Summary */}
-          {translatedText && session && (
-            <TranslateSummary
-              translatedText={translatedText}
-              targetLangLabel={targetLangLabel}
-              outputLanguage={session.targetLang}
-            />
-          )}
+              </CardContent>
+            </Card>
 
-          {session &&
-            (() => {
-              const safetyLang = getSafetyLang(session.targetLang)
-              return (
-                <Card className="flex w-full min-w-0 flex-col overflow-hidden">
-                  <CardHeader>
-                    <CardTitle>{SAFETY_UI_STRINGS[safetyLang].sectionTitle}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex min-w-0 flex-col gap-4 overflow-y-auto">
-                    <DetectTab docId={id} targetLang={session.targetLang} />
-                  </CardContent>
-                </Card>
-              )
-            })()}
+            {/* Translation */}
+            <Card className="flex w-full min-w-0 flex-col overflow-hidden">
+              <CardHeader>
+                <CardTitle className="flex flex-wrap items-baseline gap-x-2">
+                  <span>Translation</span>
+                  {session && (
+                    <span className="text-sm font-normal text-muted-foreground">
+                      ({targetLangLabel})
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex min-w-0 flex-col gap-4 overflow-y-auto">
+                {translateLoading && (
+                  <div className="flex items-center justify-center py-8">
+                    <Spinner
+                      className="size-6"
+                      aria-label="Translating document"
+                    />
+                  </div>
+                )}
+
+                {!translateLoading &&
+                  !translateError &&
+                  translatedText !== null &&
+                  session && (
+                    <>
+                      <Textarea
+                        readOnly
+                        value={translatedText}
+                        className="min-h-[160px] max-h-64 sm:min-h-[180px] lg:max-h-[22rem] min-w-0 resize-none overflow-y-auto"
+                        aria-label="Translated text"
+                      />
+                      {TTS_SUPPORTED_LANGS.has(session.targetLang) && (
+                        <ReadAloudPanel
+                          text={translatedText}
+                          language={session.targetLang}
+                          labelSuffix={targetLangLabel}
+                        />
+                      )}
+                    </>
+                  )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Summary + Detect: side-by-side on desktop, stacked otherwise */}
+          <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
+            {translatedText && session && (
+              <TranslateSummary
+                translatedText={translatedText}
+                targetLangLabel={targetLangLabel}
+                outputLanguage={session.targetLang}
+              />
+            )}
+
+            {session &&
+              (() => {
+                const safetyLang = getSafetyLang(session.targetLang)
+                return (
+                  <Card className="flex w-full min-w-0 flex-col overflow-hidden">
+                    <CardHeader>
+                      <CardTitle>{SAFETY_UI_STRINGS[safetyLang].sectionTitle}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex min-w-0 flex-col gap-4 overflow-y-auto">
+                      <DetectTab docId={id} targetLang={session.targetLang} />
+                    </CardContent>
+                  </Card>
+                )
+              })()}
+          </div>
 
           {session && (
             <AskTab

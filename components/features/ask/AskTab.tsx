@@ -1438,7 +1438,7 @@ export function AskTab({
               </Alert>
             ) : null}
 
-            <div className="flex max-h-80 min-h-[120px] flex-col gap-3 overflow-y-auto pr-1">
+            <div className="flex max-h-80 min-h-[140px] flex-col gap-3 overflow-y-auto pr-1 sm:max-h-96 lg:max-h-[28rem]">
               {showTopSuggestedChips && (
                 <div className="flex flex-wrap gap-2 pb-1">
                   {/* [Zaria] — suggested chips. [Brandi] — niche prompts when chunk metadata exists. [Team 1 eval] — EN/ES/VI review. */}
@@ -1524,7 +1524,7 @@ export function AskTab({
                     >
                       <div
                         className={cn(
-                          'max-w-[85%] rounded-lg px-3 py-2 text-sm',
+                          'max-w-[88%] rounded-lg px-3 py-2 text-sm break-words sm:max-w-[80%] lg:max-w-[70%]',
                           isAssistant
                             ? 'bg-muted text-foreground'
                             : 'bg-primary text-primary-foreground'
@@ -1549,7 +1549,7 @@ export function AskTab({
                         )}
                       </div>
                       {isAssistant && assistantPostStreamReady && (
-                        <div className="flex w-full min-w-0 max-w-full flex-col gap-2 sm:max-w-[min(100%,36rem)]">
+                        <div className="flex w-full min-w-0 max-w-full flex-col gap-2 sm:max-w-[min(100%,36rem)] lg:max-w-[min(100%,42rem)]">
                           {/* [Brandi] — “Not found” regex + [Jasmin] — suppress when overlap band is `high` (bad chunks / full-doc fallback used to skew overlap). */}
                           {showCantCallout && (
                             <Alert className="border-muted-foreground/40 bg-muted/60">
@@ -1599,7 +1599,7 @@ export function AskTab({
                                         : packForChromeAtTurn.confidence.lowSentence}
                                 </div>
                                 {refs.length > 0 && !cantPill && (
-                                  <Collapsible className="w-full max-w-md rounded-md border border-border bg-background/80 text-left text-xs">
+                                  <Collapsible className="w-full max-w-full rounded-md border border-border bg-background/80 text-left text-xs sm:max-w-lg lg:max-w-2xl">
                                     {/* [Brandi] — snippets are what was POSTed; page labels are placeholders until doc layout metadata exists. */}
                                     <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 px-3 py-2 font-medium hover:bg-muted/60 [&[data-state=open]>svg]:rotate-180">
                                       <span>
@@ -1747,7 +1747,7 @@ export function AskTab({
                   Boolean(chatHistory.error)
                 }
                 aria-label={askPromptPack.inputAriaLabel}
-                className="flex-1"
+                className="h-11 flex-1 text-base sm:h-10 sm:text-sm"
               />
               <Button
                 type="button"
@@ -1760,7 +1760,7 @@ export function AskTab({
                   ragChunkStatus !== 'ready' ||
                   Boolean(chatHistory.error)
                 }
-                className="shrink-0"
+                className="h-11 shrink-0 px-4 sm:h-10"
               >
                 {isLoading ? (
                   <Spinner className="size-4" aria-hidden="true" />
