@@ -1,0 +1,5 @@
+torch
+torchaudio
+coqui-tts[codec]
+soundfile
+numpy

@@ -14,3 +14,7 @@ e2e/.auth/
 .tmp/
 logs/
 .vscode
+
+# Local test artifacts
+*.wav
+body.json
