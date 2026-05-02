@@ -1,4 +1,6 @@
-transformers<5.0.0
-coqui-tts[codec]
+TTS
+transformers>=4.18.0,<5.0.0
+torch
+torchaudio
 soundfile
 numpy

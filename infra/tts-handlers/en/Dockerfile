@@ -1,11 +1,16 @@
-FROM huggingface/transformers-pytorch-cpu:latest
+FROM python:3.10-slim
 
-# Install espeak-ng — required by Coqui VITS phonemizer
+# Install system dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends espeak-ng && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get install -y --no-install-recommends \
+        espeak-ng \
+        libsndfile1 \
+        gcc \
+        g++ \
+        git \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies (coqui-tts capped below transformers 5.x)
+# Install Python dependencies
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
