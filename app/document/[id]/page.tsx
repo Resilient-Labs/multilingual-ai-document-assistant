@@ -30,11 +30,11 @@ export default async function DocumentPage({
   }
 
   return (
-    <div className="flex h-screen flex-col md:flex-row">
-      <div className="w-full overflow-y-auto border-b border-border p-6 md:w-1/2 md:border-b-0 md:border-r">
+    <div className="flex min-h-[100dvh] flex-col md:h-screen md:flex-row">
+      <div className="w-full overflow-y-auto border-b border-border p-4 sm:p-6 md:w-1/2 md:border-b-0 md:border-r lg:p-8">
         <ExtractedDataPanel sessionId={id} />
       </div>
-      <div className="flex w-full items-center justify-center overflow-y-auto p-6 md:w-1/2">
+      <div className="flex w-full items-center justify-center overflow-y-auto p-4 sm:p-6 md:w-1/2 lg:p-8">
         <p className="text-sm text-muted-foreground">
           Team 2, 3, 4, 5 panels go here
         </p>

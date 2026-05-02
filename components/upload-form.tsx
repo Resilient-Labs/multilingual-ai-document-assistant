@@ -363,7 +363,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
           onClick={swapLanguages}
           disabled={sourceLang === 'auto'}
           aria-label="Swap languages"
-          className="flex items-center justify-center rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40 sm:h-9 sm:w-9"
         >
           <ArrowRightLeftIcon className="size-4" />
         </button>
@@ -424,9 +424,9 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
                   type="button"
                   onClick={removeFile}
                   aria-label="Remove file"
-                  className="ml-1 rounded p-0.5 text-muted-foreground hover:text-destructive transition-colors"
+                  className="ml-1 inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <XIcon className="size-3.5" />
+                  <XIcon className="size-4" />
                 </button>
               </div>
               <span className="text-xs text-indigo-600">Tap to replace</span>
@@ -472,7 +472,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
       <div
         {...getRootProps()}
         className={cn(
-          'flex flex-col items-center justify-center gap-5 rounded-2xl border-2 border-dashed px-10 py-16 text-center cursor-pointer transition-colors min-h-[280px]',
+          'flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed px-6 py-12 text-center cursor-pointer transition-colors min-h-[240px] sm:gap-5 sm:px-10 sm:py-16 sm:min-h-[280px]',
           isDragActive
             ? 'border-indigo-400 bg-indigo-200'
             : 'border-indigo-300 bg-indigo-100 hover:border-indigo-400 hover:bg-indigo-200'
@@ -494,7 +494,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
                 type="button"
                 onClick={removeFile}
                 aria-label="Remove file"
-                className="ml-1 rounded p-1 text-muted-foreground hover:text-destructive transition-colors"
+                className="ml-1 inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <XIcon className="size-4" />
               </button>
@@ -505,14 +505,14 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
           </div>
         ) : (
           <>
-            <UploadCloudIcon className="size-16 text-indigo-400" />
-            <div className="flex flex-col gap-2">
-              <p className="text-lg font-semibold">
+            <UploadCloudIcon className="size-12 text-indigo-400 sm:size-16" />
+            <div className="flex flex-col gap-1.5 sm:gap-2">
+              <p className="text-base font-semibold sm:text-lg">
                 {isDragActive
                   ? 'Drop your file here'
                   : 'Drag & drop or choose a file'}
               </p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs text-muted-foreground sm:text-sm">
                 PDF, DOC, DOCX, TXT, or image — 10 MB max
               </p>
             </div>
@@ -520,7 +520,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
               size="lg"
               variant="outline"
               type="button"
-              className="px-8 text-base"
+              className="h-11 px-6 text-sm sm:px-8 sm:text-base"
             >
               Browse files
             </Button>

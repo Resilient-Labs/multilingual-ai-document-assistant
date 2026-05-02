@@ -115,7 +115,7 @@ export default function Page() {
             </span>
           </div>
 
-          <h1 className="text-4xl font-bold font-display leading-tight mb-4">
+          <h1 className="text-3xl xl:text-4xl font-bold font-display leading-tight mb-4">
             Breaking Language Barriers
           </h1>
           <p className="text-muted-foreground text-base leading-relaxed mb-10">
@@ -155,13 +155,13 @@ export default function Page() {
         </div>
 
         <div className="w-full max-w-2xl">
-          <h2 className="text-3xl font-bold font-display mb-2">
+          <h2 className="text-2xl sm:text-3xl font-bold font-display mb-2">
             Upload a document
           </h2>
-          <p className="text-base text-muted-foreground mb-8">
+          <p className="text-sm sm:text-base text-muted-foreground mb-6 sm:mb-8">
             Supports PDF, DOC, DOCX, TXT, and images up to 10 MB.
           </p>
-          <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-8">
             <UploadForm />
           </div>
           <SavedDocumentsList className="mt-8" />

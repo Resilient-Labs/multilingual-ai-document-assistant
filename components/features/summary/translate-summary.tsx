@@ -121,10 +121,10 @@ export function TranslateSummary({
   return (
     <Card className="flex w-full min-w-0 flex-col overflow-hidden">
       <CardHeader>
-        <CardTitle>
-          Summary
+        <CardTitle className="flex flex-wrap items-baseline gap-x-2">
+          <span>Summary</span>
           {targetLangLabel && (
-            <span className="ml-2 text-sm font-normal text-muted-foreground">
+            <span className="text-sm font-normal text-muted-foreground">
               ({targetLangLabel})
             </span>
           )}
@@ -145,13 +145,14 @@ export function TranslateSummary({
             <Textarea
               readOnly
               value={summary}
-              className="min-h-[120px] max-h-64 min-w-0 resize-none overflow-y-auto"
+              className="min-h-[140px] max-h-64 lg:max-h-[22rem] min-w-0 resize-none overflow-y-auto"
               aria-label="Summary text"
             />
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
+                className="h-10 w-full sm:w-auto"
                 onClick={() => navigator.clipboard.writeText(summary)}
               >
                 Copy Summary
