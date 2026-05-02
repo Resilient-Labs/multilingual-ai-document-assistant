@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import Image from 'next/image'
 import {
   GlobeIcon,
@@ -9,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { UploadForm } from '@/components/upload-form'
+import { SavedDocumentsList } from '@/components/features/document/SavedDocumentsList'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 
 const NAV_TABS = [
@@ -20,6 +22,15 @@ const NAV_TABS = [
 
 export default function Page() {
   const isMobile = useIsMobile()
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    // `upload-form` deletes `current-doc-id` from EntityDB at the start of each
+    // new upload (replace flow). After translate, that key still points at the
+    // last doc, so returning home and uploading again would wipe that doc.
+    // On landing we are not "replacing" an in-flight doc — clear the pointer.
+    sessionStorage.removeItem('current-doc-id')
+  }, [])
 
   /* ── Mobile ─────────────────────────────────────────────────────── */
   if (isMobile) {
@@ -39,8 +50,9 @@ export default function Page() {
           className="flex flex-col flex-1 overflow-hidden gap-0"
         >
           <main className="flex-1 overflow-auto px-4 pb-2">
-            <TabsContent value="upload" className="h-full mt-0">
+            <TabsContent value="upload" className="h-full mt-0 space-y-4">
               <UploadForm mobile />
+              <SavedDocumentsList className="border-t border-border pt-4" />
             </TabsContent>
             <TabsContent value="translate" className="mt-0">
               <div className="flex flex-col items-center justify-center h-64 text-muted-foreground text-sm">
@@ -86,9 +98,9 @@ export default function Page() {
 
   /* ── Desktop ─────────────────────────────────────────────────────── */
   return (
-    <div className="flex min-h-screen bg-background">
-      {/* Left — branding panel (lg+ only) */}
-      <div className="hidden lg:flex flex-col justify-center px-10 py-12 w-[42%] bg-muted/20 border-r border-border xl:px-16">
+    <div className="flex min-h-screen bg-background lg:h-screen lg:min-h-0 lg:max-h-screen lg:overflow-hidden">
+      {/* Left — branding panel (viewport height, no scroll) */}
+      <div className="hidden lg:flex lg:h-full lg:min-h-0 lg:w-[42%] lg:shrink-0 flex-col justify-center overflow-hidden px-16 py-12 bg-muted/20 border-r border-border">
         <div className="max-w-sm">
           <div className="flex items-center gap-3 mb-10">
             <Image
@@ -128,10 +140,10 @@ export default function Page() {
         </div>
       </div>
 
-      {/* Right — form */}
-      <div className="flex flex-1 flex-col items-center justify-center px-6 py-10 md:px-10 md:py-12 lg:px-12 xl:px-16">
-        {/* Logo shown on md/tablet screens where left panel is hidden */}
-        <div className="lg:hidden flex w-full max-w-2xl items-center gap-3 mb-6 sm:mb-8">
+      {/* Right — form (lg+: scrolls independently; md–lg: page scrolls as before) */}
+      <div className="flex flex-1 flex-col items-center justify-center px-6 py-12 lg:min-h-0 lg:flex-1 lg:justify-start lg:overflow-y-auto lg:px-16">
+        {/* Logo shown on md screens where left panel is hidden */}
+        <div className="lg:hidden flex items-center gap-3 mb-8 self-start">
           <Image
             src="/logo.svg"
             alt="Resilient Labs"
@@ -152,6 +164,7 @@ export default function Page() {
           <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-8">
             <UploadForm />
           </div>
+          <SavedDocumentsList className="mt-8" />
         </div>
       </div>
     </div>

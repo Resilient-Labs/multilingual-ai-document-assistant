@@ -6,20 +6,15 @@
  * entityKey convention as useDocumentSession.
  */
 
-import type { EntityDB } from '@babycommando/entity-db'
 import { getEntityDB } from '@/lib/entitydb'
+import {
+  ENTITYDB_VECTORS_STORE,
+  getIdbFrom,
+  placeholderEmbeddingVector,
+} from '@/lib/entitydb-idb'
 import { extractFieldCandidates } from '@/lib/documents/fieldCandidates'
 import type { CanonicalDocument } from '@/types/CanonicalDocument'
 import type { Document, OCRResult } from '@/types'
-
-/** Xenova/all-MiniLM-L6-v2 embedding size — keeps EntityDB.query from breaking on length mismatch. */
-const PLACEHOLDER_EMBEDDING_DIM = 384
-
-/** Unit-ish placeholder so cosine similarity with query vectors stays finite. */
-function placeholderVector(): number[] {
-  const v = 1 / Math.sqrt(PLACEHOLDER_EMBEDDING_DIM)
-  return Array.from({ length: PLACEHOLDER_EMBEDDING_DIM }, () => v)
-}
 
 export const EXTRACTED_DOCUMENT_ENTITY_KEY = 'extracted_document' as const
 
@@ -31,28 +26,6 @@ export interface PersistOCRParams {
   createdAt: number
   ocr: OCRResult
   file?: File
-}
-
-interface EntityDBInternal {
-  dbPromise: Promise<{
-    transaction(
-      store: string,
-      mode: 'readonly' | 'readwrite'
-    ): {
-      objectStore(name: string): {
-        getAll(): Promise<Array<Record<string, unknown>>>
-        add(value: object): Promise<IDBValidKey>
-      }
-    }
-  }>
-}
-
-function getIdb(): Promise<
-  EntityDBInternal['dbPromise'] extends Promise<infer T> ? T : never
-> {
-  const entityDB: EntityDB = getEntityDB()
-  const internal = entityDB as unknown as EntityDBInternal
-  return internal.dbPromise
 }
 
 export function fileToDataUrl(file: File): Promise<string | undefined> {
@@ -112,7 +85,7 @@ export async function buildCanonicalPersistPayload(
   const record: Record<string, unknown> = {
     entityKey: EXTRACTED_DOCUMENT_ENTITY_KEY,
     text: ocr.fullText,
-    vector: placeholderVector(),
+    vector: placeholderEmbeddingVector(),
     ...canonical,
   }
 
@@ -131,10 +104,63 @@ export async function persistOCRToEntityDB(
   }
 
   const { record } = await buildCanonicalPersistPayload(params)
-  const db = await getIdb()
-  const tx = db.transaction('vectors', 'readwrite')
-  const store = tx.objectStore('vectors')
+  const db = await getIdbFrom(getEntityDB())
+  const tx = db.transaction(ENTITYDB_VECTORS_STORE, 'readwrite')
+  const store = tx.objectStore(ENTITYDB_VECTORS_STORE)
   await store.add(record)
+}
+
+/** One row per document id for landing / “open recent” lists. */
+export interface SavedDocumentListItem {
+  docId: string
+  filename: string
+  extractedAt: number
+}
+
+/**
+ * All canonical extracted documents currently in the vectors store (browser only).
+ * Deduplicates by `document.id`, keeping the row with the latest `extractedAt` / `updatedAt`.
+ */
+export async function listSavedDocumentsFromEntityDB(): Promise<
+  SavedDocumentListItem[]
+> {
+  if (typeof window === 'undefined') {
+    return []
+  }
+
+  const db = await getIdbFrom(getEntityDB())
+  const tx = db.transaction(ENTITYDB_VECTORS_STORE, 'readonly')
+  const store = tx.objectStore(ENTITYDB_VECTORS_STORE)
+  const records = await store.getAll()
+
+  const byDocId = new Map<string, SavedDocumentListItem>()
+
+  for (const r of records) {
+    if (r['entityKey'] !== EXTRACTED_DOCUMENT_ENTITY_KEY) continue
+    const doc = r['document'] as { id?: string; filename?: string } | undefined
+    const id = doc?.id
+    if (!id || typeof doc.filename !== 'string') continue
+
+    const extractedAt =
+      typeof r['extractedAt'] === 'number'
+        ? r['extractedAt']
+        : typeof r['updatedAt'] === 'number'
+          ? r['updatedAt']
+          : 0
+
+    const prev = byDocId.get(id)
+    if (!prev || extractedAt >= prev.extractedAt) {
+      byDocId.set(id, {
+        docId: id,
+        filename: doc.filename,
+        extractedAt,
+      })
+    }
+  }
+
+  return Array.from(byDocId.values()).sort(
+    (a, b) => b.extractedAt - a.extractedAt
+  )
 }
 
 export async function getDocumentFromEntityDB(
@@ -144,9 +170,9 @@ export async function getDocumentFromEntityDB(
     return null
   }
 
-  const db = await getIdb()
-  const tx = db.transaction('vectors', 'readonly')
-  const store = tx.objectStore('vectors')
+  const db = await getIdbFrom(getEntityDB())
+  const tx = db.transaction(ENTITYDB_VECTORS_STORE, 'readonly')
+  const store = tx.objectStore(ENTITYDB_VECTORS_STORE)
   const records = await store.getAll()
 
   const match = records.find((r) => {

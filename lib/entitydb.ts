@@ -12,32 +12,14 @@
 
 import type { EntityDB } from '@babycommando/entity-db'
 
-/**
- * Internal interface and helper for raw IDB access, bypassing the embedding
- * pipeline. Used by getChatHistory to read records without generating vectors.
- * Mirrors the pattern in entitydb-persist.ts and useDocumentSession.ts.
- */
+import {
+  ENTITYDB_VECTORS_STORE,
+  TRANSLATE_SESSION_ENTITY_KEY,
+  getIdbFrom,
+} from '@/lib/entitydb-idb'
 
-interface EntityDBInternal {
-  dbPromise: Promise<{
-    transaction(
-      store: string,
-      mode: 'readonly' | 'readwrite'
-    ): {
-      objectStore(name: string): {
-        getAll(): Promise<Array<Record<string, unknown>>>
-        add(value: object): Promise<IDBValidKey>
-      }
-    }
-  }>
-}
-
-function getIdb(): Promise<
-  EntityDBInternal['dbPromise'] extends Promise<infer T> ? T : never
-> {
-  const entityDB: EntityDB = getEntityDB()
-  const internal = entityDB as unknown as EntityDBInternal
-  return internal.dbPromise
+async function getIdb() {
+  return getIdbFrom(getEntityDB())
 }
 
 const VECTOR_PATH = 'document-assistant'
@@ -116,6 +98,11 @@ export async function queryChunks(
 
 export const CHAT_MESSAGE_ENTITY_KEY = 'chat_message' as const
 
+const NON_RAG_CHUNK_ENTITY_KEYS = new Set<string>([
+  CHAT_MESSAGE_ENTITY_KEY,
+  TRANSLATE_SESSION_ENTITY_KEY,
+])
+
 /**
  * Count vector rows for this document excluding chat history (RAG chunks only).
  * AskTab State 1: no rows ⇒ empty state → Upload (UI flow diagram).
@@ -125,11 +112,12 @@ export async function countRagChunksForDoc(docId: string): Promise<number> {
     return 0
   }
   const db = await getIdb()
-  const tx = db.transaction('vectors', 'readonly')
-  const records = await tx.objectStore('vectors').getAll()
+  const tx = db.transaction(ENTITYDB_VECTORS_STORE, 'readonly')
+  const records = await tx.objectStore(ENTITYDB_VECTORS_STORE).getAll()
   return records.filter(
     (r) =>
-      r['docId'] === docId && r['entityKey'] !== CHAT_MESSAGE_ENTITY_KEY
+      r['docId'] === docId &&
+      !NON_RAG_CHUNK_ENTITY_KEYS.has(r['entityKey'] as string)
   ).length
 }
 
@@ -195,8 +183,8 @@ export async function getChatHistory(docId: string): Promise<ChatMessage[]> {
     return []
   }
   const db = await getIdb()
-  const tx = db.transaction('vectors', 'readonly')
-  const store = tx.objectStore('vectors')
+  const tx = db.transaction(ENTITYDB_VECTORS_STORE, 'readonly')
+  const store = tx.objectStore(ENTITYDB_VECTORS_STORE)
   const records = await store.getAll()
 
   return records

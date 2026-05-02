@@ -798,7 +798,8 @@ function lastUserContentBeforeAssistantIndex(
  * session-scoped only; adjusting that requires `useChatHistory` / EntityDB, not this tab alone.
  */
 
-function privacyStorageKey(docId: string) {
+/** Session flag for Ask privacy acknowledgement; cleared when the doc is removed from the device. */
+export function askPrivacyStorageKey(docId: string) {
   return `ask_privacy_ok_${docId}`
 }
 
@@ -1021,7 +1022,7 @@ export function AskTab({
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
-      const ok = sessionStorage.getItem(privacyStorageKey(docId)) === '1'
+      const ok = sessionStorage.getItem(askPrivacyStorageKey(docId)) === '1'
       setPrivacyAcknowledged(ok)
     } catch {
       setPrivacyAcknowledged(false)
@@ -1060,7 +1061,7 @@ export function AskTab({
 
   const acknowledgePrivacy = useCallback(() => {
     try {
-      sessionStorage.setItem(privacyStorageKey(docId), '1')
+      sessionStorage.setItem(askPrivacyStorageKey(docId), '1')
     } catch {
       /* sessionStorage may be blocked — still allow proceed */
     }
