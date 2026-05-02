@@ -1363,7 +1363,7 @@ export function AskTab({
         <CardTitle>{askPromptPack.chrome.cardTitle}</CardTitle>
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-4">
+      <CardContent className="flex min-w-0 flex-col gap-4">
         {ragChunkStatus === 'checking' && (
           <span className="flex items-center gap-2 text-sm text-muted-foreground">
             <Spinner className="size-3" aria-hidden="true" />

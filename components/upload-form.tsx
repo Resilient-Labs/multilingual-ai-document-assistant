@@ -387,7 +387,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
 
           {file ? (
             <div className="flex flex-col items-center gap-3 px-6 text-center">
-              <div className="flex items-center gap-2 rounded-xl border border-border bg-white px-4 py-2.5 shadow-sm">
+              <div className="flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 shadow-sm">
                 <FileTextIcon className="size-4 shrink-0 text-indigo-500" />
                 <span className="max-w-[180px] truncate text-sm font-medium">
                   {file.name}

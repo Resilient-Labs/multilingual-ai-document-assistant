@@ -140,7 +140,7 @@ export default function TranslatePage() {
 
   if (sessionMissing) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-6">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background px-6 py-8">
         <div className="w-full max-w-md flex flex-col gap-4">
           <Button
             variant="outline"
