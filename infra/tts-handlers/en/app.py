@@ -105,6 +105,11 @@ def _load_model() -> TTS:
     config_path = _patch_config(local_dir)
     print(f"[server] loading {weights}", flush=True)
     model = TTS(model_path=weights, config_path=config_path, progress_bar=False).to("cpu")
+    # Patch missing attributes when loading via model_path (not model_name)
+    if not hasattr(model, "is_multi_lingual"):
+        model.is_multi_lingual = False
+    if not hasattr(model, "is_multi_speaker"):
+        model.is_multi_speaker = True
     print("[server] model ready", flush=True)
     return model
 
