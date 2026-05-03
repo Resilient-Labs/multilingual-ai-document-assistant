@@ -18,3 +18,4 @@ logs/
 # Local test artifacts
 *.wav
 body.json
+create-endpoint.json

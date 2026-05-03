@@ -1,6 +1,9 @@
+fastapi
+uvicorn[standard]
 TTS
 transformers>=4.18.0,<5.0.0
 torch
 torchaudio
 soundfile
 numpy
+huggingface_hub

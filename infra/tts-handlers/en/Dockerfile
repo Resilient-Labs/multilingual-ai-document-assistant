@@ -1,6 +1,5 @@
 FROM python:3.10-slim
 
-# Install system dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         espeak-ng \
@@ -10,9 +9,13 @@ RUN apt-get update && \
         git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-COPY requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+WORKDIR /app
 
-# Copy handler into the expected location for HF inference toolkit
-COPY handler.py /repository/handler.py
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app.py .
+
+EXPOSE 80
+
+CMD ["python", "app.py"]
