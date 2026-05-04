@@ -32,7 +32,8 @@ const COQUI_TTS_MASCULINE_SPEAKER =
   process.env.COQUI_TTS_MASCULINE_SPEAKER ?? 'p226'
 
 // Dedicated Inference Endpoints are always-warm — no cold-start buffer needed.
-const SYNTH_TIMEOUT_MS = 60_000
+// Allow up to 3 minutes to absorb scale-to-zero cold starts
+const SYNTH_TIMEOUT_MS = 180_000
 
 function getEndpointUrl(): string {
   if (HF_TTS_ENDPOINT_EN) return HF_TTS_ENDPOINT_EN.replace(/\/$/, '')
