@@ -9,7 +9,10 @@ import {
   runTranslateGuardrails,
   translateFallback,
   internalErrorFallback,
+<<<<<<< HEAD
   detectPii,
+=======
+>>>>>>> a311871 (fix: relax PII guardrails for document translate and TTS)
   guardrailLog,
   logPass,
   logWarn,
@@ -39,12 +42,18 @@ const ROUTE = '/api/translate'
  *   provider-specific Gradio payload from the already-sanitized text and
  *   the FLORES-200 target code.
  * - L4 uses a minimal NLLB-appropriate output check (non-empty string).
+<<<<<<< HEAD
  *   PII is *detected* in the translated output for observability but never
  *   blocks the response — the translate route exists specifically to help
  *   users read documents that contain sensitive data (immigration forms,
  *   benefits letters, court filings, medical bills). Refusing to return a
  *   translation because it contains an SSN that the user can already see
  *   in their original document is the failure mode, not a safeguard.
+=======
+ *   Output PII heuristics are not applied: translated document text still
+ *   contains phones, emails, and ID-like numbers by design (same rationale as
+ *   skipping input PII in `runTranslateGuardrails`).
+>>>>>>> a311871 (fix: relax PII guardrails for document translate and TTS)
  * - L5 fallbacks use `translateFallback` / `internalErrorFallback`.
  */
 
@@ -189,7 +198,7 @@ export async function POST(request: Request) {
   // ── Layer 4: Output validation (NLLB-shaped) ─────────────────────────────
   // NLLB returns a plain translated string (no detected_source_language),
   // so the DeepL-specific `validateTranslateOutput` does not apply. Enforce
-  // non-empty output + output PII re-detection here.
+  // non-empty output only (no output PII scan — see module comment above).
   if (!translatedText || translatedText.trim() === '') {
     guardrailLog('error', {
       route: ROUTE,
@@ -199,23 +208,6 @@ export async function POST(request: Request) {
     })
     return fallbackResponse(
       translateFallback({ inputLength: sanitizedText.length })
-    )
-  }
-
-  // Detect-only PII observability on the translated output. Never blocks —
-  // see the file-level docstring for rationale. We log the categories
-  // (no values) so ops can see how often translations contain sensitive
-  // data without it ever turning into a 4xx for the user.
-  const outputPiiMatches = detectPii(translatedText)
-  if (outputPiiMatches.length > 0) {
-    logWarn(
-      ROUTE,
-      'output-validation',
-      'PII detected in translated output — passing through (translate route policy)',
-      {
-        outputLength: translatedText.length,
-        detectedTypes: outputPiiMatches.map((m) => m.type),
-      }
     )
   }
 
