@@ -36,7 +36,7 @@ export default function Page() {
   if (isMobile) {
     return (
       <section className="flex flex-col h-[100dvh] bg-background overflow-hidden">
-        <header className="shrink-0 px-5 pt-6 pb-3">
+        <header className="shrink-0 px-4 pt-6 pb-3">
           <h1 className="text-xl font-bold font-display">
             AI Document Translator
           </h1>
@@ -72,7 +72,7 @@ export default function Page() {
           </main>
 
           {/* Bottom tab bar */}
-          <footer className="shrink-0 border-t border-border bg-background overflow-hidden">
+          <footer className="shrink-0 border-t border-border bg-background pb-[env(safe-area-inset-bottom)] overflow-hidden">
             <TabsList className="w-full h-16 rounded-none bg-transparent p-0 gap-0 overflow-hidden">
               {NAV_TABS.map(({ value, label, icon: Icon }) => (
                 <TabsTrigger

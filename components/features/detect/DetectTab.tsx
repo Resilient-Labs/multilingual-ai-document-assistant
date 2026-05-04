@@ -213,7 +213,9 @@ export function DetectTab({ docId, className, targetLang }: DetectTabProps) {
           </ItemDescription>
         </ItemContent>
       </Item>
-      <div className="text-lg font-semibold">{t.suggestedNextSteps}</div>
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {t.suggestedNextSteps}
+      </div>
       <div className="space-y-4">
         {presentation.primaryActions.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t.noNextSteps}</p>
@@ -245,7 +247,9 @@ export function DetectTab({ docId, className, targetLang }: DetectTabProps) {
           })
         )}
       </div>
-      <div className="text-lg font-semibold">{t.helpfulResources}</div>
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {t.helpfulResources}
+      </div>
       <div className="space-y-4">
         {presentation.resources.length === 0 ? (
           <p className="text-sm text-muted-foreground">
