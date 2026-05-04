@@ -52,8 +52,9 @@ const ROUTE = '/api/translate'
 const TRANSLATE_TIMEOUT_MS = 180_000
 
 function resolveTranslateUrl(): string | null {
-  const explicit = process.env.HF_TRANSLATE_SPACE_URL?.trim()
-  return explicit ? explicit : null
+  const url = process.env.HF_TRANSLATE_SPACE_URL?.trim()
+  if (!url) return null
+  return url
 }
 
 /**
@@ -138,7 +139,12 @@ export async function POST(request: Request) {
 
   const hfToken = process.env.HF_TOKEN?.trim() || undefined
 
-  // ── Upstream call (NLLB via HF Gradio Space) ──────────────────────────────
+  // Before upstream: trace call (no user text, no token)
+  console.log('[translate] calling HF space', {
+    targetLang,
+    inputLength: sanitizedText.length,
+  })
+  // Upstream call: NLLB via HF Gradio Space
   let translatedText: string
   try {
     translatedText = await callTranslateProvider({
@@ -148,7 +154,14 @@ export async function POST(request: Request) {
       hfToken,
       timeoutMs: TRANSLATE_TIMEOUT_MS,
     })
+
     circuitBreaker.onSuccess()
+
+    // After success
+    console.log('[translate] success', {
+      targetLang,
+      outputLength: translatedText.length,
+    })
   } catch (err) {
     circuitBreaker.onFailure()
 
@@ -170,6 +183,7 @@ export async function POST(request: Request) {
       })
     } else {
       console.error('NLLB translate unexpected error')
+
       guardrailLog('error', {
         route: ROUTE,
         layer: 'fallback',
@@ -207,6 +221,7 @@ export async function POST(request: Request) {
   // (no values) so ops can see how often translations contain sensitive
   // data without it ever turning into a 4xx for the user.
   const outputPiiMatches = detectPii(translatedText)
+  
   if (outputPiiMatches.length > 0) {
     logWarn(
       ROUTE,
