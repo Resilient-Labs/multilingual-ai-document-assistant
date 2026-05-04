@@ -142,21 +142,54 @@ describe('POST /api/summarize', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('returns 422 when sensitive personal information is detected', async () => {
-    const res = await POST(
-      jsonRequest({
-        fullText:
-          'For questions about this posting, email careers@example.org or call the main line.',
-      })
-    )
-    expect(res.status).toBe(422)
-    const data = (await res.json()) as {
-      error: string
-      detectedTypes: { type: string; label: string }[]
+  it('passes through documents containing PII to the upstream model (detect-only policy)', async () => {
+    // The summarize route exists for users whose documents WILL contain
+    // sensitive data — immigration paperwork, court filings, benefits
+    // letters, medical bills. PII is logged for observability via the
+    // shared guardrail logger but never blocks the request.
+    const consoleWarnSpy = vi
+      .spyOn(console, 'warn')
+      .mockImplementation(() => {})
+    try {
+      const text =
+        'Applicant SSN: 123-45-6789. Email: applicant@example.org. Please summarize.'
+      const res = await POST(jsonRequest({ fullText: text }))
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+
+      // Verify the structured warn line was emitted with categories only.
+      const warnLines = consoleWarnSpy.mock.calls
+        .map((args) => args[0])
+        .filter((s): s is string => typeof s === 'string')
+      const piiWarn = warnLines
+        .map((s) => {
+          try {
+            return JSON.parse(s) as Record<string, unknown>
+          } catch {
+            return null
+          }
+        })
+        .find(
+          (e) =>
+            e !== null &&
+            e.route === '/api/summarize' &&
+            e.layer === 'input-validation' &&
+            e.action === 'warn'
+        )
+      expect(piiWarn).toBeDefined()
+      const meta = piiWarn?.meta as { detectedTypes?: string[] } | undefined
+      expect(meta?.detectedTypes).toEqual(
+        expect.arrayContaining(['ssn', 'email'])
+      )
+
+      // CRITICAL: no raw user values may appear anywhere in log output.
+      const allLogged = warnLines.join('\n')
+      expect(allLogged).not.toContain('123-45-6789')
+      expect(allLogged).not.toContain('applicant@example.org')
+    } finally {
+      consoleWarnSpy.mockRestore()
     }
-    expect(data.error).toMatch(/sensitive personal information/i)
-    expect(data.detectedTypes.some((d) => d.type === 'email')).toBe(true)
-    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('returns 500 if HF_TOKEN is not set', async () => {

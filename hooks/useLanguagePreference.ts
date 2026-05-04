@@ -1,47 +1,22 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import type { EntityDB } from '@babycommando/entity-db'
 
 import { getEntityDB } from '@/lib/entitydb'
+import {
+  ENTITYDB_VECTORS_STORE,
+  getIdbFrom,
+  placeholderEmbeddingVector,
+} from '@/lib/entitydb-idb'
 
 const USER_LANGUAGE_PREFERENCE_KEY = 'user_language_preference' as const
-const PLACEHOLDER_EMBEDDING_DIM = 384
-
-function placeholderVector(): number[] {
-  const v = 1 / Math.sqrt(PLACEHOLDER_EMBEDDING_DIM)
-  return Array.from({ length: PLACEHOLDER_EMBEDDING_DIM }, () => v)
-}
 const IS_BROWSER = typeof window !== 'undefined'
-
-interface EntityDBInternal {
-  dbPromise: Promise<{
-    transaction(
-      store: string,
-      mode: 'readonly' | 'readwrite'
-    ): {
-      objectStore(name: string): {
-        add(value: object): Promise<IDBValidKey>
-        delete(key: IDBValidKey): Promise<void>
-        getAll(): Promise<Array<Record<string, unknown>>>
-      }
-    }
-  }>
-}
 
 export interface UseLanguagePreferenceResult {
   preferredLanguage: string | null
   setLanguage: (language: string) => Promise<void>
   loading: boolean
   error: string | null
-}
-
-function getIdb(): Promise<
-  EntityDBInternal['dbPromise'] extends Promise<infer T> ? T : never
-> {
-  const entityDB: EntityDB = getEntityDB()
-  const internal = entityDB as unknown as EntityDBInternal
-  return internal.dbPromise
 }
 
 function getUpdatedAt(record: Record<string, unknown>): number {
@@ -72,9 +47,9 @@ export function useLanguagePreference(): UseLanguagePreferenceResult {
       setLoading(true)
 
       try {
-        const db = await getIdb()
-        const tx = db.transaction('vectors', 'readonly')
-        const records = await tx.objectStore('vectors').getAll()
+        const db = await getIdbFrom(getEntityDB())
+        const tx = db.transaction(ENTITYDB_VECTORS_STORE, 'readonly')
+        const records = await tx.objectStore(ENTITYDB_VECTORS_STORE).getAll()
 
         if (!cancelled) {
           setPreferredLanguage(getPreferredLanguage(records))
@@ -104,10 +79,10 @@ export function useLanguagePreference(): UseLanguagePreferenceResult {
     if (!IS_BROWSER) return
 
     const updatedAt = Date.now()
-    const db = await getIdb()
-    const tx = db.transaction('vectors', 'readwrite')
+    const db = await getIdbFrom(getEntityDB())
+    const tx = db.transaction(ENTITYDB_VECTORS_STORE, 'readwrite')
 
-    const store = tx.objectStore('vectors')
+    const store = tx.objectStore(ENTITYDB_VECTORS_STORE)
 
     const records = await store.getAll()
     for (const record of records) {
@@ -122,7 +97,7 @@ export function useLanguagePreference(): UseLanguagePreferenceResult {
     await store.add({
       entityKey: USER_LANGUAGE_PREFERENCE_KEY,
       text: language,
-      vector: placeholderVector(),
+      vector: placeholderEmbeddingVector(),
       preferredLanguage: language,
       updatedAt,
     })

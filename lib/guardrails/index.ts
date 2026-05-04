@@ -108,7 +108,7 @@ import { sanitizeText } from './sanitize'
 import { checkTranslateLang, checkTtsLang, checkDomain } from './domain'
 import { hardenTranslateRequest, hardenTtsRequest, type DeepLRequestBody, type HfSpaceRequestBody } from './request-hardening'
 import { getCircuitBreaker, type CircuitBreaker } from './circuit-breaker'
-import { guardrailLog, logPass, logReject, logSanitize } from './logger'
+import { guardrailLog, logPass, logReject, logSanitize, logWarn } from './logger'
 import type { Gender } from '@/lib/tts/types'
 
 // ── Translate ────────────────────────────────────────────────────────────────

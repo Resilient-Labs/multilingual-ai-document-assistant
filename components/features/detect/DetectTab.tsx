@@ -72,9 +72,10 @@ function telHref(phone: string): string {
 function PrimaryActionDescription({ action }: { action: RiskNextStep }) {
   const { type, value } = action
 
+  // Use <span className="block"> — parent may be ItemDescription (<p>), where <p> children are invalid.
   if (type === 'url' && value) {
     return (
-      <p>
+      <span className="block">
         <a
           href={value}
           target="_blank"
@@ -83,25 +84,25 @@ function PrimaryActionDescription({ action }: { action: RiskNextStep }) {
         >
           {value}
         </a>
-      </p>
+      </span>
     )
   }
 
   if (type === 'phone' && value) {
     return (
-      <p>
+      <span className="block">
         <a
           href={telHref(value)}
           className="font-medium text-primary underline underline-offset-2"
         >
           {value}
         </a>
-      </p>
+      </span>
     )
   }
 
   if (value) {
-    return <p>{value}</p>
+    return <span className="block">{value}</span>
   }
 
   return null
@@ -123,7 +124,7 @@ export function DetectTab({ docId, className, targetLang }: DetectTabProps) {
     presentation,
     loading: safetyLoading,
     error: safetyError,
-  } = useSafetyAnalysis(ocr, fieldCandidates, targetLang)
+  } = useSafetyAnalysis(ocr, fieldCandidates, targetLang, docId)
 
   useEffect(() => {
     if (!docError) return
@@ -388,8 +389,8 @@ export function DetectTab({ docId, className, targetLang }: DetectTabProps) {
                   )}
                 </ItemTitle>
                 {resource.value ? (
-                  <ItemDescription>
-                    <p className="text-muted-foreground">{resource.value}</p>
+                  <ItemDescription className="text-muted-foreground">
+                    {resource.value}
                   </ItemDescription>
                 ) : null}
               </ItemContent>

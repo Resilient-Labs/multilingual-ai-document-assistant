@@ -11,6 +11,7 @@ import {
   internalErrorFallback,
   guardrailLog,
   logPass,
+  logWarn,
   type GuardrailResult,
 } from '@/lib/guardrails'
 
