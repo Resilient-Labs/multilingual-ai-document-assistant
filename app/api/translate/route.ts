@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server'
 import { evaluateAsync } from '@/lib/evaluate'
-import { getNllbTargetCode } from '@/lib/translation/nllbLanguageMap'
-import {
-  callTranslateProvider,
-  TranslateProviderError,
-} from '@/lib/translation/callTranslateProvider'
+import { TranslateProviderError } from '@/lib/translation/callTranslateProvider'
+import { callHfInferenceTranslateProvider } from '@/lib/translation/callHfInferenceProvider'
+import { callHfPipelineTranslateProvider } from '@/lib/translation/callHfPipelineProvider'
 import {
   runTranslateGuardrails,
   translateFallback,
@@ -19,25 +17,38 @@ import {
 const ROUTE = '/api/translate'
 
 /**
- * NLLB translation via a dedicated Hugging Face Gradio Space (see
- * `Resilient-Coders/nllb-translator`). Source language is fixed to English
- * per product requirements; target codes come from `APP_TO_NLLB_TARGET`
- * (single source of truth with the translate UI). The actual fetch +
- * parsing lives in `lib/translation/callTranslateProvider`, which drives
- * the Gradio two-step call protocol (`POST /gradio_api/call/translate`
- * then `GET /gradio_api/call/translate/{event_id}`), so tests can mock a
- * single function instead of global `fetch` and error mapping stays in
- * one place. The Space is public — `HF_TOKEN` is optional and only
- * forwarded as a Bearer when set. `HF_TRANSLATE_SPACE_URL` must be the
- * Space base URL (no `/gradio_api/...` suffix); the helper appends the
- * call + event-id paths itself.
+ * Two upstream providers are supported, dispatched at request time by env.
+ * Priority order, top wins:
  *
- * Guardrails (Layers 1–5) are applied around the NLLB upstream call:
+ *   1. `HF_TRANSLATE_ENDPOINT_URL` — a dedicated HF Inference Endpoint
+ *      hosting a stock translation pipeline (NLLB-200 / M2M-100 / etc.).
+ *      Single POST `{"inputs": "<text>", "parameters": {"src_lang": ..., "tgt_lang": ...}}`
+ *      → `[{"translation_text": "..."}]`. **Preferred** for translate
+ *      because the model is purpose-built for the task (better quality
+ *      and lower latency than prompting an instruction-tuned chat
+ *      model). Implementation in
+ *      `lib/translation/callHfPipelineProvider`.
+ *   2. `HF_INFERENCE_ENDPOINT_URL` — a dedicated HF Inference Endpoint
+ *      hosting a chat model. Accepts the standard
+ *      `{"inputs": {"messages": [...]}}` chat shape and returns
+ *      `{"generated_text": "..."}`. Used when the same endpoint serves
+ *      ask + safety + translate; we prompt the model to translate.
+ *      Implementation in `lib/translation/callHfInferenceProvider`.
+ *
+ * Both providers throw the same `TranslateProviderError` discriminated
+ * union, so the route's error mapping below does not need to know which
+ * provider ran. Source language is fixed to English per product
+ * requirement; target codes come from `APP_TO_NLLB_TARGET` (single
+ * source of truth with the translate UI). `HF_TOKEN` is optional for
+ * either provider and only forwarded as `Authorization: Bearer …` when
+ * set.
+ *
+ * Guardrails (Layers 1–5) are applied around the upstream call:
  * - L1/L2/L3 preflight and the circuit-breaker check come from
  *   `runTranslateGuardrails`. That helper's DeepL-shaped `hardenedBody`
- *   is intentionally ignored here; `callTranslateProvider` builds its own
- *   provider-specific Gradio payload from the already-sanitized text and
- *   the FLORES-200 target code.
+ *   is intentionally ignored here; each provider builds its own
+ *   provider-specific payload from the already-sanitized text and the
+ *   resolved target code.
  * - L4 uses a minimal NLLB-appropriate output check (non-empty string).
  *   PII is *detected* in the translated output for observability but never
  *   blocks the response — the translate route exists specifically to help
@@ -51,9 +62,28 @@ const ROUTE = '/api/translate'
 /** Long timeout to absorb HF cold starts; matches TTS scale. */
 const TRANSLATE_TIMEOUT_MS = 180_000
 
-function resolveTranslateUrl(): string | null {
-  const explicit = process.env.HF_TRANSLATE_SPACE_URL?.trim()
-  return explicit ? explicit : null
+interface ResolvedTranslateProvider {
+  /** Which backend to call. */
+  kind: 'hf-translate-endpoint' | 'hf-inference-endpoint'
+  /** Provider base URL (no trailing slash assumptions). */
+  url: string
+}
+
+/**
+ * Decide which translate provider to use based on env. Priority order:
+ *   1. `HF_TRANSLATE_ENDPOINT_URL` (dedicated translation pipeline) —
+ *      preferred because the model is purpose-built for translation.
+ *   2. `HF_INFERENCE_ENDPOINT_URL` (chat model, prompted to translate).
+ *
+ * Returns `null` only when neither is configured (route returns 503 via
+ * `translateFallback`).
+ */
+function resolveTranslateProvider(): ResolvedTranslateProvider | null {
+  const pipeline = process.env.HF_TRANSLATE_ENDPOINT_URL?.trim()
+  if (pipeline) return { kind: 'hf-translate-endpoint', url: pipeline }
+  const inference = process.env.HF_INFERENCE_ENDPOINT_URL?.trim()
+  if (inference) return { kind: 'hf-inference-endpoint', url: inference }
+  return null
 }
 
 /**
@@ -99,34 +129,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ translatedText: sanitizedText })
   }
 
-  const tgtLang = getNllbTargetCode(targetLang)
-  if (!tgtLang) {
-    // Should never happen — TRANSLATE_SUPPORTED_LANGS and APP_TO_NLLB_TARGET
-    // currently cover the same keys — but fail closed if they ever drift.
+  const provider = resolveTranslateProvider()
+  if (!provider) {
     circuitBreaker.onFailure()
     guardrailLog('error', {
       route: ROUTE,
       layer: 'fallback',
       action: 'reject',
-      reason: 'No NLLB target code for whitelisted targetLang',
-      meta: { targetLang },
-    })
-    return fallbackResponse(
-      translateFallback({
-        inputLength: sanitizedText.length,
-        reason: 'service-not-configured',
-      })
-    )
-  }
-
-  const url = resolveTranslateUrl()
-  if (!url) {
-    circuitBreaker.onFailure()
-    guardrailLog('error', {
-      route: ROUTE,
-      layer: 'fallback',
-      action: 'reject',
-      reason: 'HF_TRANSLATE_SPACE_URL is not configured',
+      reason:
+        'No translate provider configured — set HF_TRANSLATE_ENDPOINT_URL or HF_INFERENCE_ENDPOINT_URL',
     })
     return fallbackResponse(
       translateFallback({
@@ -138,16 +149,26 @@ export async function POST(request: Request) {
 
   const hfToken = process.env.HF_TOKEN?.trim() || undefined
 
-  // ── Upstream call (NLLB via HF Gradio Space) ──────────────────────────────
+  // ── Upstream call ─────────────────────────────────────────────────────────
   let translatedText: string
   try {
-    translatedText = await callTranslateProvider({
-      text: sanitizedText,
-      tgtLang,
-      url,
-      hfToken,
-      timeoutMs: TRANSLATE_TIMEOUT_MS,
-    })
+    if (provider.kind === 'hf-translate-endpoint') {
+      translatedText = await callHfPipelineTranslateProvider({
+        text: sanitizedText,
+        targetLang,
+        url: provider.url,
+        hfToken,
+        timeoutMs: TRANSLATE_TIMEOUT_MS,
+      })
+    } else {
+      translatedText = await callHfInferenceTranslateProvider({
+        text: sanitizedText,
+        targetLang,
+        url: provider.url,
+        hfToken,
+        timeoutMs: TRANSLATE_TIMEOUT_MS,
+      })
+    }
     circuitBreaker.onSuccess()
   } catch (err) {
     circuitBreaker.onFailure()
@@ -156,7 +177,7 @@ export async function POST(request: Request) {
       if (err.kind === 'upstream_http_error') {
         // Log status + short snippet only; never tokens or full user text.
         console.error(
-          'NLLB translate upstream error:',
+          `Translate upstream error (${provider.kind}):`,
           err.status,
           err.snippet ?? ''
         )
@@ -165,17 +186,18 @@ export async function POST(request: Request) {
         route: ROUTE,
         layer: 'fallback',
         action: 'reject',
-        reason: 'NLLB translate provider threw TranslateProviderError',
-        meta: { kind: err.kind, status: err.status },
+        reason: 'Translate provider threw TranslateProviderError',
+        meta: { provider: provider.kind, kind: err.kind, status: err.status },
       })
     } else {
-      console.error('NLLB translate unexpected error')
+      console.error(`Translate unexpected error (${provider.kind})`)
       guardrailLog('error', {
         route: ROUTE,
         layer: 'fallback',
         action: 'reject',
-        reason: 'callTranslateProvider threw an unexpected error',
+        reason: 'Translate provider threw an unexpected error',
         meta: {
+          provider: provider.kind,
           errorMessage: err instanceof Error ? err.message : String(err),
         },
       })
@@ -231,13 +253,19 @@ export async function POST(request: Request) {
   )
 
   // Evaluation hook (`lib/evaluate.ts`): optional LangSmith run `evaluation-translate`.
-  // Fire-and-forget; gated by EVALUATIONS_ENABLED + LangSmith env; NLLB model label is fixed here.
+  // Fire-and-forget; gated by EVALUATIONS_ENABLED + LangSmith env; the
+  // model label reflects which provider actually answered so dataset
+  // analysis can compare quality across the three backends.
+  const evalModelLabel: Record<typeof provider.kind, string> = {
+    'hf-translate-endpoint': 'hf-translate-pipeline',
+    'hf-inference-endpoint': 'hf-inference-endpoint',
+  }
   evaluateAsync({
     input: sanitizedText,
     output: translatedText,
-    model: 'nllb-hf-gradio',
+    model: evalModelLabel[provider.kind],
     feature: 'translate',
-    metadata: { targetLang },
+    metadata: { targetLang, provider: provider.kind },
   })
   return NextResponse.json({ translatedText })
 }
