@@ -1,43 +1,50 @@
 /**
- * HF Inference Endpoint provider for the English TTS model.
+ * HF Inference Endpoint provider for TTS — supports en, es, and vi.
  *
- * Uses the native HuggingFace Inference Endpoint API — no Space layer.
- * The endpoint is created by deploying Resilient-Coders/coqui-vctk-en with
- * the handler.py from infra/tts-handlers/en/.
- *
- * Resolution order for the endpoint URL:
- *  1. HF_TTS_ENDPOINT_EN  — dedicated Inference Endpoint URL (fastest, always-warm)
- *  2. HF_TOKEN present    — falls back to the HF Serverless Inference API
- *                           (api-inference.huggingface.co/models/<model>)
+ * Each language maps to its own dedicated HF Inference Endpoint:
+ *   HF_TTS_ENDPOINT_EN → Resilient-Coders/coqui-vctk-en  (English, multi-speaker)
+ *   HF_TTS_ENDPOINT_ES → Resilient-Coders/coqui-css10-es  (Spanish, single-speaker)
+ *   HF_TTS_ENDPOINT_VI → Resilient-Coders/mms-tts-vie     (Vietnamese, fairseq)
  *
  * Standard HF Inference API payload:
- *   { "inputs": "<text>", "parameters": { "speaker_id": "<id>" } }
+ *   { "inputs": "<text>", "parameters": { "speaker_id": "<id>" } }  (en only)
+ *   { "inputs": "<text>" }  (es, vi — single speaker)
  *
- * For languages other than English, this provider throws and the router falls
- * back to hf-space which handles en/es/vi via the Space.
+ * Allow up to 3 minutes to absorb scale-to-zero cold starts.
  */
 
 import type { Gender, TtsSynthesisResult } from '@/lib/tts/types'
 import { TtsError } from '@/lib/tts/types'
 
 const HF_TOKEN = process.env.HF_TOKEN?.trim()
-const HF_TTS_ENDPOINT_EN = process.env.HF_TTS_ENDPOINT_EN?.trim()
 
-const EN_MODEL_ID = 'Resilient-Coders/coqui-vctk-en'
-const SERVERLESS_BASE = 'https://api-inference.huggingface.co/models'
+const HF_TTS_ENDPOINT_EN = process.env.HF_TTS_ENDPOINT_EN?.trim()
+const HF_TTS_ENDPOINT_ES = process.env.HF_TTS_ENDPOINT_ES?.trim()
+const HF_TTS_ENDPOINT_VI = process.env.HF_TTS_ENDPOINT_VI?.trim()
+
+const ENDPOINT_BY_LANG: Record<string, string | undefined> = {
+  en: HF_TTS_ENDPOINT_EN,
+  es: HF_TTS_ENDPOINT_ES,
+  vi: HF_TTS_ENDPOINT_VI,
+}
+
+const MODEL_BY_LANG: Record<string, string> = {
+  en: 'Resilient-Coders/coqui-vctk-en',
+  es: 'Resilient-Coders/coqui-css10-es',
+  vi: 'Resilient-Coders/mms-tts-vie',
+}
 
 const COQUI_TTS_FEMININE_SPEAKER =
   process.env.COQUI_TTS_FEMININE_SPEAKER ?? 'p228'
 const COQUI_TTS_MASCULINE_SPEAKER =
   process.env.COQUI_TTS_MASCULINE_SPEAKER ?? 'p226'
 
-// Dedicated Inference Endpoints are always-warm — no cold-start buffer needed.
-// Allow up to 3 minutes to absorb scale-to-zero cold starts
 const SYNTH_TIMEOUT_MS = 180_000
 
-function getEndpointUrl(): string {
-  if (HF_TTS_ENDPOINT_EN) return HF_TTS_ENDPOINT_EN.replace(/\/$/, '')
-  return `${SERVERLESS_BASE}/${EN_MODEL_ID}`
+function getEndpointUrl(lang: string): string {
+  const dedicated = ENDPOINT_BY_LANG[lang]
+  if (dedicated) return dedicated.replace(/\/$/, '')
+  return `https://api-inference.huggingface.co/models/${MODEL_BY_LANG[lang]}`
 }
 
 function isNetworkError(error: unknown): boolean {
@@ -62,12 +69,12 @@ function isNetworkError(error: unknown): boolean {
 }
 
 /**
- * Returns true when this provider is configured and should be used.
- * Requires either a dedicated endpoint URL or an HF token for serverless.
+ * Returns true when this provider is configured for the given language.
+ * A dedicated endpoint URL OR an HF token is sufficient.
  */
 export function isHfInferenceConfigured(lang: string): boolean {
-  if (lang !== 'en') return false
-  return Boolean(HF_TTS_ENDPOINT_EN) || Boolean(HF_TOKEN)
+  if (!MODEL_BY_LANG[lang]) return false
+  return Boolean(ENDPOINT_BY_LANG[lang]) || Boolean(HF_TOKEN)
 }
 
 export async function synthesizeWithHfInference(input: {
@@ -75,31 +82,30 @@ export async function synthesizeWithHfInference(input: {
   targetLang: string
   gender: Gender
 }): Promise<TtsSynthesisResult> {
-  if (input.targetLang !== 'en') {
+  const lang = input.targetLang
+
+  if (!MODEL_BY_LANG[lang]) {
+    throw new TtsError(`HF Inference TTS does not support language: ${lang}`, 503)
+  }
+
+  if (!ENDPOINT_BY_LANG[lang] && !HF_TOKEN) {
     throw new TtsError(
-      'HF Inference provider only handles English; use hf-space for es/vi',
+      `Set HF_TTS_ENDPOINT_${lang.toUpperCase()} or HF_TOKEN to use HF Inference TTS for ${lang}.`,
       503
     )
   }
 
-  if (!HF_TTS_ENDPOINT_EN && !HF_TOKEN) {
-    throw new TtsError(
-      'Set HF_TTS_ENDPOINT_EN (dedicated endpoint) or HF_TOKEN (serverless) to use HF Inference TTS.',
-      503
-    )
-  }
+  const endpointUrl = getEndpointUrl(lang)
 
-  const endpointUrl = getEndpointUrl()
-
-  type HfBody = { inputs: string; parameters: Record<string, string> }
-  const body: HfBody = {
-    inputs: input.text,
-    parameters: {
+  type HfBody = { inputs: string; parameters?: Record<string, string> }
+  const body: HfBody = { inputs: input.text }
+  if (lang === 'en') {
+    body.parameters = {
       speaker_id:
         input.gender === 'masculine'
           ? COQUI_TTS_MASCULINE_SPEAKER
           : COQUI_TTS_FEMININE_SPEAKER,
-    },
+    }
   }
 
   const headers: Record<string, string> = {
@@ -121,7 +127,6 @@ export async function synthesizeWithHfInference(input: {
       signal: controller.signal,
     })
 
-    // 503 with { "error": "Model … is currently loading" } = model warming up
     if (response.status === 503) {
       const detail = await response.text()
       throw new TtsError(
@@ -149,7 +154,7 @@ export async function synthesizeWithHfInference(input: {
       audio: audioBuffer,
       contentType: response.headers.get('content-type') ?? 'audio/wav',
       provider: 'hf-inference',
-      model: EN_MODEL_ID,
+      model: MODEL_BY_LANG[lang],
     }
   } catch (error) {
     if (error instanceof TtsError) throw error
