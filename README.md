@@ -11,7 +11,8 @@
 
 ---
 
-*Screenshots Here*
+![Landing Page](./Landing.png)
+![Safety Analysis](./Safety.png)
 
 ---
 
@@ -92,8 +93,6 @@ Open http://localhost:3000 in your browser.
 | Upload rejected around 5–10MB     | Backend limit is 4.5MB `(lib/constants.ts)`                                   |
 
 ## Architecture: Zero-retention
-
-**Henry's Diagram**
 
 ```
 User Browser
