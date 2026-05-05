@@ -58,6 +58,30 @@ Alphabetical inventory (55). Import from `@/components/ui/<name>`.
 
 ---
 
+### SavedDocumentsList
+
+|                |                                                                                                                                                           |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Location**   | `components/features/document/SavedDocumentsList.tsx`                                                                                                    |
+| **Purpose**    | Lists `extracted_document` rows from EntityDB (this browser); opening an item restores `sessionStorage` translate session (or builds from OCR + defaults) and navigates to `/translate/[docId]`. |
+| **Props**      | `className?`                                                                                                                                              |
+| **Built with** | Button, Spinner, lucide-react; `listSavedDocumentsFromEntityDB` / `getDocumentFromEntityDB` (`lib/entitydb-persist`), `getTranslateSessionByDocId` (`lib/entitydb-translate-cache`) |
+| **Usage**      | `app/page.tsx` — under Upload on desktop and inside the mobile Upload tab                                                                                  |
+
+---
+
+### ErrorPopup
+
+|                |                                                                                     |
+| -------------- | ----------------------------------------------------------------------------------- |
+| **Location**   | `components/features/error/ErrorPopup.tsx`                                          |
+| **Purpose**    | Global service failure modal rendered from the root layout via `useErrorPopup`.     |
+| **Props**      | None — consumes `ErrorProvider` state from `hooks/useErrorPopup.tsx`.               |
+| **Built with** | AlertDialog, lucide-react icons                                                     |
+| **Usage**      | `app/layout.tsx` — available to service-backed feature modules through the provider |
+
+---
+
 ### ReadAloudPanel
 
 |                |                                                                                                                                                                      |
@@ -82,6 +106,29 @@ Alphabetical inventory (55). Import from `@/components/ui/<name>`.
 
 ---
 
+### LanguagePreference
+
+|                |                                                                                                                                           |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **Location**   | `components/features/language/LanguagePreference.tsx`                                                                                     |
+| **Purpose**    | Persisted language preference selector. Reads the saved preference from EntityDB on mount via `useLanguagePreference` and writes back on change. |
+| **Props**      | `className?: string`, `onLanguageChange?: (language: string) => void`                                                                     |
+| **Built with** | Select, Skeleton, `useLanguagePreference` hook                                                                                            |
+| **Usage**      | Drop into any client page/layout that needs a remembered language choice                                                                  |
+
+---
+
+## App routes (reference)
+
+### Translate document page (`app/translate/[id]/page.tsx`)
+
+|                |                                                                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Purpose**    | Client translate flow: session restore, translation + summary + safety + Ask; header **Delete document** (trash) removes all browser-stored data for that upload (EntityDB rows + related client keys), then navigates home. |
+| **Built with** | Card, Button, Textarea, Spinner, AlertDialog, lucide-react                                                                                              |
+
+---
+
 ## App-level components (root of `components/`)
 
 ### UploadForm
@@ -89,7 +136,7 @@ Alphabetical inventory (55). Import from `@/components/ui/<name>`.
 |                |                                                                                                                                    |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | **Location**   | `components/upload-form.tsx`                                                                                                       |
-| **Purpose**    | File upload (dropzone), processing, OCR persistence, navigation to translate flow; writes `sessionStorage` keys consumed by the translate page. |
+| **Purpose**    | File upload (dropzone), processing, OCR persistence, navigation to translate flow; writes `sessionStorage` keys consumed by the translate page. Landing uses `SavedDocumentsList` for reopening prior uploads. |
 | **Built with** | Button, Select, Spinner, react-dropzone, lucide-react                                                                              |
 
 ---

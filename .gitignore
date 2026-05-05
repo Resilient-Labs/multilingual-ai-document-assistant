@@ -11,5 +11,11 @@ playwright-report/
 test-results/
 e2e/.auth/
 *.traineddata
+.tmp/
 logs/
 .vscode
+
+# Local test artifacts
+*.wav
+body.json
+create-endpoint.json

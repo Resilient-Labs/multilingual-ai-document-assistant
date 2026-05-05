@@ -1,9 +1,21 @@
 /**
  * PII detection for the guardrails pipeline.
  *
- * Standalone module — the summarize route keeps its own inline copy and is NOT
- * modified. This module is used exclusively by the guardrails pipeline
- * (translate, TTS, and any future routes that adopt lib/guardrails/).
+ * Single source of truth for the PII pattern registry — used by all routes
+ * that scan user input. Every active route currently uses the same
+ * detect-only policy because this app exists to help users understand
+ * documents they already have, which routinely contain sensitive data
+ * (immigration paperwork, court filings, benefits letters, medical bills):
+ *
+ *   - `/api/translate` (detect-only via `detectPii` + `logWarn`)
+ *   - `/api/summarize` (detect-only via `detectPii` + `logWarn`)
+ *   - `/api/tts`       (detect-only via `detectPii` + `logWarn`)
+ *
+ * `checkInputPii` / `checkOutputPii` remain exported as primitives for any
+ * future deployment that does need a strict block (e.g. a third-party
+ * embedding of this app where the threat model is different), but no
+ * production route currently uses them. Per-route policy lives at the call
+ * site, not inside this module.
  */
 
 import type { GuardrailResult } from './types'
@@ -60,8 +72,14 @@ const SENSITIVE_PATTERNS: ReadonlyArray<PiiMatch & { pattern: RegExp }> = [
   {
     type: 'passport',
     label: 'Passport Number',
-    // One or two capital letters followed by 6-9 digits
-    pattern: /\b[A-Z]{1,2}\d{6,9}\b/,
+    // Passport label (passport / pass no / ppt) followed by 1–2 letters + 6–9
+    // digits. Must be anchored to an explicit keyword to avoid matching
+    // generic alphanumeric codes like "AB1234567" or "US12345678" that show
+    // up frequently in legitimate documents (model numbers, order refs,
+    // tracking IDs). Mirrors the labelled style used by `bank_account` and
+    // `drivers_license`.
+    pattern:
+      /\b(?:passport|pass(?:port)?\s*no\.?|ppt)\s*(?:number|num|no\.?|#)?\s*[:=]?\s*[A-Z]{1,2}\d{6,9}\b/i,
   },
   {
     type: 'drivers_license',
@@ -81,6 +99,11 @@ const SENSITIVE_PATTERNS: ReadonlyArray<PiiMatch & { pattern: RegExp }> = [
  *
  * Returns every category detected; each type appears at most once
  * (per-category deduplication). An empty array means no PII was found.
+ *
+ * All production routes (`/api/translate`, `/api/summarize`, `/api/tts`)
+ * currently call this directly and feed the result into `logWarn` for
+ * detect-only observability. `checkInputPii` / `checkOutputPii` remain
+ * available for future deployments that need to fail-closed instead.
  */
 export function detectPii(text: string): PiiMatch[] {
   const found: PiiMatch[] = []
@@ -102,8 +125,14 @@ export function detectPii(text: string): PiiMatch[] {
  * - If no PII is found, returns `{ ok: true, value: text }`.
  * - If PII is detected, returns a structured 422 error with `code: "PII_DETECTED"`.
  *
+ * **Currently has no production callers** — every active route uses
+ * `detectPii` + `logWarn` for detect-only observability. Retained as a
+ * primitive for any future deployment that needs to fail-closed (e.g. a
+ * third-party embedding of this app where the user is not the document
+ * owner).
+ *
  * @param text    - The text to scan (already sanitized is fine; sanitization is a separate layer).
- * @param route   - The API route string, used only in the error `details` (e.g. "/api/translate").
+ * @param route   - The API route string, used only in the error `details`.
  * @param layer   - Which guardrail layer is calling this (defaults to "input-validation").
  */
 export function checkInputPii(
@@ -132,10 +161,14 @@ export function checkInputPii(
 }
 
 /**
- * Runs PII detection on translated/processed output text.
+ * Runs PII detection on processed output text.
  *
  * Identical logic to `checkInputPii` but uses `code: "OUTPUT_PII_DETECTED"`
  * and `layer: "output-validation"` to distinguish it from input-side blocks.
+ *
+ * Currently unused; retained for routes that may need post-call output
+ * gating in the future. The translate route uses `detectPii` + `logWarn`
+ * for detect-only observability instead.
  *
  * @param text  - The output text returned by the upstream API.
  * @param route - The API route string (for structured error details).

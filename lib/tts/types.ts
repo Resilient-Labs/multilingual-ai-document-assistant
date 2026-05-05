@@ -1,4 +1,4 @@
-export type TtsProvider = 'hf-space'
+export type TtsProvider = 'hf-space' | 'hf-inference'
 
 export type Gender = 'masculine' | 'feminine'
 

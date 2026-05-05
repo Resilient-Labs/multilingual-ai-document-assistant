@@ -46,4 +46,10 @@ describe('getNextSteps', () => {
     expect(high[0].type).toBe('info')
     expect(high[0].label.toLowerCase()).toContain('deadline')
   })
+
+  it('returns the same structure for Spanish as English', () => {
+    const en = getNextSteps('Medical Bill', 'medium', 'en')
+    const es = getNextSteps('Medical Bill', 'medium', 'es')
+    expect(es.length).toBe(en.length)
+  })
 })

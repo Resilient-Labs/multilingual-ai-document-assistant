@@ -77,6 +77,7 @@ import {
   detectAnswerLanguage,
   looksLikeEnglishQuestion,
 } from '@/lib/askDetectAnswerLanguage'
+import { useErrorPopup } from '@/hooks/useErrorPopup'
 
 /**
  * [Zaria] — Guardrails ticket: **all** user-facing strings in `ASK_PROMPT_PACK` (EN + ES + VI) —
@@ -508,7 +509,7 @@ function resolveAskUiLocale(
     fromUser === 'en' &&
     !looksLikeEnglishQuestion(last) &&
     detectAnswerLanguage(assistant.slice(0, 6000), documentLanguage, translationTargetLang) ===
-      'es'
+    'es'
   ) {
     fromUser = 'es'
   }
@@ -734,39 +735,6 @@ function askErrorLocale(
   return 'en'
 }
 
-const ASK_ERROR_MESSAGES_ES = new Set<string>([
-  ASK_ERROR_COPY.es.offline,
-  ASK_ERROR_COPY.es.modelTimeout,
-  ASK_ERROR_COPY.es.modelProviderBusy,
-  ASK_ERROR_COPY.es.modelFailure,
-  ASK_ERROR_COPY.es.modelEmptyReply,
-  ASK_ERROR_COPY.es.sessionEnded,
-])
-
-const ASK_ERROR_MESSAGES_VI = new Set<string>([
-  ASK_ERROR_COPY.vi.offline,
-  ASK_ERROR_COPY.vi.modelTimeout,
-  ASK_ERROR_COPY.vi.modelProviderBusy,
-  ASK_ERROR_COPY.vi.modelFailure,
-  ASK_ERROR_COPY.vi.modelEmptyReply,
-  ASK_ERROR_COPY.vi.sessionEnded,
-])
-
-function errorChromeLocale(error: string | null): AskChipLocale {
-  if (error && ASK_ERROR_MESSAGES_ES.has(error)) return 'es'
-  if (error && ASK_ERROR_MESSAGES_VI.has(error)) return 'vi'
-  return 'en'
-}
-
-function isSessionEndedAskError(error: string | null): boolean {
-  if (!error) return false
-  return (
-    error === ASK_ERROR_COPY.en.sessionEnded ||
-    error === ASK_ERROR_COPY.es.sessionEnded ||
-    error === ASK_ERROR_COPY.vi.sessionEnded
-  )
-}
-
 /**
  * Map HF / AI SDK failures to a user-facing line (EN / ES / VI). [Karlee] — inference path;
  * [Jasmin] — client surfacing; [Team 1 eval] — tone on ES/VI.
@@ -830,7 +798,8 @@ function lastUserContentBeforeAssistantIndex(
  * session-scoped only; adjusting that requires `useChatHistory` / EntityDB, not this tab alone.
  */
 
-function privacyStorageKey(docId: string) {
+/** Session flag for Ask privacy acknowledgement; cleared when the doc is removed from the device. */
+export function askPrivacyStorageKey(docId: string) {
   return `ask_privacy_ok_${docId}`
 }
 
@@ -990,6 +959,7 @@ export function AskTab({
   translationTargetLang,
 }: AskTabProps) {
   const chatHistory = useChatHistory(docId)
+  const { showError } = useErrorPopup()
   const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -1020,6 +990,28 @@ export function AskTab({
     }
   }, [displayMessages, documentLanguage, fullText, translationTargetLang])
 
+  useEffect(() => {
+    if (!chatHistory.error) return
+
+    showError(
+      askPromptPack.chrome.chatHistoryErrorTitle,
+      chatHistory.error.trim()
+        ? chatHistory.error
+        : askPromptPack.chrome.chatHistoryErrorFallback
+    )
+  }, [
+    askPromptPack.chrome.chatHistoryErrorFallback,
+    askPromptPack.chrome.chatHistoryErrorTitle,
+    chatHistory.error,
+    showError,
+  ])
+
+  useEffect(() => {
+    if (!error) return
+
+    showError(askPromptPack.chrome.errorAlertTitle, error)
+  }, [askPromptPack.chrome.errorAlertTitle, error, showError])
+
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -1030,7 +1022,7 @@ export function AskTab({
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
-      const ok = sessionStorage.getItem(privacyStorageKey(docId)) === '1'
+      const ok = sessionStorage.getItem(askPrivacyStorageKey(docId)) === '1'
       setPrivacyAcknowledged(ok)
     } catch {
       setPrivacyAcknowledged(false)
@@ -1069,7 +1061,7 @@ export function AskTab({
 
   const acknowledgePrivacy = useCallback(() => {
     try {
-      sessionStorage.setItem(privacyStorageKey(docId), '1')
+      sessionStorage.setItem(askPrivacyStorageKey(docId), '1')
     } catch {
       /* sessionStorage may be blocked — still allow proceed */
     }
@@ -1117,9 +1109,9 @@ export function AskTab({
         ragParts =
           scopedResults.length > 0
             ? scopedResults.map((r) => ({
-                text: r.text,
-                ...(r.chunkId ? { chunkId: r.chunkId } : {}),
-              }))
+              text: r.text,
+              ...(r.chunkId ? { chunkId: r.chunkId } : {}),
+            }))
             : [{ text: fullText }]
       } catch {
         ragParts = [{ text: fullText }]
@@ -1372,7 +1364,7 @@ export function AskTab({
         <CardTitle>{askPromptPack.chrome.cardTitle}</CardTitle>
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-4">
+      <CardContent className="flex min-w-0 flex-col gap-4">
         {ragChunkStatus === 'checking' && (
           <span className="flex items-center gap-2 text-sm text-muted-foreground">
             <Spinner className="size-3" aria-hidden="true" />
@@ -1423,30 +1415,6 @@ export function AskTab({
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-
-            {chatHistory.error && (
-              <Alert variant="destructive">
-                <AlertTitle>{askPromptPack.chrome.chatHistoryErrorTitle}</AlertTitle>
-                <AlertDescription className="flex flex-col gap-2">
-                  <span>
-                    {chatHistory.error?.trim()
-                      ? chatHistory.error
-                      : askPromptPack.chrome.chatHistoryErrorFallback}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="w-fit"
-                    onClick={() => {
-                      if (typeof window !== 'undefined') window.location.reload()
-                    }}
-                  >
-                    {askPromptPack.chrome.chatHistoryErrorRefresh}
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            )}
 
             {!privacyHydrated ? (
               <span className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -1513,293 +1481,257 @@ export function AskTab({
 
               {!chatHistory.loading &&
                 displayMessages.map((msg, i) => {
-              const isAssistant = msg.role === 'assistant'
-              const isLast = i === displayMessages.length - 1
-              const isLastAssistantLoading =
-                isAssistant && isLast && isLoading && msg.content === ''
-              const isStreamingThisAssistant =
-                isAssistant && isLast && isLoading
-              /** Per-turn chrome pack — trust pill / sources / chips match title & input for that point in the thread ([Jasmin] Apr 2026). */
-              const chromeLocaleAtTurn = resolveAskChromeLocale(
-                displayMessages.slice(0, i + 1),
-                documentLanguage,
-                fullText,
-                translationTargetLang
-              )
-              const packForChromeAtTurn = ASK_PROMPT_PACK[chromeLocaleAtTurn]
-              const overlapCtx = isAssistant
-                ? contextForOverlap(msg, fullText)
-                : ''
-              const overlapBand =
-                isAssistant && msg.content.trim().length > 0
-                  ? computeAskConfidenceBand(msg.content, overlapCtx)
-                  : 'low'
-              const wordingCant =
-                isAssistant &&
-                msg.content.trim().length > 0 &&
-                answerLooksLikeCantDetermine(msg.content)
-              /** Pill must match “can’t find” wording; overlap alone can contradict ([Jasmin] Apr 2026). */
-              const pillBand = wordingCant ? 'cant_determine' : overlapBand
-              const showCantCallout =
-                wordingCant && overlapBand !== 'high'
-              const assistantPostStreamReady =
-                isAssistant &&
-                msg.content.trim().length > 0 &&
-                !isStreamingThisAssistant
+                  const isAssistant = msg.role === 'assistant'
+                  const isLast = i === displayMessages.length - 1
+                  const isLastAssistantLoading =
+                    isAssistant && isLast && isLoading && msg.content === ''
+                  const isStreamingThisAssistant =
+                    isAssistant && isLast && isLoading
+                  /** Per-turn chrome pack — trust pill / sources / chips match title & input for that point in the thread ([Jasmin] Apr 2026). */
+                  const chromeLocaleAtTurn = resolveAskChromeLocale(
+                    displayMessages.slice(0, i + 1),
+                    documentLanguage,
+                    fullText,
+                    translationTargetLang
+                  )
+                  const packForChromeAtTurn = ASK_PROMPT_PACK[chromeLocaleAtTurn]
+                  const overlapCtx = isAssistant
+                    ? contextForOverlap(msg, fullText)
+                    : ''
+                  const overlapBand =
+                    isAssistant && msg.content.trim().length > 0
+                      ? computeAskConfidenceBand(msg.content, overlapCtx)
+                      : 'low'
+                  const wordingCant =
+                    isAssistant &&
+                    msg.content.trim().length > 0 &&
+                    answerLooksLikeCantDetermine(msg.content)
+                  /** Pill must match “can’t find” wording; overlap alone can contradict ([Jasmin] Apr 2026). */
+                  const pillBand = wordingCant ? 'cant_determine' : overlapBand
+                  const showCantCallout =
+                    wordingCant && overlapBand !== 'high'
+                  const assistantPostStreamReady =
+                    isAssistant &&
+                    msg.content.trim().length > 0 &&
+                    !isStreamingThisAssistant
 
-              return (
-                <div
-                  key={i}
-                  className={cn(
-                    'flex flex-col gap-1',
-                    isAssistant ? 'items-start' : 'items-end'
-                  )}
-                >
-                  <div
-                    className={cn(
-                      'max-w-[85%] rounded-lg px-3 py-2 text-sm',
-                      isAssistant
-                        ? 'bg-muted text-foreground'
-                        : 'bg-primary text-primary-foreground'
-                    )}
-                  >
-                    {isLastAssistantLoading ? (
-                      <span className="flex items-center gap-2 text-muted-foreground">
-                        <Spinner className="size-3" aria-hidden="true" />
-                        <span className="inline-flex gap-0.5" aria-hidden>
-                          <span className="animate-pulse">·</span>
-                          <span className="animate-pulse delay-100">·</span>
-                          <span className="animate-pulse delay-200">·</span>
-                        </span>
-                        {askPromptPack.chrome.assistantStreaming}
-                      </span>
-                    ) : !msg.content.trim() && isAssistant ? (
-                      <span className="text-muted-foreground">
-                        {packForChromeAtTurn.chrome.noAnswerReturned}
-                      </span>
-                    ) : (
-                      msg.content
-                    )}
-                  </div>
-                  {isAssistant && assistantPostStreamReady && (
-                      <div className="flex w-full min-w-0 max-w-full flex-col gap-2 sm:max-w-[min(100%,36rem)]">
-                        {/* [Brandi] — “Not found” regex + [Jasmin] — suppress when overlap band is `high` (bad chunks / full-doc fallback used to skew overlap). */}
-                        {showCantCallout && (
-                          <Alert className="border-muted-foreground/40 bg-muted/60">
-                            {/* [Zaria] Guardrails: “not found” + CTA — ASK_PROMPT_PACK.*.cantCallout */}
-                            <AlertTitle>
-                              {packForChromeAtTurn.cantCallout.title}
-                            </AlertTitle>
-                            <AlertDescription className="flex flex-col gap-2">
-                              <span>{packForChromeAtTurn.cantCallout.body}</span>
-                              <Button
-                                type="button"
-                                variant="default"
-                                size="sm"
-                                className="w-fit"
-                                asChild
-                              >
-                                <a
-                                  href="https://www.usa.gov/legal-aid"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                >
-                                  {packForChromeAtTurn.cantCallout.consultButton}
-                                </a>
-                              </Button>
-                            </AlertDescription>
-                          </Alert>
+                  return (
+                    <div
+                      key={i}
+                      className={cn(
+                        'flex flex-col gap-1',
+                        isAssistant ? 'items-start' : 'items-end'
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          'max-w-[85%] rounded-lg px-3 py-2 text-sm',
+                          isAssistant
+                            ? 'bg-muted text-foreground'
+                            : 'bg-primary text-primary-foreground'
                         )}
-                        {(() => {
-                          const refs = sourcesForDisplay(msg, fullText)
-                          const cantPill = pillBand === 'cant_determine'
-                          return (
-                            <>
-                              {/* [Team 1 eval] — Trust pill uses `lib/askConfidenceBands.ts` (same constants as `/api/ask` logs). [Karlee] — baseline model only. */}
+                      >
+                        {isLastAssistantLoading ? (
+                          <span className="flex items-center gap-2 text-muted-foreground">
+                            <Spinner className="size-3" aria-hidden="true" />
+                            <span className="inline-flex gap-0.5" aria-hidden>
+                              <span className="animate-pulse">·</span>
+                              <span className="animate-pulse delay-100">·</span>
+                              <span className="animate-pulse delay-200">·</span>
+                            </span>
+                            {askPromptPack.chrome.assistantStreaming}
+                          </span>
+                        ) : !msg.content.trim() && isAssistant ? (
+                          <span className="text-muted-foreground">
+                            {packForChromeAtTurn.chrome.noAnswerReturned}
+                          </span>
+                        ) : (
+                          msg.content
+                        )}
+                      </div>
+                      {isAssistant && assistantPostStreamReady && (
+                        <div className="flex w-full min-w-0 max-w-full flex-col gap-2 sm:max-w-[min(100%,36rem)]">
+                          {/* [Brandi] — “Not found” regex + [Jasmin] — suppress when overlap band is `high` (bad chunks / full-doc fallback used to skew overlap). */}
+                          {showCantCallout && (
+                            <Alert className="border-muted-foreground/40 bg-muted/60">
+                              {/* [Zaria] Guardrails: “not found” + CTA — ASK_PROMPT_PACK.*.cantCallout */}
+                              <AlertTitle>
+                                {packForChromeAtTurn.cantCallout.title}
+                              </AlertTitle>
+                              <AlertDescription className="flex flex-col gap-2">
+                                <span>{packForChromeAtTurn.cantCallout.body}</span>
+                                <Button
+                                  type="button"
+                                  variant="default"
+                                  size="sm"
+                                  className="w-fit"
+                                  asChild
+                                >
+                                  <a
+                                    href="https://www.usa.gov/legal-aid"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    {packForChromeAtTurn.cantCallout.consultButton}
+                                  </a>
+                                </Button>
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                          {(() => {
+                            const refs = sourcesForDisplay(msg, fullText)
+                            const cantPill = pillBand === 'cant_determine'
+                            return (
+                              <>
+                                {/* [Team 1 eval] — Trust pill uses `lib/askConfidenceBands.ts` (same constants as `/api/ask` logs). [Karlee] — baseline model only. */}
+                                <div
+                                  role="status"
+                                  className={cn(
+                                    'inline-flex max-w-full rounded-full px-4 py-2.5 text-left text-sm font-semibold leading-snug shadow-sm [text-wrap:pretty]',
+                                    askTrustPillClassName(pillBand)
+                                  )}
+                                >
+                                  {cantPill
+                                    ? packForChromeAtTurn.confidence.cantBadgeLabel
+                                    : pillBand === 'high'
+                                      ? packForChromeAtTurn.confidence.highSentence
+                                      : pillBand === 'medium'
+                                        ? packForChromeAtTurn.confidence.moderateSentence
+                                        : packForChromeAtTurn.confidence.lowSentence}
+                                </div>
+                                {refs.length > 0 && !cantPill && (
+                                  <Collapsible className="w-full max-w-md rounded-md border border-border bg-background/80 text-left text-xs">
+                                    {/* [Brandi] — snippets are what was POSTed; page labels are placeholders until doc layout metadata exists. */}
+                                    <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 px-3 py-2 font-medium hover:bg-muted/60 [&[data-state=open]>svg]:rotate-180">
+                                      <span>
+                                        {packForChromeAtTurn.source.expandPrefix} ·{' '}
+                                        {packForChromeAtTurn.source.pagePlaceholder} ·{' '}
+                                        {packForChromeAtTurn.source.tapToExpand} (
+                                        {sourcePassageCountLabel(
+                                          chromeLocaleAtTurn,
+                                          refs.length
+                                        )}
+                                        )
+                                      </span>
+                                      <ChevronDownIcon
+                                        className="size-4 shrink-0 transition-transform"
+                                        aria-hidden
+                                      />
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent className="border-t border-border px-3 pb-2 pt-1">
+                                      <ol className="list-decimal space-y-3 pl-4 text-muted-foreground">
+                                        {refs.map((ref, si) => {
+                                          const canJump =
+                                            Boolean(onJumpToSource) &&
+                                            ref.charStart != null &&
+                                            ref.matchLen != null
+                                          return (
+                                            <li key={si} className="space-y-1">
+                                              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                                {packForChromeAtTurn.source.exactSentence}
+                                              </p>
+                                              <p className="whitespace-pre-wrap text-foreground/90">
+                                                {firstSentenceFromSnippet(
+                                                  ref.snippet
+                                                )}
+                                              </p>
+                                              <p className="mt-1 text-[11px] text-muted-foreground">
+                                                {packForChromeAtTurn.source.fullPassageSent}
+                                              </p>
+                                              <p className="whitespace-pre-wrap text-muted-foreground">
+                                                {ref.snippet}
+                                              </p>
+                                              {canJump ? (
+                                                <Button
+                                                  type="button"
+                                                  variant="link"
+                                                  size="sm"
+                                                  className="h-auto p-0 text-xs font-medium"
+                                                  onClick={() =>
+                                                    onJumpToSource?.({
+                                                      charStart: ref.charStart!,
+                                                      matchLen: ref.matchLen!,
+                                                    })
+                                                  }
+                                                >
+                                                  {
+                                                    packForChromeAtTurn.source
+                                                      .showInOriginal
+                                                  }
+                                                </Button>
+                                              ) : onJumpToSource ? (
+                                                <p className="text-[11px] text-muted-foreground">
+                                                  {
+                                                    packForChromeAtTurn.source
+                                                      .highlightUnavailable
+                                                  }
+                                                </p>
+                                              ) : (
+                                                <p className="text-[11px] text-muted-foreground">
+                                                  {
+                                                    packForChromeAtTurn.source
+                                                      .useTranslatePage
+                                                  }
+                                                </p>
+                                              )}
+                                            </li>
+                                          )
+                                        })}
+                                      </ol>
+                                    </CollapsibleContent>
+                                  </Collapsible>
+                                )}
+                              </>
+                            )
+                          })()}
+                          {(() => {
+                            const lastUserTurn =
+                              lastUserContentBeforeAssistantIndex(
+                                displayMessages,
+                                i
+                              )
+                            const followUps = promptsExcludingDuplicates(
+                              packForChromeAtTurn.followUp,
+                              {
+                                inputValue: input,
+                                hideIfMatchesUserTurn: lastUserTurn,
+                              }
+                            )
+                            if (followUps.length === 0) return null
+                            const isVividFollowUpRow =
+                              i === followUpVividAssistantIndex
+                            return (
                               <div
-                                role="status"
                                 className={cn(
-                                  'inline-flex max-w-full rounded-full px-4 py-2.5 text-left text-sm font-semibold leading-snug shadow-sm [text-wrap:pretty]',
-                                  askTrustPillClassName(pillBand)
+                                  'mt-2 flex flex-wrap gap-2',
+                                  !isVividFollowUpRow &&
+                                  'opacity-50 saturate-[0.65] transition-[opacity,filter] duration-200'
                                 )}
                               >
-                                {cantPill
-                                  ? packForChromeAtTurn.confidence.cantBadgeLabel
-                                  : pillBand === 'high'
-                                    ? packForChromeAtTurn.confidence.highSentence
-                                    : pillBand === 'medium'
-                                      ? packForChromeAtTurn.confidence.moderateSentence
-                                      : packForChromeAtTurn.confidence.lowSentence}
+                                {/* [Zaria] — follow-up chips; locale from per-turn `resolveAskChromeLocale` (matches card chrome). [Karlee] — model continuation quality. */}
+                                {followUps.map((label) => (
+                                  <Button
+                                    key={label}
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-xs"
+                                    onClick={() => setInput(label)}
+                                  >
+                                    {label}
+                                  </Button>
+                                ))}
                               </div>
-                              {refs.length > 0 && !cantPill && (
-                                <Collapsible className="w-full max-w-md rounded-md border border-border bg-background/80 text-left text-xs">
-                                  {/* [Brandi] — snippets are what was POSTed; page labels are placeholders until doc layout metadata exists. */}
-                                  <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 px-3 py-2 font-medium hover:bg-muted/60 [&[data-state=open]>svg]:rotate-180">
-                                    <span>
-                                      {packForChromeAtTurn.source.expandPrefix} ·{' '}
-                                      {packForChromeAtTurn.source.pagePlaceholder} ·{' '}
-                                      {packForChromeAtTurn.source.tapToExpand} (
-                                      {sourcePassageCountLabel(
-                                        chromeLocaleAtTurn,
-                                        refs.length
-                                      )}
-                                      )
-                                    </span>
-                                    <ChevronDownIcon
-                                      className="size-4 shrink-0 transition-transform"
-                                      aria-hidden
-                                    />
-                                  </CollapsibleTrigger>
-                                  <CollapsibleContent className="border-t border-border px-3 pb-2 pt-1">
-                                    <ol className="list-decimal space-y-3 pl-4 text-muted-foreground">
-                                      {refs.map((ref, si) => {
-                                        const canJump =
-                                          Boolean(onJumpToSource) &&
-                                          ref.charStart != null &&
-                                          ref.matchLen != null
-                                        return (
-                                          <li key={si} className="space-y-1">
-                                            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                              {packForChromeAtTurn.source.exactSentence}
-                                            </p>
-                                            <p className="whitespace-pre-wrap text-foreground/90">
-                                              {firstSentenceFromSnippet(
-                                                ref.snippet
-                                              )}
-                                            </p>
-                                            <p className="mt-1 text-[11px] text-muted-foreground">
-                                              {packForChromeAtTurn.source.fullPassageSent}
-                                            </p>
-                                            <p className="whitespace-pre-wrap text-muted-foreground">
-                                              {ref.snippet}
-                                            </p>
-                                            {canJump ? (
-                                              <Button
-                                                type="button"
-                                                variant="link"
-                                                size="sm"
-                                                className="h-auto p-0 text-xs font-medium"
-                                                onClick={() =>
-                                                  onJumpToSource?.({
-                                                    charStart: ref.charStart!,
-                                                    matchLen: ref.matchLen!,
-                                                  })
-                                                }
-                                              >
-                                                {
-                                                  packForChromeAtTurn.source
-                                                    .showInOriginal
-                                                }
-                                              </Button>
-                                            ) : onJumpToSource ? (
-                                              <p className="text-[11px] text-muted-foreground">
-                                                {
-                                                  packForChromeAtTurn.source
-                                                    .highlightUnavailable
-                                                }
-                                              </p>
-                                            ) : (
-                                              <p className="text-[11px] text-muted-foreground">
-                                                {
-                                                  packForChromeAtTurn.source
-                                                    .useTranslatePage
-                                                }
-                                              </p>
-                                            )}
-                                          </li>
-                                        )
-                                      })}
-                                    </ol>
-                                  </CollapsibleContent>
-                                </Collapsible>
-                              )}
-                            </>
-                          )
-                        })()}
-                        {(() => {
-                          const lastUserTurn =
-                            lastUserContentBeforeAssistantIndex(
-                              displayMessages,
-                              i
                             )
-                          const followUps = promptsExcludingDuplicates(
-                            packForChromeAtTurn.followUp,
-                            {
-                              inputValue: input,
-                              hideIfMatchesUserTurn: lastUserTurn,
-                            }
-                          )
-                          if (followUps.length === 0) return null
-                          const isVividFollowUpRow =
-                            i === followUpVividAssistantIndex
-                          return (
-                            <div
-                              className={cn(
-                                'mt-2 flex flex-wrap gap-2',
-                                !isVividFollowUpRow &&
-                                  'opacity-50 saturate-[0.65] transition-[opacity,filter] duration-200'
-                              )}
-                            >
-                              {/* [Zaria] — follow-up chips; locale from per-turn `resolveAskChromeLocale` (matches card chrome). [Karlee] — model continuation quality. */}
-                              {followUps.map((label) => (
-                                <Button
-                                  key={label}
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-xs"
-                                  onClick={() => setInput(label)}
-                                >
-                                  {label}
-                                </Button>
-                              ))}
-                            </div>
-                          )
-                        })()}
-                      </div>
-                    )}
-                </div>
-              )
-            })}
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
 
               <div ref={bottomRef} />
             </div>
-
-            {error && (
-              <Alert variant="destructive">
-                {/* [Zaria] — error chrome; [Team 1 eval] — localized ES/VI strings. */}
-                <AlertTitle>{askPromptPack.chrome.errorAlertTitle}</AlertTitle>
-                <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                  <span>{error}</span>
-                  <div className="flex flex-wrap gap-2">
-                    {isSessionEndedAskError(error) ? (
-                      <Button asChild variant="secondary" size="sm" className="w-fit">
-                        <Link href="/">
-                          {
-                            ASK_ERROR_COPY[errorChromeLocale(error)].goToUpload
-                          }
-                        </Link>
-                      </Button>
-                    ) : null}
-                    {lastQuestionForRetryRef.current &&
-                    !isSessionEndedAskError(error) ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="w-fit"
-                        onClick={() => {
-                          setError(null)
-                          void runAsk(lastQuestionForRetryRef.current!)
-                        }}
-                      >
-                        {ASK_ERROR_COPY[errorChromeLocale(error)].tryAgain}
-                      </Button>
-                    ) : null}
-                  </div>
-                </AlertDescription>
-              </Alert>
-            )}
 
             <div className="flex gap-2">
               <Input

@@ -4,6 +4,7 @@
  */
 
 import { selectNextSteps } from '@/lib/safetyRecommendations'
+import type { SafetyLang } from '@/lib/safetyI18n'
 import type { RiskNextStep, SafetySeverity } from '@/types'
 
 export type { SafetyResourceBucket } from '@/types'
@@ -18,11 +19,15 @@ export function normalizeSeverity(raw: unknown): SafetySeverity {
 
 export function getNextSteps(
   category: string,
-  severity: SafetySeverity
+  severity: SafetySeverity,
+  lang: SafetyLang = 'en'
 ): RiskNextStep[] {
-  return selectNextSteps({
-    category,
-    severity,
-    hasExplanation: true,
-  })
+  return selectNextSteps(
+    {
+      category,
+      severity,
+      hasExplanation: true,
+    },
+    lang
+  )
 }

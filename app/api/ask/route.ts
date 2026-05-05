@@ -1,5 +1,5 @@
-import { createHash } from "crypto";
-import { streamText } from "ai";
+import { createHash, randomUUID } from "crypto";
+import { createUIMessageStream, createUIMessageStreamResponse, streamText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { NextResponse } from "next/server";
 import {
@@ -11,6 +11,8 @@ import {
   sanitizeAskInputs,
   validateAskRequestInputs,
 } from "@/lib/askGuardrails";
+import { callHfInferenceAskProvider } from "@/lib/askHfInferenceProvider";
+import { evaluateAsync } from "@/lib/evaluate";
 import {
   isAskLangSmithExportEnabled,
   postAskTurnToLangSmith,
@@ -36,16 +38,28 @@ if (!process.env.HF_TOKEN?.trim()) {
  *    via the Vercel AI SDK UI message stream (`toUIMessageStreamResponse`).
  * 4. AskTab must parse that stream with `parseJsonEventStream` + `readUIMessageStream` (see AskTab).
  *
- * Model hosting (Ask only): **Hugging Face** OpenAI-compatible chat API (`@ai-sdk/openai` + `streamText`).
- * Uses `HF_TOKEN` (same env as `/api/summarize` — do not duplicate keys in `.env.local`).
- * Default model id must be one the **Inference Providers router** exposes for `/v1/chat/completions`.
- * A private weights-only Hub repo (e.g. `hf upload …`) is often **not** a “chat model” on the router — HF returns 400
- * `model_not_supported`. To use your own checkpoint: deploy an **Inference Endpoint** (OpenAI-compatible), then set
- * `HF_ASK_BASE_URL` to that endpoint’s base URL and `HF_ASK_MODEL` to the id the endpoint expects.
+ * Two upstream model hosts are supported, dispatched at request time by env:
+ *
+ *   1. `HF_INFERENCE_ENDPOINT_URL` (preferred when set) — a dedicated HF
+ *      Inference Endpoint whose deployed handler accepts the standard
+ *      `{"inputs": {"messages": [...]}}` chat shape and returns
+ *      `{"generated_text": "..."}`. The endpoint does *not* stream, so
+ *      the Ask route makes one POST and emits the full answer as a
+ *      single `text-delta` chunk via `createUIMessageStream`. AskTab on
+ *      the client keeps consuming the same UI message stream protocol.
+ *      Implementation lives in `lib/askHfInferenceProvider`.
+ *   2. `HF_TOKEN` + (optional) `HF_ASK_BASE_URL` / `HF_ASK_MODEL` — the
+ *      legacy OpenAI-compatible HF Inference Providers router. Uses
+ *      `@ai-sdk/openai` + `streamText` for real token-by-token streaming.
+ *      `HF_TOKEN` is shared with `/api/summarize`; do not duplicate keys
+ *      in `.env.local`. The default model id must be one the router
+ *      exposes for `/v1/chat/completions`.
  */
 const DEFAULT_HF_ASK_BASE_URL = "https://router.huggingface.co/v1";
-/** Router chat model — same pattern as `/api/summarize` default (HF “:cheapest” provider slug). */
+/** Router chat model — same pattern as `/api/summarize` default (HF ":cheapest" provider slug). */
 const DEFAULT_HF_ASK_MODEL = "meta-llama/Llama-3.1-8B-Instruct:cheapest";
+/** Long timeout to absorb HF Inference Endpoint cold starts; matches translate scale. */
+const HF_INFERENCE_ASK_TIMEOUT_MS = 180_000;
 
 /**
  * **[Zaria] — Guardrails ticket:** domain line narrows the assistant to gov/legal/benefits-style
@@ -124,12 +138,9 @@ function hashForAskLog(value: string): string {
 }
 
 /** Inline guard: refuse to emit log lines that accidentally include long strings (raw question / document). */
-/** True when LangSmith / LangChain tracing keys are set (boolean only — never log secrets). */
+/** True when LangSmith API key is set (boolean only — never log secrets). */
 function langsmithTracingEnvPresent(): boolean {
-  return Boolean(
-    process.env.LANGSMITH_API_KEY?.trim() ||
-      process.env.LANGCHAIN_API_KEY?.trim(),
-  );
+  return Boolean(process.env.LANGSMITH_API_KEY?.trim());
 }
 
 function assertAskLogHasNoRawTextPayload(
@@ -169,13 +180,18 @@ export async function POST(request: Request) {
 
     const chunkCount = Array.isArray(chunks) ? chunks.length : 0;
 
-    const model = getAskLanguageModel();
-    if (!model) {
+    // Resolve which upstream to use. The dedicated inference endpoint
+    // wins when configured; otherwise we fall back to the legacy router
+    // path which requires HF_TOKEN.
+    const inferenceEndpointUrl =
+      process.env.HF_INFERENCE_ENDPOINT_URL?.trim() || undefined;
+    const model = inferenceEndpointUrl ? null : getAskLanguageModel();
+    if (!inferenceEndpointUrl && !model) {
       const durationMs = Date.now() - started;
       /* eslint-disable no-console */
       console.error(
         "[ask] inference error:",
-        "Hugging Face is not configured (missing HF_TOKEN)",
+        "Hugging Face is not configured (set HF_INFERENCE_ENDPOINT_URL or HF_TOKEN)",
         "— latency:",
         durationMs,
         "ms",
@@ -184,7 +200,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Ask is not configured. Set HF_TOKEN (see .env.local.example).",
+            "Ask is not configured. Set HF_INFERENCE_ENDPOINT_URL or HF_TOKEN (see .env.local.example).",
         },
         { status: 503 },
       );
@@ -248,9 +264,120 @@ export async function POST(request: Request) {
     const resolvedModelId =
       process.env.HF_ASK_MODEL?.trim() || DEFAULT_HF_ASK_MODEL;
 
+    // ── HF Inference Endpoint branch (non-streaming upstream) ────────────────
+    // The dedicated endpoint at HF_INFERENCE_ENDPOINT_URL is non-streaming —
+    // it returns the full answer in one JSON response. We still emit a UI
+    // message stream so the existing AskTab reader / parseJsonEventStream
+    // pipeline keeps working unchanged: emit text-start, one text-delta with
+    // the whole answer, then text-end. LangSmith export + evaluateAsync run
+    // here too so observability shape stays identical to the streamText path.
+    if (inferenceEndpointUrl) {
+      const inferenceModelId = "hf-inference-endpoint";
+      let answerText: string;
+      try {
+        answerText = await callHfInferenceAskProvider({
+          url: inferenceEndpointUrl,
+          systemPrompt,
+          userQuestion: safeQuestion,
+          hfToken: process.env.HF_TOKEN?.trim() || undefined,
+          timeoutMs: HF_INFERENCE_ASK_TIMEOUT_MS,
+        });
+      } catch (err) {
+        /* eslint-disable no-console */
+        const message = err instanceof Error ? err.message : String(err);
+        const durationMs = Date.now() - started;
+        console.error(
+          "[ask] inference error:",
+          message,
+          "— latency:",
+          durationMs,
+          "ms",
+          "— provider:",
+          inferenceModelId,
+        );
+        /* eslint-enable no-console */
+        return NextResponse.json(
+          { error: "Question answering failed" },
+          { status: 502 },
+        );
+      }
+
+      // Fire-and-forget observability — same shape as the streamText path.
+      void postAskTurnToLangSmith({
+        questionHash,
+        questionLen,
+        chunkCount,
+        answerLanguage: answerLanguage ?? "unset",
+        contextTextLen: safeContext.length,
+        modelId: inferenceModelId,
+        finishReason: "stop",
+        totalUsage: undefined,
+        answerText,
+        confidenceBandsVersion: ASK_CONFIDENCE_BANDS_VERSION,
+      }).catch((langsmithErr) => {
+        /* eslint-disable no-console */
+        console.error(
+          "[ask] LangSmith export error:",
+          langsmithErr instanceof Error ? langsmithErr.message : String(langsmithErr),
+        );
+        /* eslint-enable no-console */
+      });
+      evaluateAsync({
+        input: safeQuestion,
+        output: answerText,
+        model: inferenceModelId,
+        feature: "ask",
+        metadata: {
+          questionHash,
+          chunkCount,
+          answerLanguage: answerLanguage ?? "unset",
+          confidenceBandsVersion: ASK_CONFIDENCE_BANDS_VERSION,
+          finishReason: "stop",
+          provider: inferenceModelId,
+        },
+      });
+
+      const durationMs = Date.now() - started;
+      const successLogPayload = { questionHash, questionLen };
+      assertAskLogHasNoRawTextPayload(
+        "inference_endpoint_complete",
+        successLogPayload,
+      );
+      /* eslint-disable no-console */
+      console.log(
+        "[ask] inference endpoint complete — latency:",
+        durationMs,
+        "ms",
+        successLogPayload,
+      );
+      /* eslint-enable no-console */
+
+      // Emit a UI message stream with one text-delta carrying the whole
+      // answer. AskTab streams it through `readUIMessageStream` exactly
+      // like the streamText path, so the chat bubble renders the same way.
+      const textId = randomUUID();
+      const stream = createUIMessageStream({
+        execute: ({ writer }) => {
+          writer.write({ type: "text-start", id: textId });
+          writer.write({ type: "text-delta", id: textId, delta: answerText });
+          writer.write({ type: "text-end", id: textId });
+        },
+      });
+      return createUIMessageStreamResponse({ stream });
+    }
+
+    // ── Legacy streaming branch (HF Inference Providers router) ──────────────
     // [Karlee] — V1 uses baseline Llama 3.1 8B + RAG + prompts (no fine-tuning per team decision, Apr 2026).
     // HF/LLM errors often surface when the client consumes the stream (after this handler returns),
-    // not here — so logs below mean “stream object ready”, not “model finished successfully”.
+    // not here — so logs below mean "stream object ready", not "model finished successfully".
+    if (!model) {
+      // Defensive — `inferenceEndpointUrl` was falsy and `getAskLanguageModel`
+      // returned null; the early 503 above should have caught this already.
+      return NextResponse.json(
+        { error: "Ask is not configured." },
+        { status: 503 },
+      );
+    }
     const result = streamText({
       model,
       system: systemPrompt,
@@ -274,6 +401,21 @@ export async function POST(request: Request) {
             err instanceof Error ? err.message : String(err),
           );
           /* eslint-enable no-console */
+        });
+        // Evaluation hook (`lib/evaluate.ts`): optional LangSmith run `evaluation-ask` when
+        // EVALUATIONS_ENABLED=true (alongside `postAskTurnToLangSmith` when tracing is on).
+        evaluateAsync({
+          input: safeQuestion,
+          output: event.text,
+          model: event.model?.modelId ?? resolvedModelId,
+          feature: "ask",
+          metadata: {
+            questionHash,
+            chunkCount,
+            answerLanguage: answerLanguage ?? "unset",
+            confidenceBandsVersion: ASK_CONFIDENCE_BANDS_VERSION,
+            finishReason: String(event.finishReason ?? ""),
+          },
         });
       },
     });

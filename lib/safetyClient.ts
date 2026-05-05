@@ -24,7 +24,8 @@ import type {
  */
 export async function analyzeDocumentSafety(
   ocr: OCRResult,
-  fieldCandidates: FieldCandidate[] | null = null
+  fieldCandidates: FieldCandidate[] | null = null,
+  targetLang?: string
 ): Promise<SafetyAnalysisResponse> {
   const fullText = ocr.fullText?.trim()
   const blocks =
@@ -39,6 +40,7 @@ export async function analyzeDocumentSafety(
     ...(fullText ? { fullText } : {}),
     ...(!fullText && blocks.length > 0 ? { blocks } : {}),
     ...(slim.length > 0 ? { fieldCandidates: slim } : {}),
+    ...(targetLang?.trim() ? { outputLanguage: targetLang.trim() } : {}),
   }
 
   if (!body.fullText && !body.blocks?.length) {

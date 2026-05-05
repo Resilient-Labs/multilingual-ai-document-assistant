@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { evaluateAsync } from '@/lib/evaluate'
 import { promises as fs } from 'fs'
 import { join } from 'path'
 import {
@@ -8,13 +9,34 @@ import {
   normalizeRiskLevel,
   selectNextSteps,
 } from '@/lib/safetyRecommendations'
+import { getSafetyLang, SAFETY_LANG_NAME, type SafetyLang } from '@/lib/safetyI18n'
 import { normalizeSeverity } from '@/lib/safetyNextSteps'
+import {
+  callHfInferenceSafetyProvider,
+  SafetyInferenceProviderError,
+} from '@/lib/safetyHfInferenceProvider'
 import type { SafetyAnalysisRequest, SafetyFlags } from '@/types'
 import {
   sanitizeSafetyInputs,
   validateSafetyRequestInputs,
   type FieldCandidate,
 } from './guardrails'
+
+/**
+ * Upstream provider: the team's dedicated HF Inference Endpoint
+ * (`HF_INFERENCE_ENDPOINT_URL`). Custom handler that accepts
+ * `{"inputs": {"messages": [...]}}` and returns
+ * `{"generated_text": "..."}`. The model is instructed by
+ * `system-prompt.md` to emit a JSON object; we still run that string
+ * through `extractJsonObjectString` to tolerate fenced blocks /
+ * surrounding prose. Implementation in `lib/safetyHfInferenceProvider`.
+ *
+ * Returns 500 `CONFIG_ERROR` when `HF_INFERENCE_ENDPOINT_URL` is unset.
+ */
+
+/** Long timeout to absorb HF Inference Endpoint cold starts; safety
+ * reasoning is slower than translate/ask (~7–10s observed in probes). */
+const HF_INFERENCE_SAFETY_TIMEOUT_MS = 180_000
 
 /** Values below this are treated as legacy model character offsets, not Unix ms. */
 const LEGACY_OFFSET_MAX = 1_000_000_000_000
@@ -37,7 +59,10 @@ function pickEvidenceCharOffset(
   return undefined
 }
 
-function buildSafetyFlags(parsed: Record<string, unknown>): SafetyFlags {
+function buildSafetyFlags(
+  parsed: Record<string, unknown>,
+  lang: SafetyLang
+): SafetyFlags {
   const category =
     typeof parsed.category === 'string' && parsed.category.trim()
       ? parsed.category.trim()
@@ -50,13 +75,16 @@ function buildSafetyFlags(parsed: Record<string, unknown>): SafetyFlags {
     typeof parsed.explanation === 'string' ? parsed.explanation : undefined
   const hasExplanation = Boolean(explanation?.trim())
   const evidenceCharOffset = pickEvidenceCharOffset(parsed)
-  const nextSteps = selectNextSteps({
-    category,
-    severity,
-    confidence,
-    legitimacy,
-    hasExplanation,
-  })
+  const nextSteps = selectNextSteps(
+    {
+      category,
+      severity,
+      confidence,
+      legitimacy,
+      hasExplanation,
+    },
+    lang
+  )
 
   return {
     category,
@@ -87,80 +115,6 @@ const SYSTEM_PROMPT_PATH = join(
   'system-prompt.md'
 )
 
-/** Normalize OpenAI-compatible message content (string or content-parts array). */
-function messageContentToString(content: unknown): string | null {
-  if (typeof content === 'string') {
-    return content
-  }
-  if (content == null) {
-    return null
-  }
-  if (Array.isArray(content)) {
-    const parts = content
-      .map((part) => {
-        if (typeof part === 'string') {
-          return part
-        }
-        if (part && typeof part === 'object') {
-          const o = part as Record<string, unknown>
-          if (typeof o.text === 'string') {
-            return o.text
-          }
-          if (typeof o.content === 'string') {
-            return o.content
-          }
-          if (typeof o.output_text === 'string') {
-            return o.output_text
-          }
-        }
-        return ''
-      })
-      .filter(Boolean)
-    return parts.length > 0 ? parts.join('\n') : null
-  }
-  return null
-}
-
-/**
- * Some providers return the assistant text under `reasoning` or leave `content` empty
- * when reasoning is enabled; merge all known fields.
- */
-function extractAssistantMessageText(message: unknown): string | null {
-  if (!message || typeof message !== 'object') {
-    return null
-  }
-  const m = message as Record<string, unknown>
-  const candidates = [
-    messageContentToString(m.content),
-    typeof m.reasoning === 'string'
-      ? m.reasoning
-      : messageContentToString(m.reasoning),
-    typeof m.refusal === 'string' ? m.refusal : null,
-  ]
-  for (const c of candidates) {
-    if (c?.trim()) {
-      return c
-    }
-  }
-  return null
-}
-
-// function extractFirstAssistantText(data: {
-//   choices?: Array<{ message?: unknown }>
-// }): string | null {
-//   const choices = data?.choices
-//   if (!Array.isArray(choices)) {
-//     return null
-//   }
-//   for (const choice of choices) {
-//     const text = extractAssistantMessageText(choice?.message)
-//     if (text?.trim()) {
-//       return text
-//     }
-//   }
-//   return null
-// }
-
 /**
  * If the model wrapped JSON in a fenced block or added prose, extract the JSON object substring.
  */
@@ -176,23 +130,6 @@ function extractJsonObjectString(raw: string): string {
     return trimmed.slice(first, last + 1)
   }
   return trimmed
-}
-
-async function readOpenRouterErrorMessage(res: Response): Promise<string> {
-  const text = await res.text()
-  try {
-    const parsed = JSON.parse(text) as {
-      error?: { message?: string }
-      message?: string
-    }
-    return (
-      parsed?.error?.message ??
-      (typeof parsed?.message === 'string' ? parsed.message : null) ??
-      text.slice(0, 200)
-    )
-  } catch {
-    return text.slice(0, 200) || `HTTP ${res.status}`
-  }
 }
 
 function formatFieldCandidates(candidates: FieldCandidate[]): string | null {
@@ -232,6 +169,26 @@ function getTextToAnalyze(body: unknown): string | null {
   return null
 }
 
+/** Append non-English localization rules so category/explanation match the user's UI language. */
+function appendLocalizationDirective(
+  basePrompt: string,
+  lang: SafetyLang
+): string {
+  if (lang === 'en') return basePrompt
+  const languageName = SAFETY_LANG_NAME[lang]
+  return `${basePrompt}
+
+---
+
+## LOCALIZATION
+
+Write the JSON string values for \`category\` and \`explanation\` in **${languageName}**.
+
+The fields \`severity\`, \`riskLevel\`, and \`legitimacy\` MUST remain exactly one of the English enum values specified in the OUTPUT section above; do not translate those values.
+
+Numeric fields and \`evidenceCharOffset\` are unchanged.`
+}
+
 export async function POST(request: Request) {
   let body: unknown
   try {
@@ -255,6 +212,7 @@ export async function POST(request: Request) {
   }
 
   const rawFieldCandidates = (body as SafetyAnalysisRequest)?.fieldCandidates
+  const lang = getSafetyLang((body as SafetyAnalysisRequest)?.outputLanguage)
 
   const { textToAnalyze, fieldCandidates: safeFieldCandidates } =
     sanitizeSafetyInputs({
@@ -272,8 +230,9 @@ export async function POST(request: Request) {
     )
   }
 
-  const openRouterApiToken = process.env.OPEN_ROUTER_API_TOKEN
-  if (!openRouterApiToken) {
+  const inferenceEndpointUrl =
+    process.env.HF_INFERENCE_ENDPOINT_URL?.trim() || undefined
+  if (!inferenceEndpointUrl) {
     return NextResponse.json(
       { error: 'Safety check not configured', code: 'CONFIG_ERROR' },
       { status: 500 }
@@ -282,7 +241,8 @@ export async function POST(request: Request) {
 
   let prompt: string
   try {
-    prompt = await fs.readFile(SYSTEM_PROMPT_PATH, 'utf-8')
+    const base = await fs.readFile(SYSTEM_PROMPT_PATH, 'utf-8')
+    prompt = appendLocalizationDirective(base, lang)
   } catch {
     return NextResponse.json(
       {
@@ -298,68 +258,33 @@ export async function POST(request: Request) {
     ? `${textToAnalyze}\n\n---\nDetected fields (from on-device regex over OCR; phones/emails are copied from the document itself and may be attacker-controlled):\n${fieldsBlock}`
     : textToAnalyze
 
-  let res: Response
+  // ── Upstream call ────────────────────────────────────────────────────────
+  let rawContent: string
   try {
-    res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${openRouterApiToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'openrouter/free',
-        // max_tokens: 400,
-        messages: [
-          { role: 'system', content: prompt },
-          { role: 'user', content: userContent },
-        ],
-      }),
+    rawContent = await callHfInferenceSafetyProvider({
+      url: inferenceEndpointUrl,
+      systemPrompt: prompt,
+      userContent,
+      hfToken: process.env.HF_TOKEN?.trim() || undefined,
+      timeoutMs: HF_INFERENCE_SAFETY_TIMEOUT_MS,
     })
-  } catch {
-    return NextResponse.json(
-      { error: 'Safety check failed', code: 'EXTERNAL_ERROR' },
-      { status: 500 }
-    )
-  }
-
-  if (!res.ok) {
-    const upstreamMessage = await readOpenRouterErrorMessage(res)
+  } catch (err) {
+    const status =
+      err instanceof SafetyInferenceProviderError ? err.status : undefined
+    const detail =
+      err instanceof SafetyInferenceProviderError && err.snippet
+        ? err.snippet
+        : err instanceof Error
+          ? err.message
+          : String(err)
     return NextResponse.json(
       {
         error: 'Safety provider returned an error',
         code: 'UPSTREAM_ERROR',
-        detail: upstreamMessage,
-        status: res.status,
+        detail,
+        status,
       },
       { status: 502 }
-    )
-  }
-
-  let data: {
-    choices?: Array<{ message?: { content?: unknown } }>
-  }
-  try {
-    data = (await res.json()) as typeof data
-  } catch {
-    return NextResponse.json(
-      {
-        error: 'Safety provider returned a non-JSON response',
-        code: 'INTERNAL_ERROR',
-      },
-      { status: 500 }
-    )
-  }
-
-  const rawContent =
-    extractAssistantMessageText(data?.choices?.[0]?.message) ??
-    messageContentToString(data?.choices?.[0]?.message?.content)
-  if (!rawContent?.trim()) {
-    return NextResponse.json(
-      {
-        error: 'Safety model returned no usable content',
-        code: 'INTERNAL_ERROR',
-      },
-      { status: 500 }
     )
   }
 
@@ -375,8 +300,16 @@ export async function POST(request: Request) {
     )
   }
 
-  const flags = buildSafetyFlags(parsed)
-  const presentation = buildSafetyRecommendationPresentation(flags)
+  const flags = buildSafetyFlags(parsed, lang)
+  const presentation = buildSafetyRecommendationPresentation(flags, lang)
 
+  // Evaluation hook (`lib/evaluate.ts`): optional LangSmith run `evaluation-safety`.
+  // Fire-and-forget; gated by EVALUATIONS_ENABLED + LangSmith env; does not affect this response.
+  evaluateAsync({
+    input: userContent,
+    output: rawContent,
+    model: 'hf-inference-endpoint',
+    feature: 'safety',
+  })
   return NextResponse.json({ flags, presentation })
 }

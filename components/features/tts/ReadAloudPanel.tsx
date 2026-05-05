@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Volume2Icon } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -16,6 +15,7 @@ import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
 import { TtsPlaybackVisual } from '@/components/features/tts/TtsPlaybackVisual'
+import { useErrorPopup } from '@/hooks/useErrorPopup'
 import type { Gender } from '@/lib/tts/types'
 
 type ReadAloudPanelProps = {
@@ -37,6 +37,7 @@ export function ReadAloudPanel({
   const [ttsAudioUrl, setTtsAudioUrl] = useState<string | null>(null)
   const [voiceGender, setVoiceGender] = useState<Gender>('feminine')
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const { showError } = useErrorPopup()
 
   const showGenderFilter = language === 'en'
   const hasVoiceFilters = showGenderFilter
@@ -63,6 +64,11 @@ export function ReadAloudPanel({
 
     void maybePlay()
   }, [ttsAudioUrl])
+
+  useEffect(() => {
+    if (!ttsError) return
+    showError('Read Aloud failed', ttsError)
+  }, [showError, ttsError])
 
   async function handleReadAloudGenerate() {
     if (isReadAloudDisabled) return
@@ -168,13 +174,6 @@ export function ReadAloudPanel({
           </p>
         )}
       </div>
-
-      {ttsError && (
-        <Alert variant="destructive">
-          <AlertTitle>Read Aloud failed</AlertTitle>
-          <AlertDescription>{ttsError}</AlertDescription>
-        </Alert>
-      )}
 
       <Dialog
         open={isReadAloudOpen && hasVoiceFilters}

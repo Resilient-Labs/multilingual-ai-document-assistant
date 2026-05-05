@@ -38,15 +38,47 @@ export interface OCRProvider {
   extract(fileBuffer: ArrayBuffer, mimeType: string): Promise<RawOCRResult>
 }
 
+function mockOCRBlock(): RawOCRBlock {
+  return {
+    text: 'Mock extracted text',
+    confidence: 0.95,
+    bbox: { x: 50, y: 100, width: 200, height: 50 },
+  }
+}
+
 export class MockOCRProvider implements OCRProvider {
   async extract(
-    _fileBuffer: ArrayBuffer,
-    _mimeType: string
+    fileBuffer: ArrayBuffer,
+    mimeType: string
   ): Promise<RawOCRResult> {
+    const block = mockOCRBlock()
+    const fullText = block.text
+    const page1 = {
+      pageNumber: 1,
+      width: 612,
+      height: 792,
+      blocks: [block],
+      fullText,
+    }
+
+    if (mimeType === 'application/pdf' && fileBuffer.byteLength > 100_000) {
+      return {
+        pages: [
+          page1,
+          {
+            pageNumber: 2,
+            width: 612,
+            height: 792,
+            blocks: [mockOCRBlock()],
+            fullText,
+          },
+        ],
+        language: 'en',
+      }
+    }
+
     return {
-      pages: [
-        { pageNumber: 1, width: 612, height: 792, blocks: [], fullText: '' },
-      ],
+      pages: [page1],
       language: 'en',
     }
   }

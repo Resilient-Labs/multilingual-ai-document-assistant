@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDropzone } from 'react-dropzone'
 import {
@@ -24,9 +24,15 @@ import { cn } from '@/lib/utils'
 import { Spinner } from '@/components/ui/spinner'
 import { logDocumentSubmission } from '@/app/actions/logging'
 import { persistOCRToEntityDB } from '@/lib/entitydb-persist'
+import { getEntityDB, insertChunk } from '@/lib/entitydb'
+import {
+  deleteAllVectorsForDocId,
+  persistTranslateSessionCache,
+} from '@/lib/entitydb-translate-cache'
 import type { OCRResult } from '@/types'
 import { chunkText } from '@/lib/chunking'
-import { insertChunk } from '@/lib/entitydb'
+import { useLanguagePreference } from '@/hooks/useLanguagePreference'
+import { useErrorPopup } from '@/hooks/useErrorPopup'
 
 const HEIC_BRANDS = [
   'heic',
@@ -130,6 +136,8 @@ interface UploadFormProps {
 
 export function UploadForm({ mobile = false }: UploadFormProps) {
   const router = useRouter()
+  const { preferredLanguage, setLanguage } = useLanguagePreference()
+  const { showError } = useErrorPopup()
   const [file, setFile] = useState<File | null>(null)
   const [sourceLang, setSourceLang] = useState('auto')
   const [targetLang, setTargetLang] = useState('es')
@@ -137,17 +145,41 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
   const [ocrProgress, setOcrProgress] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (preferredLanguage) {
+      setTargetLang(preferredLanguage)
+    }
+  }, [preferredLanguage])
+
+  useEffect(() => {
+    if (!error) return
+    showError('Upload failed', error)
+  }, [error, showError])
+
   const isImage = file?.type.startsWith('image/') ?? false
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    logDocumentSubmission(sourceLang, targetLang).catch(() => {})
+    logDocumentSubmission(sourceLang, targetLang).catch(() => { })
     if (!file) return
 
     setIsSubmitting(true)
     setError(null)
     setOcrProgress('Loading OCR engine…')
+
+    // Only set while on translate; cleared on landing (`app/page.tsx`) so
+    // uploads from home do not delete unrelated saved documents.
+    const previousDocId = sessionStorage.getItem('current-doc-id')
+    if (previousDocId) {
+      localStorage.removeItem(`translate-cache-ids-${previousDocId}`)
+      await deleteAllVectorsForDocId(previousDocId).catch((err) => {
+        console.error(
+          '[upload] deleteAllVectorsForDocId(previous):',
+          err
+        )
+      })
+    }
 
     try {
       let fullText: string
@@ -240,15 +272,23 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
         }
       })
 
+      const translateSession = {
+        fullText,
+        filename: file.name,
+        sourceLang,
+        targetLang,
+      }
       sessionStorage.setItem(
         `translate-${docId}`,
-        JSON.stringify({
-          fullText,
-          filename: file.name,
-          sourceLang,
-          targetLang,
-        })
+        JSON.stringify(translateSession)
       )
+      void persistTranslateSessionCache(
+        getEntityDB(),
+        docId,
+        translateSession
+      ).catch((err) => {
+        console.error('[translate-cache] persist failed:', err)
+      })
       sessionStorage.setItem('current-doc-id', docId)
       router.push(`/translate/${docId}`)
     } catch (err) {
@@ -329,7 +369,10 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
         </button>
 
         <div className="flex-1">
-          <Select value={targetLang} onValueChange={setTargetLang}>
+          <Select value={targetLang} onValueChange={(value) => {
+            setTargetLang(value)
+            setLanguage(value).catch(() => { })
+          }}>
             <SelectTrigger className="w-full h-9 text-sm rounded-xl">
               <SelectValue placeholder="Target" />
             </SelectTrigger>
@@ -352,12 +395,6 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
   const submitLabel =
     isSubmitting && ocrProgress ? ocrProgress : 'Translate document'
 
-  const ErrorMessage = error && (
-    <div className="rounded-2xl border border-destructive/40 bg-destructive/5 text-destructive p-4 text-sm">
-      {error}
-    </div>
-  )
-
   /* ── Mobile layout ─────────────────────────────────────────────── */
   if (mobile) {
     return (
@@ -375,7 +412,7 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
 
           {file ? (
             <div className="flex flex-col items-center gap-3 px-6 text-center">
-              <div className="flex items-center gap-2 rounded-xl border border-border bg-white px-4 py-2.5 shadow-sm">
+              <div className="flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 shadow-sm">
                 <FileTextIcon className="size-4 shrink-0 text-indigo-500" />
                 <span className="max-w-[180px] truncate text-sm font-medium">
                   {file.name}
@@ -415,7 +452,6 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
         </div>
 
         {TranslationDirection}
-        {ErrorMessage}
 
         <Button
           type="submit"
@@ -491,8 +527,6 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
           </>
         )}
       </div>
-
-      {ErrorMessage}
 
       <Button
         type="submit"

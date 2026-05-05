@@ -1,6 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { POST } from './route'
+import { SAFETY_DISCLAIMER, SAFETY_SEVERITY_LABELS } from '@/lib/safetyI18n'
 import type { SafetyAnalysisResponse } from '@/types'
+
+/**
+ * The safety route POSTs to the dedicated HF Inference Endpoint with the
+ * shape `{"inputs":{"messages":[system,user]}}` and reads
+ * `{"generated_text":"<json string>"}` back. The route still runs the
+ * model's reply through `extractJsonObjectString` to tolerate fenced
+ * blocks / surrounding prose, then `JSON.parse`s the result into safety
+ * flags. These tests mock global `fetch` to return that exact shape.
+ */
+
+const TEST_HF_URL =
+  'https://test-endpoint.us-east-1.aws.endpoints.huggingface.cloud'
 
 function createMockRequest(body: unknown): Request {
   return {
@@ -8,43 +21,40 @@ function createMockRequest(body: unknown): Request {
   } as unknown as Request
 }
 
+/** Build a fetch mock that returns a successful HF Inference Endpoint
+ *  response whose `generated_text` is a JSON string conforming to the
+ *  safety route's expected shape. */
 function createSuccessfulFetchMock(flags: Record<string, unknown>) {
   return vi.fn().mockResolvedValue({
     ok: true,
     json: async () => ({
-      choices: [
-        {
-          message: {
-            content: JSON.stringify({
-              category: flags.category ?? 'Unknown',
-              severity: flags.severity ?? 'low',
-              riskLevel: flags.riskLevel,
-              confidence: flags.confidence ?? 75,
-              legitimacy: flags.legitimacy ?? 'uncertain',
-              explanation: flags.explanation ?? 'Test explanation',
-              evidenceCharOffset:
-                (flags.evidenceCharOffset as number | undefined) ?? 42,
-            }),
-          },
-        },
-      ],
+      generated_text: JSON.stringify({
+        category: flags.category ?? 'Unknown',
+        severity: flags.severity ?? 'low',
+        riskLevel: flags.riskLevel,
+        confidence: flags.confidence ?? 75,
+        legitimacy: flags.legitimacy ?? 'uncertain',
+        explanation: flags.explanation ?? 'Test explanation',
+        evidenceCharOffset:
+          (flags.evidenceCharOffset as number | undefined) ?? 42,
+      }),
     }),
   })
 }
 
 describe('POST /api/safety', () => {
   const originalFetch = globalThis.fetch
-  const originalEnv = process.env.OPEN_ROUTER_API_TOKEN
+  const originalEnv = process.env.HF_INFERENCE_ENDPOINT_URL
 
   beforeEach(() => {
-    process.env.OPEN_ROUTER_API_TOKEN = 'test-token'
+    process.env.HF_INFERENCE_ENDPOINT_URL = TEST_HF_URL
     globalThis.fetch = vi.fn() as typeof fetch
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
     globalThis.fetch = originalFetch
-    process.env.OPEN_ROUTER_API_TOKEN = originalEnv
+    process.env.HF_INFERENCE_ENDPOINT_URL = originalEnv
   })
 
   describe('validation', () => {
@@ -143,6 +153,65 @@ describe('POST /api/safety', () => {
       )
       expect(body.flags.confidence).toBe(75)
     })
+
+    it('POSTs to the configured HF endpoint with the inputs+messages shape', async () => {
+      ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+        createSuccessfulFetchMock({ category: 'Utility Bill', severity: 'low' })
+      )
+
+      const request = createMockRequest({
+        fullText: 'Your electric bill is ready.',
+      })
+      await POST(request)
+
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+      const [url, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+        .calls[0] as [string, RequestInit]
+      expect(url).toBe(`${TEST_HF_URL}/`)
+      expect(init.method).toBe('POST')
+
+      const fetchBody = JSON.parse(init.body as string) as {
+        inputs?: { messages?: Array<{ role: string; content: string }> }
+      }
+      const messages = fetchBody.inputs?.messages
+      expect(Array.isArray(messages)).toBe(true)
+      expect(messages![0].role).toBe('system')
+      expect(messages![1].role).toBe('user')
+      expect(messages![1].content).toContain('Your electric bill is ready.')
+    })
+
+    it('includes localization directive and Spanish presentation when outputLanguage is es', async () => {
+      ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+        createSuccessfulFetchMock({
+          category: 'Medical Bill',
+          severity: 'medium',
+          explanation: 'Document requests payment.',
+        })
+      )
+
+      const request = createMockRequest({
+        fullText: 'This is a medical bill for $500.',
+        outputLanguage: 'es',
+      })
+      const response = await POST(request)
+      const body = (await response.json()) as SafetyAnalysisResponse
+
+      expect(response.status).toBe(200)
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+      const fetchCall = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+        .calls[0]
+      const fetchBody = JSON.parse(fetchCall[1]?.body as string) as {
+        inputs: { messages: Array<{ content: string }> }
+      }
+      const systemContent = fetchBody.inputs.messages[0].content
+      expect(systemContent).toContain('## LOCALIZATION')
+      expect(systemContent).toContain('Spanish')
+
+      expect(body.presentation.severityLabel).toBe(
+        SAFETY_SEVERITY_LABELS.es.medium
+      )
+      expect(body.presentation.disclaimer).toBe(SAFETY_DISCLAIMER.es)
+    })
   })
 
   describe('valid blocks', () => {
@@ -173,17 +242,18 @@ describe('POST /api/safety', () => {
       expect(globalThis.fetch).toHaveBeenCalledTimes(1)
       const fetchCall = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
         .calls[0]
-      const fetchBody = JSON.parse(fetchCall[1]?.body as string)
-      expect(fetchBody.messages[1].content).toContain('FINAL NOTICE')
-      expect(fetchBody.messages[1].content).toContain(
-        'Payment due within 7 days.'
-      )
+      const fetchBody = JSON.parse(fetchCall[1]?.body as string) as {
+        inputs: { messages: Array<{ content: string }> }
+      }
+      const userMsg = fetchBody.inputs.messages[1].content
+      expect(userMsg).toContain('FINAL NOTICE')
+      expect(userMsg).toContain('Payment due within 7 days.')
     })
   })
 
   describe('error handling', () => {
-    it('returns 500 when OPEN_ROUTER_API_TOKEN is unset', async () => {
-      process.env.OPEN_ROUTER_API_TOKEN = ''
+    it('returns 500 when HF_INFERENCE_ENDPOINT_URL is unset', async () => {
+      process.env.HF_INFERENCE_ENDPOINT_URL = ''
 
       const request = createMockRequest({ fullText: 'Some text' })
       const response = await POST(request)
@@ -194,12 +264,10 @@ describe('POST /api/safety', () => {
       expect(body.code).toBe('CONFIG_ERROR')
     })
 
-    it('returns 500 when OpenRouter returns invalid JSON in content', async () => {
+    it('returns 500 PARSE_ERROR when generated_text is not valid JSON', async () => {
       ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
-        json: async () => ({
-          choices: [{ message: { content: 'not valid json {{' } }],
-        }),
+        json: async () => ({ generated_text: 'not valid json {{' }),
       })
 
       const request = createMockRequest({ fullText: 'Some text' })
@@ -210,26 +278,28 @@ describe('POST /api/safety', () => {
       expect(body.code).toBe('PARSE_ERROR')
     })
 
-    it('returns 500 when OpenRouter response has no choices', async () => {
+    it('returns 502 UPSTREAM_ERROR when generated_text field is missing', async () => {
+      // Empty body still parses as JSON, but the helper rejects on
+      // missing/non-string `generated_text`. The route maps that to a
+      // 502 UPSTREAM_ERROR, same as any other provider failure.
       ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
-        json: async () => ({ choices: [] }),
+        json: async () => ({}),
       })
 
       const request = createMockRequest({ fullText: 'Some text' })
       const response = await POST(request)
       const body = await response.json()
 
-      expect(response.status).toBe(500)
-      expect(body.code).toBe('INTERNAL_ERROR')
+      expect(response.status).toBe(502)
+      expect(body.code).toBe('UPSTREAM_ERROR')
     })
 
-    it('returns 502 UPSTREAM_ERROR when OpenRouter HTTP status is not ok', async () => {
+    it('returns 502 UPSTREAM_ERROR when the HF endpoint HTTP status is not ok', async () => {
       ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: false,
         status: 429,
-        text: async () =>
-          JSON.stringify({ error: { message: 'Rate limit exceeded' } }),
+        text: async () => 'Rate limit exceeded',
       })
 
       const request = createMockRequest({ fullText: 'Some text' })
@@ -241,7 +311,7 @@ describe('POST /api/safety', () => {
       expect(body.detail).toContain('Rate limit')
     })
 
-    it('returns 500 when fetch throws', async () => {
+    it('returns 502 UPSTREAM_ERROR when fetch throws', async () => {
       ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(
         new Error('Network error')
       )
@@ -250,13 +320,13 @@ describe('POST /api/safety', () => {
       const response = await POST(request)
       const body = await response.json()
 
-      expect(response.status).toBe(500)
-      expect(body.code).toBe('EXTERNAL_ERROR')
+      expect(response.status).toBe(502)
+      expect(body.code).toBe('UPSTREAM_ERROR')
     })
   })
 
   describe('fieldCandidates', () => {
-    it('includes a Detected fields block in the OpenRouter user message', async () => {
+    it('includes a Detected fields block in the user message', async () => {
       ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation(
         createSuccessfulFetchMock({
           category: 'Scam Suspect',
@@ -281,8 +351,10 @@ describe('POST /api/safety', () => {
 
       const fetchCall = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
         .calls[0]
-      const fetchBody = JSON.parse(fetchCall[1]?.body as string)
-      const userContent = fetchBody.messages[1].content as string
+      const fetchBody = JSON.parse(fetchCall[1]?.body as string) as {
+        inputs: { messages: Array<{ content: string }> }
+      }
+      const userContent = fetchBody.inputs.messages[1].content
 
       expect(userContent).toContain('Please call us to resolve your case.')
       expect(userContent).toContain('Detected fields')
@@ -290,9 +362,7 @@ describe('POST /api/safety', () => {
       expect(userContent).toContain('- email: agent@irs-refund.biz')
       expect(userContent).toContain('- amount: $1,250.00')
       expect(userContent).not.toContain('- blank:')
-      expect(
-        (userContent.match(/555-123-4567/g) ?? []).length
-      ).toBe(1)
+      expect((userContent.match(/555-123-4567/g) ?? []).length).toBe(1)
     })
 
     it('omits the Detected fields block when fieldCandidates is empty or missing', async () => {
@@ -312,8 +382,10 @@ describe('POST /api/safety', () => {
       expect(response.status).toBe(200)
       const fetchCall = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
         .calls[0]
-      const fetchBody = JSON.parse(fetchCall[1]?.body as string)
-      const userContent = fetchBody.messages[1].content as string
+      const fetchBody = JSON.parse(fetchCall[1]?.body as string) as {
+        inputs: { messages: Array<{ content: string }> }
+      }
+      const userContent = fetchBody.inputs.messages[1].content
 
       expect(userContent).toBe('Your electric bill is ready.')
       expect(userContent).not.toContain('Detected fields')
@@ -333,9 +405,7 @@ describe('POST /api/safety', () => {
       const fenced = `\`\`\`json\n${JSON.stringify(payload)}\n\`\`\``
       ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
-        json: async () => ({
-          choices: [{ message: { content: fenced } }],
-        }),
+        json: async () => ({ generated_text: fenced }),
       })
 
       const request = createMockRequest({ fullText: 'Buy now limited offer' })
@@ -346,26 +416,22 @@ describe('POST /api/safety', () => {
       expect(body.flags.category).toBe('Promotional')
     })
 
-    it('accepts message content as array of text parts', async () => {
-      const inner = JSON.stringify({
+    it('extracts the JSON object from prose-wrapped responses', async () => {
+      const payload = {
         category: 'Unknown',
         severity: 'low',
         confidence: 50,
         legitimacy: 'uncertain',
         explanation: 'Too short.',
         evidenceCharOffset: 0,
-      })
+      }
+      // Some chat models prefix their JSON output with a sentence; the
+      // route's `extractJsonObjectString` handles that by slicing from
+      // the first `{` to the last `}`.
+      const wrapped = `Here is the analysis: ${JSON.stringify(payload)} — that's my best read.`
       ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
-        json: async () => ({
-          choices: [
-            {
-              message: {
-                content: [{ type: 'text', text: inner }],
-              },
-            },
-          ],
-        }),
+        json: async () => ({ generated_text: wrapped }),
       })
 
       const request = createMockRequest({ fullText: 'Hi' })
@@ -374,37 +440,6 @@ describe('POST /api/safety', () => {
 
       expect(response.status).toBe(200)
       expect(body.flags.category).toBe('Unknown')
-    })
-
-    it('uses reasoning field when content is empty', async () => {
-      const inner = JSON.stringify({
-        category: 'Utility Bill',
-        severity: 'low',
-        confidence: 70,
-        legitimacy: 'likely_legitimate',
-        explanation: 'Routine bill.',
-        evidenceCharOffset: 0,
-      })
-      ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          choices: [
-            {
-              message: {
-                content: null,
-                reasoning: inner,
-              },
-            },
-          ],
-        }),
-      })
-
-      const request = createMockRequest({ fullText: 'Electric bill due' })
-      const response = await POST(request)
-      const body = (await response.json()) as SafetyAnalysisResponse
-
-      expect(response.status).toBe(200)
-      expect(body.flags.category).toBe('Utility Bill')
     })
   })
 })

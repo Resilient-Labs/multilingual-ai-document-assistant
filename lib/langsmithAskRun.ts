@@ -6,12 +6,8 @@ import { RunTree } from "langsmith";
  * Set `ASK_LANGSMITH_RECORD_IO=true` on **staging only** when building a labeled eval set.
  */
 export function isAskLangSmithExportEnabled(): boolean {
-  const hasKey =
-    process.env.LANGSMITH_API_KEY?.trim() ||
-    process.env.LANGCHAIN_API_KEY?.trim();
-  const tracingOn =
-    process.env.LANGSMITH_TRACING === "true" ||
-    process.env.LANGCHAIN_TRACING_V2 === "true";
+  const hasKey = process.env.LANGSMITH_API_KEY?.trim();
+  const tracingOn = process.env.LANGSMITH_TRACING === "true";
   return Boolean(hasKey && tracingOn);
 }
 

@@ -4,10 +4,18 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
+import { useErrorPopup } from '@/hooks/useErrorPopup'
+import { getEntityDB } from '@/lib/entitydb'
+import {
+  persistSummaryCache,
+  readCachedSummary,
+  summaryInputFingerprint,
+} from '@/lib/entitydb-translate-cache'
 
 interface TranslateSummaryProps {
+  /** Document id (translate route param); used for IndexedDB summary cache. */
+  docId: string
   translatedText: string | null
   targetLangLabel: string
   /** BCP-47 style code (e.g. `es`, `zh-TW`). Summary is generated in this language. */
@@ -15,6 +23,7 @@ interface TranslateSummaryProps {
 }
 
 export function TranslateSummary({
+  docId,
   translatedText,
   targetLangLabel,
   outputLanguage,
@@ -22,17 +31,35 @@ export function TranslateSummary({
   const [summary, setSummary] = useState<string | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [summaryError, setSummaryError] = useState<string | null>(null)
+  const { showError } = useErrorPopup()
 
-  // Auto-generate summary when translation updates
+  // Auto-generate summary when translation updates (IndexedDB cache-first)
   useEffect(() => {
-    if (!translatedText) return
+    if (!translatedText || !docId) return
 
-    async function runSummary() {
+    let cancelled = false
+    const fingerprint = summaryInputFingerprint(
+      translatedText,
+      outputLanguage
+    )
+
+    void (async () => {
       setSummary(null)
       setSummaryLoading(true)
       setSummaryError(null)
 
       try {
+        const cached = await readCachedSummary(
+          getEntityDB(),
+          docId,
+          fingerprint
+        )
+        if (cancelled) return
+        if (cached !== null) {
+          setSummary(cached)
+          return
+        }
+
         const res = await fetch('/api/summarize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -56,16 +83,40 @@ export function TranslateSummary({
               : ''
           throw new Error(`${base}${detail}`)
         }
-        setSummary(data.summary ?? null)
-      } catch (err) {
-        setSummaryError(err instanceof Error ? err.message : 'Summary failed')
-      } finally {
-        setSummaryLoading(false)
-      }
-    }
 
-    runSummary()
-  }, [translatedText, outputLanguage])
+        const nextSummary = data.summary ?? null
+        if (cancelled) return
+        setSummary(nextSummary)
+        if (typeof nextSummary === 'string' && nextSummary.length > 0) {
+          await persistSummaryCache(
+            getEntityDB(),
+            docId,
+            fingerprint,
+            nextSummary
+          )
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setSummaryError(
+            err instanceof Error ? err.message : 'Summary failed'
+          )
+        }
+      } finally {
+        if (!cancelled) {
+          setSummaryLoading(false)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [translatedText, outputLanguage, docId])
+
+  useEffect(() => {
+    if (!summaryError) return
+    showError('Summary failed', summaryError)
+  }, [showError, summaryError])
 
   return (
     <Card className="flex w-full min-w-0 flex-col overflow-hidden">
@@ -86,14 +137,6 @@ export function TranslateSummary({
           <div className="flex items-center justify-center py-8">
             <Spinner className="size-6" aria-label="Summarizing document" />
           </div>
-        )}
-
-        {/* Error */}
-        {!summaryLoading && summaryError && (
-          <Alert variant="destructive">
-            <AlertTitle>Summary failed</AlertTitle>
-            <AlertDescription>{summaryError}</AlertDescription>
-          </Alert>
         )}
 
         {/* Success */}
