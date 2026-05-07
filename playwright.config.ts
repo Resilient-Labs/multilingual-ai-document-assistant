@@ -7,6 +7,8 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 1 : 2,
   reporter: [
+    // Annotates individual test failures inline on GitHub PR checks
+    ...(process.env.CI ? ([["github"]] as const) : []),
     ["html", { outputFolder: "playwright-report", open: "never" }],
     ["list"],
   ],

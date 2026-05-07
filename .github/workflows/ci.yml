@@ -4,16 +4,86 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [dev, main]
 
 jobs:
-  build:
+  # ── Quality gates (lint · types · build) ────────────────────────────────────
+  quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: 20
+          cache: npm
+
       - run: npm ci
+
+      - run: npm run lint
+      - run: npm run typecheck
       - run: npm run build
+
+  # ── Unit tests ───────────────────────────────────────────────────────────────
+  unit:
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run test:unit
+
+  # ── Playwright e2e tests ─────────────────────────────────────────────────────
+  playwright:
+    needs: quality          # skip e2e if lint / typecheck / build fails
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Cache Playwright browser binaries keyed by package-lock.json so the
+      # cache is automatically busted when the @playwright/test version changes.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('package-lock.json') }}
+
+      # Full install (binaries + OS system libraries) on a cache miss
+      - name: Install Playwright browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      # On a cache hit the binaries are restored but the OS libraries are not
+      # cached, so install only those (fast — no browser download).
+      - name: Install Playwright system dependencies
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Run Playwright tests
+        run: npm run test:e2e
+
+      # Always upload the HTML report + test-results (screenshots / traces /
+      # videos) so failures can be diagnosed without re-running locally.
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
