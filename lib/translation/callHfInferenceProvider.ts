@@ -76,7 +76,8 @@ export interface CallHfInferenceTranslateInput {
  * tuned models love to add "Sure! Here's the translation:" preambles
  * which would corrupt the output the route streams back to the client.
  */
-function buildTranslateSystemPrompt(targetLang: string): string {
+/** Exported for the HF router translate fallback (`callHfRouterTranslateProvider`). */
+export function buildTranslateSystemPrompt(targetLang: string): string {
   const label = TARGET_LANG_LABELS[targetLang] ?? targetLang
   return [
     `You are a professional translator. Translate the user's message from English into ${label}.`,
@@ -92,7 +93,7 @@ function buildTranslateSystemPrompt(targetLang: string): string {
  * matching pair at the very ends, so legitimate quoted content inside
  * the document is preserved.
  */
-function stripWrappingQuotes(s: string): string {
+export function stripWrappingQuotes(s: string): string {
   const trimmed = s.trim()
   if (trimmed.length < 2) return trimmed
   const first = trimmed[0]

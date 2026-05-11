@@ -1,5 +1,5 @@
 ---
-name: component-check
+name: component-check2
 description: Enforces component reuse and design system compliance for React + TypeScript + Tailwind + shadcn/ui. Use when creating or modifying components, when the user asks about UI components, mobile layouts, extending a feature under components/features, or when reviewing component architecture.
 ---
 

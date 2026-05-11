@@ -3,6 +3,7 @@ import { evaluateAsync } from '@/lib/evaluate'
 import { TranslateProviderError } from '@/lib/translation/callTranslateProvider'
 import { callHfInferenceTranslateProvider } from '@/lib/translation/callHfInferenceProvider'
 import { callHfPipelineTranslateProvider } from '@/lib/translation/callHfPipelineProvider'
+import { callHfRouterTranslateProvider } from '@/lib/translation/callHfRouterTranslateProvider'
 import {
   runTranslateGuardrails,
   translateFallback,
@@ -34,6 +35,11 @@ const ROUTE = '/api/translate'
  *      `{"generated_text": "..."}`. Used when the same endpoint serves
  *      ask + safety + translate; we prompt the model to translate.
  *      Implementation in `lib/translation/callHfInferenceProvider`.
+ *   3. `HF_TOKEN` — when neither URL above is set, the route falls back to
+ *      the OpenAI-compatible HF Inference Providers router at
+ *      `HF_ASK_BASE_URL` (default `https://router.huggingface.co/v1`) with
+ *      `HF_ASK_MODEL`, same stack as `/api/summarize` and Ask. Implementation
+ *      in `lib/translation/callHfRouterTranslateProvider`.
  *
  * Both providers throw the same `TranslateProviderError` discriminated
  * union, so the route's error mapping below does not need to know which
@@ -64,9 +70,9 @@ const TRANSLATE_TIMEOUT_MS = 180_000
 
 interface ResolvedTranslateProvider {
   /** Which backend to call. */
-  kind: 'hf-translate-endpoint' | 'hf-inference-endpoint'
+  kind: 'hf-translate-endpoint' | 'hf-inference-endpoint' | 'hf-router'
   /** Provider base URL (no trailing slash assumptions). */
-  url: string
+  url?: string
 }
 
 /**
@@ -74,8 +80,9 @@ interface ResolvedTranslateProvider {
  *   1. `HF_TRANSLATE_ENDPOINT_URL` (dedicated translation pipeline) —
  *      preferred because the model is purpose-built for translation.
  *   2. `HF_INFERENCE_ENDPOINT_URL` (chat model, prompted to translate).
+ *   3. `HF_TOKEN` (router at `HF_ASK_BASE_URL` / `HF_ASK_MODEL`).
  *
- * Returns `null` only when neither is configured (route returns 503 via
+ * Returns `null` only when none of the above are usable (route returns 503 via
  * `translateFallback`).
  */
 function resolveTranslateProvider(): ResolvedTranslateProvider | null {
@@ -83,6 +90,7 @@ function resolveTranslateProvider(): ResolvedTranslateProvider | null {
   if (pipeline) return { kind: 'hf-translate-endpoint', url: pipeline }
   const inference = process.env.HF_INFERENCE_ENDPOINT_URL?.trim()
   if (inference) return { kind: 'hf-inference-endpoint', url: inference }
+  if (process.env.HF_TOKEN?.trim()) return { kind: 'hf-router' }
   return null
 }
 
@@ -137,7 +145,7 @@ export async function POST(request: Request) {
       layer: 'fallback',
       action: 'reject',
       reason:
-        'No translate provider configured — set HF_TRANSLATE_ENDPOINT_URL or HF_INFERENCE_ENDPOINT_URL',
+        'No translate provider configured — set HF_TRANSLATE_ENDPOINT_URL, HF_INFERENCE_ENDPOINT_URL, or HF_TOKEN (router fallback)',
     })
     return fallbackResponse(
       translateFallback({
@@ -156,17 +164,36 @@ export async function POST(request: Request) {
       translatedText = await callHfPipelineTranslateProvider({
         text: sanitizedText,
         targetLang,
-        url: provider.url,
+        url: provider.url!,
+        hfToken,
+        timeoutMs: TRANSLATE_TIMEOUT_MS,
+      })
+    } else if (provider.kind === 'hf-inference-endpoint') {
+      translatedText = await callHfInferenceTranslateProvider({
+        text: sanitizedText,
+        targetLang,
+        url: provider.url!,
         hfToken,
         timeoutMs: TRANSLATE_TIMEOUT_MS,
       })
     } else {
-      translatedText = await callHfInferenceTranslateProvider({
+      const token = hfToken ?? process.env.HF_TOKEN?.trim()
+      if (!token) {
+        circuitBreaker.onFailure()
+        return fallbackResponse(
+          translateFallback({
+            inputLength: sanitizedText.length,
+            reason: 'service-not-configured',
+          })
+        )
+      }
+      translatedText = await callHfRouterTranslateProvider({
         text: sanitizedText,
         targetLang,
-        url: provider.url,
-        hfToken,
+        hfToken: token,
         timeoutMs: TRANSLATE_TIMEOUT_MS,
+        baseUrl: process.env.HF_ASK_BASE_URL?.trim(),
+        model: process.env.HF_ASK_MODEL?.trim(),
       })
     }
     circuitBreaker.onSuccess()
@@ -259,6 +286,7 @@ export async function POST(request: Request) {
   const evalModelLabel: Record<typeof provider.kind, string> = {
     'hf-translate-endpoint': 'hf-translate-pipeline',
     'hf-inference-endpoint': 'hf-inference-endpoint',
+    'hf-router': 'hf-router-chat',
   }
   evaluateAsync({
     input: sanitizedText,
