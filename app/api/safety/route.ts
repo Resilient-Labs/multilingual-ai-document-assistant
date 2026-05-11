@@ -15,6 +15,7 @@ import {
   callHfInferenceSafetyProvider,
   SafetyInferenceProviderError,
 } from '@/lib/safetyHfInferenceProvider'
+import { callHfRouterSafetyProvider } from '@/lib/safetyHfRouterProvider'
 import type { SafetyAnalysisRequest, SafetyFlags } from '@/types'
 import {
   sanitizeSafetyInputs,
@@ -23,15 +24,26 @@ import {
 } from './guardrails'
 
 /**
- * Upstream provider: the team's dedicated HF Inference Endpoint
- * (`HF_INFERENCE_ENDPOINT_URL`). Custom handler that accepts
- * `{"inputs": {"messages": [...]}}` and returns
- * `{"generated_text": "..."}`. The model is instructed by
- * `system-prompt.md` to emit a JSON object; we still run that string
- * through `extractJsonObjectString` to tolerate fenced blocks /
- * surrounding prose. Implementation in `lib/safetyHfInferenceProvider`.
+ * Upstream provider chain (priority order, top wins):
  *
- * Returns 500 `CONFIG_ERROR` when `HF_INFERENCE_ENDPOINT_URL` is unset.
+ *   1. `HF_INFERENCE_ENDPOINT_URL` — the team's dedicated HF Inference
+ *      Endpoint. Custom handler that accepts
+ *      `{"inputs": {"messages": [...]}}` and returns
+ *      `{"generated_text": "..."}`. The model is instructed by
+ *      `system-prompt.md` to emit a JSON object; we still run that
+ *      string through `extractJsonObjectString` to tolerate fenced
+ *      blocks / surrounding prose. Implementation in
+ *      `lib/safetyHfInferenceProvider`.
+ *   2. `HF_TOKEN` — when the dedicated endpoint is unset OR fails
+ *      (cold-start timeout, 5xx, network error), the route falls
+ *      back to the OpenAI-compatible HF Inference Providers router
+ *      at `HF_ASK_BASE_URL` with `HF_ASK_MODEL`, same stack as
+ *      `/api/summarize` and Ask. Implementation in
+ *      `lib/safetyHfRouterProvider`. The router returns the same
+ *      JSON-in-text contract so the parser below does not branch.
+ *
+ * Returns 500 `CONFIG_ERROR` only when **neither** an endpoint URL
+ * nor an HF token is configured.
  */
 
 /** Long timeout to absorb HF Inference Endpoint cold starts; safety
@@ -222,7 +234,14 @@ export async function POST(request: Request) {
         : undefined,
     })
 
-  const guardrailError = validateSafetyRequestInputs(textToAnalyze, safeFieldCandidates)
+  
+  const SAFETY_TRUNCATE_CHARS = 3_000
+  const truncatedText =
+    textToAnalyze.length > SAFETY_TRUNCATE_CHARS
+      ? textToAnalyze.slice(0, SAFETY_TRUNCATE_CHARS)
+      : textToAnalyze
+
+  const guardrailError = validateSafetyRequestInputs(truncatedText, safeFieldCandidates)
   if (guardrailError) {
     return NextResponse.json(
       { error: guardrailError.error, code: 'VALIDATION_ERROR' },
@@ -232,9 +251,15 @@ export async function POST(request: Request) {
 
   const inferenceEndpointUrl =
     process.env.HF_INFERENCE_ENDPOINT_URL?.trim() || undefined
-  if (!inferenceEndpointUrl) {
+  const hfToken = process.env.HF_TOKEN?.trim() || undefined
+
+  if (!inferenceEndpointUrl && !hfToken) {
     return NextResponse.json(
-      { error: 'Safety check not configured', code: 'CONFIG_ERROR' },
+      {
+        error:
+          'Safety check not configured. Set HF_INFERENCE_ENDPOINT_URL or HF_TOKEN (router fallback).',
+        code: 'CONFIG_ERROR',
+      },
       { status: 500 }
     )
   }
@@ -259,33 +284,86 @@ export async function POST(request: Request) {
     : textToAnalyze
 
   // ── Upstream call ────────────────────────────────────────────────────────
+  // Try the dedicated HF Inference Endpoint first when configured. On any
+  // failure (cold-start timeout past the LB's 60s budget, 5xx, network
+  // error), fall back to the HF router so a single flaky endpoint does
+  // not break the user's safety panel. If only HF_TOKEN is set, go
+  // straight to the router.
   let rawContent: string
-  try {
-    rawContent = await callHfInferenceSafetyProvider({
-      url: inferenceEndpointUrl,
-      systemPrompt: prompt,
-      userContent,
-      hfToken: process.env.HF_TOKEN?.trim() || undefined,
-      timeoutMs: HF_INFERENCE_SAFETY_TIMEOUT_MS,
-    })
-  } catch (err) {
-    const status =
-      err instanceof SafetyInferenceProviderError ? err.status : undefined
-    const detail =
-      err instanceof SafetyInferenceProviderError && err.snippet
-        ? err.snippet
-        : err instanceof Error
-          ? err.message
-          : String(err)
-    return NextResponse.json(
-      {
-        error: 'Safety provider returned an error',
-        code: 'UPSTREAM_ERROR',
-        detail,
-        status,
-      },
-      { status: 502 }
-    )
+  let providerUsed: 'hf-inference-endpoint' | 'hf-router'
+  let dedicatedError: SafetyInferenceProviderError | null = null
+
+  if (inferenceEndpointUrl) {
+    try {
+      rawContent = await callHfInferenceSafetyProvider({
+        url: inferenceEndpointUrl,
+        systemPrompt: prompt,
+        userContent,
+        hfToken,
+        timeoutMs: HF_INFERENCE_SAFETY_TIMEOUT_MS,
+      })
+      providerUsed = 'hf-inference-endpoint'
+    } catch (err) {
+      dedicatedError =
+        err instanceof SafetyInferenceProviderError
+          ? err
+          : new SafetyInferenceProviderError(
+              err instanceof Error ? err.message : String(err),
+              { cause: err }
+            )
+      if (!hfToken) {
+        const detail = dedicatedError.snippet ?? dedicatedError.message
+        return NextResponse.json(
+          {
+            error: 'Safety provider returned an error',
+            code: 'UPSTREAM_ERROR',
+            detail,
+            status: dedicatedError.status,
+          },
+          { status: 502 }
+        )
+      }
+    }
+  }
+
+  if (!rawContent!) {
+    if (dedicatedError) {
+      // eslint-disable-next-line no-console -- one-line ops note when we fall back
+      console.warn(
+        '[safety] HF Inference Endpoint failed, falling back to HF router:',
+        dedicatedError.status ?? '',
+        dedicatedError.message
+      )
+    }
+    try {
+      rawContent = await callHfRouterSafetyProvider({
+        systemPrompt: prompt,
+        userContent,
+        hfToken: hfToken!,
+        timeoutMs: HF_INFERENCE_SAFETY_TIMEOUT_MS,
+        baseUrl: process.env.HF_ASK_BASE_URL?.trim(),
+        model: process.env.HF_ASK_MODEL?.trim(),
+      })
+      providerUsed = 'hf-router'
+    } catch (err) {
+      const status =
+        err instanceof SafetyInferenceProviderError ? err.status : undefined
+      const detail =
+        err instanceof SafetyInferenceProviderError && err.snippet
+          ? err.snippet
+          : err instanceof Error
+            ? err.message
+            : String(err)
+      return NextResponse.json(
+        {
+          error: 'Safety provider returned an error',
+          code: 'UPSTREAM_ERROR',
+          detail,
+          status,
+        },
+        { status: 502 }
+      )
+    }
   }
 
   const jsonPayload = extractJsonObjectString(rawContent)
@@ -308,7 +386,7 @@ export async function POST(request: Request) {
   evaluateAsync({
     input: userContent,
     output: rawContent,
-    model: 'hf-inference-endpoint',
+    model: providerUsed!,
     feature: 'safety',
   })
   return NextResponse.json({ flags, presentation })

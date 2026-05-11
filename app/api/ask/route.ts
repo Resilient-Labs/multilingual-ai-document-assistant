@@ -180,12 +180,18 @@ export async function POST(request: Request) {
 
     const chunkCount = Array.isArray(chunks) ? chunks.length : 0;
 
-    // Resolve which upstream to use. The dedicated inference endpoint
-    // wins when configured; otherwise we fall back to the legacy router
-    // path which requires HF_TOKEN.
+    // Resolve which upstream(s) to use. Priority:
+    //   1. HF_INFERENCE_ENDPOINT_URL (preferred when configured).
+    //   2. HF_TOKEN-backed router via @ai-sdk/openai (`getAskLanguageModel`).
+    //
+    // The router path is also resolved up-front when HF_TOKEN is set so
+    // that a transient failure of the dedicated endpoint (cold-start
+    // timeout past the LB's 60s budget, 5xx, network error) can fall
+    // back to the working router path instead of breaking the user's
+    // chat session.
     const inferenceEndpointUrl =
       process.env.HF_INFERENCE_ENDPOINT_URL?.trim() || undefined;
-    const model = inferenceEndpointUrl ? null : getAskLanguageModel();
+    const model = getAskLanguageModel();
     if (!inferenceEndpointUrl && !model) {
       const durationMs = Date.now() - started;
       /* eslint-disable no-console */
@@ -273,7 +279,7 @@ export async function POST(request: Request) {
     // here too so observability shape stays identical to the streamText path.
     if (inferenceEndpointUrl) {
       const inferenceModelId = "hf-inference-endpoint";
-      let answerText: string;
+      let answerText: string | null = null;
       try {
         answerText = await callHfInferenceAskProvider({
           url: inferenceEndpointUrl,
@@ -283,90 +289,107 @@ export async function POST(request: Request) {
           timeoutMs: HF_INFERENCE_ASK_TIMEOUT_MS,
         });
       } catch (err) {
-        /* eslint-disable no-console */
         const message = err instanceof Error ? err.message : String(err);
         const durationMs = Date.now() - started;
-        console.error(
-          "[ask] inference error:",
+        if (!model) {
+          /* eslint-disable no-console */
+          console.error(
+            "[ask] inference error:",
+            message,
+            "— latency:",
+            durationMs,
+            "ms",
+            "— provider:",
+            inferenceModelId,
+          );
+          /* eslint-enable no-console */
+          return NextResponse.json(
+            { error: "Question answering failed" },
+            { status: 502 },
+          );
+        }
+        /* eslint-disable no-console -- one-line ops note when we fall back */
+        console.warn(
+          "[ask] HF Inference Endpoint failed, falling back to HF router:",
           message,
           "— latency:",
           durationMs,
           "ms",
-          "— provider:",
-          inferenceModelId,
         );
         /* eslint-enable no-console */
-        return NextResponse.json(
-          { error: "Question answering failed" },
-          { status: 502 },
-        );
       }
 
-      // Fire-and-forget observability — same shape as the streamText path.
-      void postAskTurnToLangSmith({
-        questionHash,
-        questionLen,
-        chunkCount,
-        answerLanguage: answerLanguage ?? "unset",
-        contextTextLen: safeContext.length,
-        modelId: inferenceModelId,
-        finishReason: "stop",
-        totalUsage: undefined,
-        answerText,
-        confidenceBandsVersion: ASK_CONFIDENCE_BANDS_VERSION,
-      }).catch((langsmithErr) => {
-        /* eslint-disable no-console */
-        console.error(
-          "[ask] LangSmith export error:",
-          langsmithErr instanceof Error ? langsmithErr.message : String(langsmithErr),
-        );
-        /* eslint-enable no-console */
-      });
-      evaluateAsync({
-        input: safeQuestion,
-        output: answerText,
-        model: inferenceModelId,
-        feature: "ask",
-        metadata: {
+      // When the dedicated endpoint succeeded, return its answer wrapped
+      // in a UI message stream so AskTab keeps consuming the same protocol
+      // as the streamText branch below. When it threw and a router model
+      // is available, fall through to the streamText branch instead.
+      if (answerText !== null) {
+        const finalAnswerText = answerText;
+        void postAskTurnToLangSmith({
           questionHash,
+          questionLen,
           chunkCount,
           answerLanguage: answerLanguage ?? "unset",
-          confidenceBandsVersion: ASK_CONFIDENCE_BANDS_VERSION,
+          contextTextLen: safeContext.length,
+          modelId: inferenceModelId,
           finishReason: "stop",
-          provider: inferenceModelId,
-        },
-      });
+          totalUsage: undefined,
+          answerText: finalAnswerText,
+          confidenceBandsVersion: ASK_CONFIDENCE_BANDS_VERSION,
+        }).catch((langsmithErr) => {
+          /* eslint-disable no-console */
+          console.error(
+            "[ask] LangSmith export error:",
+            langsmithErr instanceof Error ? langsmithErr.message : String(langsmithErr),
+          );
+          /* eslint-enable no-console */
+        });
+        evaluateAsync({
+          input: safeQuestion,
+          output: finalAnswerText,
+          model: inferenceModelId,
+          feature: "ask",
+          metadata: {
+            questionHash,
+            chunkCount,
+            answerLanguage: answerLanguage ?? "unset",
+            confidenceBandsVersion: ASK_CONFIDENCE_BANDS_VERSION,
+            finishReason: "stop",
+            provider: inferenceModelId,
+          },
+        });
 
-      const durationMs = Date.now() - started;
-      const successLogPayload = { questionHash, questionLen };
-      assertAskLogHasNoRawTextPayload(
-        "inference_endpoint_complete",
-        successLogPayload,
-      );
-      /* eslint-disable no-console */
-      console.log(
-        "[ask] inference endpoint complete — latency:",
-        durationMs,
-        "ms",
-        successLogPayload,
-      );
-      /* eslint-enable no-console */
+        const durationMs = Date.now() - started;
+        const successLogPayload = { questionHash, questionLen };
+        assertAskLogHasNoRawTextPayload(
+          "inference_endpoint_complete",
+          successLogPayload,
+        );
+        /* eslint-disable no-console */
+        console.log(
+          "[ask] inference endpoint complete — latency:",
+          durationMs,
+          "ms",
+          successLogPayload,
+        );
+        /* eslint-enable no-console */
 
-      // Emit a UI message stream with one text-delta carrying the whole
-      // answer. AskTab streams it through `readUIMessageStream` exactly
-      // like the streamText path, so the chat bubble renders the same way.
-      const textId = randomUUID();
-      const stream = createUIMessageStream({
-        execute: ({ writer }) => {
-          writer.write({ type: "text-start", id: textId });
-          writer.write({ type: "text-delta", id: textId, delta: answerText });
-          writer.write({ type: "text-end", id: textId });
-        },
-      });
-      return createUIMessageStreamResponse({ stream });
+        const textId = randomUUID();
+        const stream = createUIMessageStream({
+          execute: ({ writer }) => {
+            writer.write({ type: "text-start", id: textId });
+            writer.write({ type: "text-delta", id: textId, delta: finalAnswerText });
+            writer.write({ type: "text-end", id: textId });
+          },
+        });
+        return createUIMessageStreamResponse({ stream });
+      }
     }
 
     // ── Legacy streaming branch (HF Inference Providers router) ──────────────
+    // Reached when (a) `HF_INFERENCE_ENDPOINT_URL` is unset and `model`
+    // is the only available provider, or (b) the dedicated endpoint
+    // threw above and we are falling back to the router.
     // [Karlee] — V1 uses baseline Llama 3.1 8B + RAG + prompts (no fine-tuning per team decision, Apr 2026).
     // HF/LLM errors often surface when the client consumes the stream (after this handler returns),
     // not here — so logs below mean "stream object ready", not "model finished successfully".

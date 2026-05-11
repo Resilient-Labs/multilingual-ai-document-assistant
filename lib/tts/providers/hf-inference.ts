@@ -70,11 +70,14 @@ function isNetworkError(error: unknown): boolean {
 
 /**
  * Returns true when this provider is configured for the given language.
- * A dedicated endpoint URL OR an HF token is sufficient.
+ * Only dedicated HF Inference Endpoints count — the legacy serverless
+ * `api-inference.huggingface.co/models/<id>` API has been deprecated for
+ * Coqui TTS models and now returns 404, so falling back to it just adds
+ * latency before the router redirects to the HF Space.
  */
 export function isHfInferenceConfigured(lang: string): boolean {
   if (!MODEL_BY_LANG[lang]) return false
-  return Boolean(ENDPOINT_BY_LANG[lang]) || Boolean(HF_TOKEN)
+  return Boolean(ENDPOINT_BY_LANG[lang])
 }
 
 export async function synthesizeWithHfInference(input: {

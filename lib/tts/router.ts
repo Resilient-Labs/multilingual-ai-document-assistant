@@ -9,9 +9,15 @@ import type { TtsProvider, TtsRequestPayload, TtsSynthesisResult } from '@/lib/t
  * Resolve which TTS backend to use for a given language.
  *
  * Priority:
- *  1. hf-inference — when HF_TTS_ENDPOINT_EN or HF_TOKEN is configured AND
- *                    the language is English (the only model with a handler.py)
- *  2. hf-space    — all other cases (es/vi always, en as fallback)
+ *  1. hf-inference — when HF_TTS_ENDPOINT_<LANG> or HF_TOKEN is configured
+ *                    for the requested language. Dedicated endpoints can
+ *                    be paused / scaled to zero and return 503 / 404, so
+ *                    we automatically fall back to hf-space below when
+ *                    that happens.
+ *  2. hf-space    — Coqui Space at HF_TTS_SPACE_URL. Used directly when
+ *                   no dedicated endpoint is configured, AND as the
+ *                   automatic fallback when the dedicated endpoint
+ *                   throws.
  *
  * Note: text preprocessing is handled upstream in app/api/tts/route.ts before
  * synthesizeSpeech is called — do not preprocess here to avoid double-processing.
@@ -20,6 +26,8 @@ export function getTtsProvider(targetLang: string): TtsProvider {
   if (isHfInferenceConfigured(targetLang)) return 'hf-inference'
   return 'hf-space'
 }
+
+const HF_TTS_SPACE_URL_CONFIGURED = Boolean(process.env.HF_TTS_SPACE_URL?.trim())
 
 export async function synthesizeSpeech(
   payload: TtsRequestPayload
@@ -31,7 +39,18 @@ export async function synthesizeSpeech(
 
   const provider = getTtsProvider(normalizedPayload.targetLang)
   if (provider === 'hf-inference') {
-    return synthesizeWithHfInference(normalizedPayload)
+    try {
+      return await synthesizeWithHfInference(normalizedPayload)
+    } catch (err) {
+      if (!HF_TTS_SPACE_URL_CONFIGURED) throw err
+      /* eslint-disable no-console -- one-line ops note when we fall back */
+      console.warn(
+        '[tts] hf-inference failed, falling back to hf-space:',
+        err instanceof Error ? err.message : String(err)
+      )
+      /* eslint-enable no-console */
+      return synthesizeWithHfSpace(normalizedPayload)
+    }
   }
   return synthesizeWithHfSpace(normalizedPayload)
 }

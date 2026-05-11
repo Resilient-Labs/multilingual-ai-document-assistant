@@ -101,6 +101,9 @@ export default function TranslatePage() {
 
     setSession(null)
     setSessionMissing(false)
+    setTranslatedText(null)
+    setTranslateError(null)
+    setTranslateLoading(false)
 
     const raw = sessionStorage.getItem(`translate-${id}`)
     if (raw) {
