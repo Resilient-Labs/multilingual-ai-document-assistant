@@ -105,7 +105,6 @@ import {
   type TtsSupportedLang,
 } from './schemas'
 import { sanitizeText } from './sanitize'
-import { detectPii } from './pii'
 import { checkTranslateLang, checkTtsLang, checkDomain } from './domain'
 import { hardenTranslateRequest, hardenTtsRequest, type DeepLRequestBody, type HfSpaceRequestBody } from './request-hardening'
 import { getCircuitBreaker, type CircuitBreaker } from './circuit-breaker'
@@ -140,10 +139,12 @@ export interface TranslateGuardrailsOutput {
  * Layers applied in order:
  * 1. Zod schema validation (text length, targetLang enum)
  * 2. Text sanitization (HTML strip, zero-width removal, Unicode NFC, whitespace)
- * 3. Input PII detection
- * 4. Domain checks (language whitelist, prompt injection, content policy)
- * 5. Request hardening (source_lang forced to EN, DEEPL_LANG_MAP mapping)
- * 6. Circuit breaker preflight (short-circuit if DeepL is OPEN)
+ * 3. Domain checks (language whitelist, prompt injection, content policy)
+ * 4. Request hardening (source_lang forced to EN, DEEPL_LANG_MAP mapping)
+ * 5. Circuit breaker preflight (short-circuit if DeepL is OPEN)
+ *
+ * Input PII blocking is not applied: translated text is expected to be full
+ * document content (see comment inside the function).
  *
  * Returns `{ ok: true, value: TranslateGuardrailsOutput }` on success, or a
  * structured `{ ok: false, response, status }` failure at the first rejection.
@@ -196,46 +197,9 @@ export function runTranslateGuardrails(
     })
   }
 
-  // ── Layer 1: Empty-after-sanitize guard ───────────────────────────────────
-  // If the entire input was stripped by sanitization (e.g. it was all HTML
-  // or zero-width characters), reject before running any further checks.
-  if (sanitizedText.trim().length === 0) {
-    logReject(route, 'input-validation', 'Text is empty after sanitization', {
-      originalLength: rawText.length,
-    })
-    return {
-      ok: false,
-      status: 422,
-      response: {
-        error: 'text must not be empty',
-        code: 'INVALID_INPUT',
-        layer: 'input-validation',
-        details: { path: 'text', reason: 'empty_after_sanitize' },
-      },
-    }
-  }
-
-  // ── Layer 1: Input PII detection (DETECT-ONLY — never blocks) ─────────────
-  // The translate route is built for users whose documents *will* contain
-  // sensitive data: immigration paperwork, court filings, benefits letters,
-  // medical bills. Refusing to translate is the failure mode, not a
-  // safeguard — the user already has the document and needs to read it.
-  //
-  // We still run the detector so ops have a metadata-only audit trail of how
-  // many translations contain sensitive categories (no raw text, no values —
-  // just types + counts via the standard guardrail logger).
-  const piiMatches = detectPii(sanitizedText)
-  if (piiMatches.length > 0) {
-    logWarn(
-      route,
-      'input-validation',
-      'PII detected in input text — passing through (translate route policy)',
-      {
-        textLength: sanitizedText.length,
-        detectedTypes: piiMatches.map((m) => m.type),
-      }
-    )
-  }
+  // Input PII detection is intentionally omitted: this route translates full
+  // document/OCR text, which routinely includes phones, emails, and numbers that
+  // match heuristic PII patterns. Output-side checks still apply where relevant.
 
   // ── Layer 2: Domain checks (injection + content policy) ───────────────────
   const domainResult = checkDomain(sanitizedText, route)
@@ -324,14 +288,13 @@ export interface TtsGuardrailsOutput {
  * Layers applied in order:
  * 1. Zod schema validation (text length, targetLang TTS enum, gender enum)
  * 2. Text sanitization (HTML strip, zero-width removal, Unicode NFC, whitespace)
- * 3. Input PII detection — DETECT-ONLY (logs categories via `logWarn`,
- *    never blocks). The TTS route exists to read aloud documents the user
- *    already has and is the only person listening to. See the inline
- *    comment in the body for the full rationale.
- * 4. Domain checks (language whitelist, prompt injection, content policy)
- * 5. Request hardening (language derived from validated targetLang, speaker_idx
+ * 3. Domain checks (language whitelist, prompt injection, content policy)
+ * 4. Request hardening (language derived from validated targetLang, speaker_idx
  *    resolved from env vars and validated against safe pattern)
- * 6. Circuit breaker preflight (short-circuit if HF Space TTS is OPEN)
+ * 5. Circuit breaker preflight (short-circuit if HF Space TTS is OPEN)
+ *
+ * Input PII blocking is not applied: spoken text is typically excerpted from
+ * user documents (same rationale as `/api/translate`).
  *
  * Returns `{ ok: true, value: TtsGuardrailsOutput }` on success, or a
  * structured `{ ok: false, response, status }` failure at the first rejection.
@@ -384,29 +347,8 @@ export function runTtsGuardrails(
     })
   }
 
-  // ── Layer 1: Input PII detection (DETECT-ONLY — never blocks) ─────────────
-  // The TTS route mirrors the translate / summarize policy: this app exists
-  // to help users understand documents that they already possess and which
-  // routinely contain sensitive data (immigration paperwork, court filings,
-  // benefits letters, medical bills). Refusing to read the document aloud
-  // is the failure mode — the user is listening to their own document in
-  // their own context and is the only person who needs to hear it.
-  //
-  // We still run the detector so ops have a metadata-only audit trail of
-  // how often TTS requests contain sensitive categories (no raw text, no
-  // values — just types + counts via the standard guardrail logger).
-  const piiMatches = detectPii(sanitizedText)
-  if (piiMatches.length > 0) {
-    logWarn(
-      route,
-      'input-validation',
-      'PII detected in input text — passing through (TTS route policy)',
-      {
-        textLength: sanitizedText.length,
-        detectedTypes: piiMatches.map((m) => m.type),
-      }
-    )
-  }
+  // Input PII detection omitted — document-derived excerpts may match heuristic
+  // PII patterns (see runTranslateGuardrails).
 
   // ── Layer 2: TTS language whitelist ──────────────────────────────────────
   const langResult = checkTtsLang(targetLang)

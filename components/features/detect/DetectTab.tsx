@@ -14,18 +14,30 @@ import {
   Clock4Icon,
   ShieldAlertIcon,
   OctagonAlertIcon,
+  TriangleAlertIcon,
 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 import { useSafetyAnalysis } from '@/hooks/useSafetyAnalysis'
 import { useDocumentSession } from '@/hooks/useDocumentSession'
 import {
   getSafetyLang,
   SAFETY_LEGITIMACY_LABELS,
+  SAFETY_SERIOUSNESS_LABELS,
   SAFETY_SEVERITY_LABELS,
   SAFETY_UI_STRINGS,
+  SCAM_ACK_UI_STRINGS,
 } from '@/lib/safetyI18n'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useErrorPopup } from '@/hooks/useErrorPopup'
 import type { OCRResult, RiskNextStep, SafetyFlags } from '@/types'
 
@@ -124,6 +136,14 @@ export function DetectTab({ docId, className, targetLang }: DetectTabProps) {
     showError(t.analysisFailedGeneric, safetyError)
   }, [safetyError, showError, t.analysisFailedGeneric])
 
+  const [scamAcknowledged, setScamAcknowledged] = useState(false)
+  const [scamReadChecked, setScamReadChecked] = useState(false)
+
+  useEffect(() => {
+    setScamAcknowledged(false)
+    setScamReadChecked(false)
+  }, [docId, flags?.detectedAt])
+
   if (docLoading) {
     return (
       <div className={`space-y-4 ${className ?? ''}`}>
@@ -176,11 +196,100 @@ export function DetectTab({ docId, className, targetLang }: DetectTabProps) {
 
   const effectiveSeverity = flags.riskLevel ?? flags.severity
   const tone = severityToneClasses(effectiveSeverity)
+  const seriousnessKey = flags.riskLevel ?? flags.severity
+  const seriousnessDisplay =
+    SAFETY_SERIOUSNESS_LABELS[lang][seriousnessKey] ??
+    SAFETY_SERIOUSNESS_LABELS[lang].medium
   const severityDisplay =
-    SAFETY_SEVERITY_LABELS[lang][flags.severity] ?? flags.severity
+    flags.legitimacy === 'likely_scam'
+      ? seriousnessDisplay
+      : SAFETY_SEVERITY_LABELS[lang][flags.severity] ?? flags.severity
+  const urgencyExtra =
+    flags.legitimacy === 'likely_scam' && presentation.urgencyLabel
+      ? ` · ${t.urgencyPrefix} ${presentation.urgencyLabel}`
+      : ''
   const legitimacyDisplay = flags.legitimacy
     ? SAFETY_LEGITIMACY_LABELS[lang][flags.legitimacy]
     : ''
+
+  const isLikelyScam = flags.legitimacy === 'likely_scam'
+  const scamCopy = SCAM_ACK_UI_STRINGS[lang]
+
+  if (isLikelyScam && !scamAcknowledged) {
+    return (
+      <>
+        <Dialog open modal>
+          <DialogContent
+            showCloseButton={false}
+            className="max-h-[90vh] max-w-[calc(100%-1.25rem)] gap-0 overflow-hidden border-2 border-destructive/70 p-0 shadow-2xl ring-destructive/20 sm:max-w-lg"
+            onPointerDownOutside={(e) => e.preventDefault()}
+            onInteractOutside={(e) => e.preventDefault()}
+            onEscapeKeyDown={(e) => e.preventDefault()}
+          >
+            <DialogHeader className="space-y-0 border-b border-destructive/25 bg-destructive/10 px-4 py-3 text-left dark:bg-destructive/20">
+              <DialogTitle className="text-left">
+                <span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t.sectionTitle}
+                </span>
+                <span className="mt-2 flex items-start gap-2 text-lg font-semibold leading-snug text-destructive">
+                  <TriangleAlertIcon
+                    className="mt-0.5 size-5 shrink-0"
+                    aria-hidden
+                  />
+                  {scamCopy.scamAlertTitle}
+                </span>
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="max-h-[min(52vh,420px)] overflow-y-auto px-4 py-4">
+              <p className="text-sm leading-relaxed text-foreground">
+                {scamCopy.scamAlertLead}
+              </p>
+              <ul className="mt-4 list-disc space-y-2.5 pl-5 text-sm leading-relaxed text-foreground">
+                <li>{scamCopy.scamBulletNoPayment}</li>
+                <li>{scamCopy.scamBulletOfficialOnly}</li>
+                <li>{scamCopy.scamBulletNoRush}</li>
+              </ul>
+            </div>
+
+            <div className="space-y-3 border-t border-border bg-muted/40 px-4 py-4 dark:bg-muted/25">
+              <div className="flex gap-3">
+                <Checkbox
+                  id={`scam-ack-${docId}`}
+                  checked={scamReadChecked}
+                  onCheckedChange={(v) => setScamReadChecked(v === true)}
+                  className="mt-0.5"
+                />
+                <Label
+                  htmlFor={`scam-ack-${docId}`}
+                  className="cursor-pointer text-sm font-normal leading-snug text-foreground"
+                >
+                  {scamCopy.scamAckCheckbox}
+                </Label>
+              </div>
+              <Button
+                type="button"
+                className="w-full"
+                disabled={!scamReadChecked}
+                onClick={() => setScamAcknowledged(true)}
+              >
+                {scamCopy.scamAckButton}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <div
+          className={`flex min-h-[100px] flex-col items-center justify-center rounded-lg border border-dashed border-muted-foreground/30 bg-muted/25 px-4 py-8 text-center ${className ?? ''}`}
+          aria-live="polite"
+        >
+          <p className="max-w-md text-sm text-muted-foreground">
+            {scamCopy.scamWaitingHint}
+          </p>
+        </div>
+      </>
+    )
+  }
 
   return (
     <div className={`space-y-4 ${className ?? ''}`}>
@@ -208,7 +317,7 @@ export function DetectTab({ docId, className, targetLang }: DetectTabProps) {
               {flags.legitimacy
                 ? ` · ${t.legitimacyPrefix} ${legitimacyDisplay}`
                 : ''}
-              {` · ${t.severityPrefix} ${severityDisplay}`}
+              {` · ${t.severityPrefix} ${severityDisplay}${urgencyExtra}`}
             </span>
           </ItemDescription>
         </ItemContent>
