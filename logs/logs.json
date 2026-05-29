@@ -606,21 +606,11 @@
     "endpoint": "/submit",
     "method": "POST",
     "status": 200,
-    "sourceLang": "en",
+    "sourceLang": "auto",
     "targetLang": "es"
   },
   {
-    "timestamp": "04/30/2026 9:20:23 AM",
-    "type": "Form Submission",
-    "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
-    "endpoint": "/submit",
-    "method": "POST",
-    "status": 200,
-    "sourceLang": "en",
-    "targetLang": "es"
-  },
-  {
-    "timestamp": "04/30/2026 9:59:03 AM",
+    "timestamp": "05/01/2026 11:42:15 AM",
     "type": "Form Submission",
     "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
     "endpoint": "/submit",
@@ -630,7 +620,7 @@
     "targetLang": "es"
   },
   {
-    "timestamp": "04/30/2026 11:01:30 AM",
+    "timestamp": "05/01/2026 11:43:10 AM",
     "type": "Form Submission",
     "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
     "endpoint": "/submit",
@@ -640,7 +630,7 @@
     "targetLang": "es"
   },
   {
-    "timestamp": "04/30/2026 11:03:31 AM",
+    "timestamp": "05/01/2026 11:43:37 AM",
     "type": "Form Submission",
     "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
     "endpoint": "/submit",
@@ -650,7 +640,7 @@
     "targetLang": "es"
   },
   {
-    "timestamp": "04/30/2026 11:11:50 AM",
+    "timestamp": "05/01/2026 11:44:00 AM",
     "type": "Form Submission",
     "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
     "endpoint": "/submit",
@@ -660,7 +650,7 @@
     "targetLang": "es"
   },
   {
-    "timestamp": "04/30/2026 11:34:03 AM",
+    "timestamp": "05/01/2026 11:44:19 AM",
     "type": "Form Submission",
     "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
     "endpoint": "/submit",
@@ -670,7 +660,7 @@
     "targetLang": "es"
   },
   {
-    "timestamp": "04/30/2026 11:37:51 AM",
+    "timestamp": "05/01/2026 11:45:00 AM",
     "type": "Form Submission",
     "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
     "endpoint": "/submit",
@@ -680,7 +670,7 @@
     "targetLang": "es"
   },
   {
-    "timestamp": "04/30/2026 11:39:06 AM",
+    "timestamp": "05/01/2026 11:45:28 AM",
     "type": "Form Submission",
     "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
     "endpoint": "/submit",
@@ -690,7 +680,7 @@
     "targetLang": "es"
   },
   {
-    "timestamp": "04/30/2026 11:40:56 AM",
+    "timestamp": "05/01/2026 11:45:58 AM",
     "type": "Form Submission",
     "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
     "endpoint": "/submit",
@@ -700,7 +690,7 @@
     "targetLang": "es"
   },
   {
-    "timestamp": "04/30/2026 11:43:11 AM",
+    "timestamp": "05/01/2026 11:46:55 AM",
     "type": "Form Submission",
     "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
     "endpoint": "/submit",
@@ -710,7 +700,7 @@
     "targetLang": "es"
   },
   {
-    "timestamp": "04/30/2026 12:25:12 PM",
+    "timestamp": "05/01/2026 11:59:31 AM",
     "type": "Form Submission",
     "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
     "endpoint": "/submit",
@@ -720,7 +710,7 @@
     "targetLang": "es"
   },
   {
-    "timestamp": "04/30/2026 12:45:46 PM",
+    "timestamp": "05/01/2026 11:59:51 AM",
     "type": "Form Submission",
     "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
     "endpoint": "/submit",
@@ -730,7 +720,7 @@
     "targetLang": "es"
   },
   {
-    "timestamp": "04/30/2026 1:32:53 PM",
+    "timestamp": "05/01/2026 12:00:21 PM",
     "type": "Form Submission",
     "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
     "endpoint": "/submit",
@@ -740,7 +730,7 @@
     "targetLang": "es"
   },
   {
-    "timestamp": "04/30/2026 1:34:32 PM",
+    "timestamp": "05/01/2026 12:01:39 PM",
     "type": "Form Submission",
     "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
     "endpoint": "/submit",
@@ -750,7 +740,7 @@
     "targetLang": "es"
   },
   {
-    "timestamp": "04/30/2026 1:36:52 PM",
+    "timestamp": "05/01/2026 12:02:00 PM",
     "type": "Form Submission",
     "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
     "endpoint": "/submit",
@@ -760,7 +750,7 @@
     "targetLang": "es"
   },
   {
-    "timestamp": "04/30/2026 1:42:03 PM",
+    "timestamp": "05/01/2026 12:02:20 PM",
     "type": "Form Submission",
     "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
     "endpoint": "/submit",
@@ -770,7 +760,77 @@
     "targetLang": "es"
   },
   {
-    "timestamp": "05/01/2026 4:52:11 PM",
+    "timestamp": "05/01/2026 12:02:42 PM",
+    "type": "Form Submission",
+    "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
+    "endpoint": "/submit",
+    "method": "POST",
+    "status": 200,
+    "sourceLang": "auto",
+    "targetLang": "en"
+  },
+  {
+    "timestamp": "05/01/2026 12:05:59 PM",
+    "type": "Form Submission",
+    "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
+    "endpoint": "/submit",
+    "method": "POST",
+    "status": 200,
+    "sourceLang": "auto",
+    "targetLang": "es"
+  },
+  {
+    "timestamp": "05/01/2026 12:15:43 PM",
+    "type": "Form Submission",
+    "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
+    "endpoint": "/submit",
+    "method": "POST",
+    "status": 200,
+    "sourceLang": "auto",
+    "targetLang": "es"
+  },
+  {
+    "timestamp": "05/01/2026 12:18:34 PM",
+    "type": "Form Submission",
+    "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
+    "endpoint": "/submit",
+    "method": "POST",
+    "status": 200,
+    "sourceLang": "auto",
+    "targetLang": "es"
+  },
+  {
+    "timestamp": "05/01/2026 12:18:44 PM",
+    "type": "Form Submission",
+    "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
+    "endpoint": "/submit",
+    "method": "POST",
+    "status": 200,
+    "sourceLang": "auto",
+    "targetLang": "es"
+  },
+  {
+    "timestamp": "05/01/2026 12:18:54 PM",
+    "type": "Form Submission",
+    "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
+    "endpoint": "/submit",
+    "method": "POST",
+    "status": 200,
+    "sourceLang": "auto",
+    "targetLang": "es"
+  },
+  {
+    "timestamp": "05/01/2026 12:19:33 PM",
+    "type": "Form Submission",
+    "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
+    "endpoint": "/submit",
+    "method": "POST",
+    "status": 200,
+    "sourceLang": "auto",
+    "targetLang": "es"
+  },
+  {
+    "timestamp": "05/01/2026 12:20:44 PM",
     "type": "Form Submission",
     "requestId": "9f3c1a52-8a3b-4c28-b1b4-8e7d2e12f9aa",
     "endpoint": "/submit",

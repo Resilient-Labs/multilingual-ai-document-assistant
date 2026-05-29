@@ -13,10 +13,11 @@ interface ErrorPopupState {
   isOpen: boolean
   title: string
   description: string
+  redirectPath?: string
 }
 
 interface ErrorPopupContextValue extends ErrorPopupState {
-  showError: (title: string, description: string) => void
+  showError: (title: string, description: string, redirectPath?: string) => void
   clearError: () => void
 }
 
@@ -27,20 +28,26 @@ export function ErrorProvider({ children }: { children: ReactNode }) {
     isOpen: false,
     title: '',
     description: '',
+    redirectPath: undefined,
   })
 
-  const showError = useCallback((title: string, description: string) => {
-    setError({
-      isOpen: true,
-      title,
-      description,
-    })
-  }, [])
+  const showError = useCallback(
+    (title: string, description: string, redirectPath?: string) => {
+      setError({
+        isOpen: true,
+        title,
+        description,
+        redirectPath,
+      })
+    },
+    []
+  )
 
   const clearError = useCallback(() => {
     setError((current) => ({
       ...current,
       isOpen: false,
+      redirectPath: undefined,
     }))
   }, [])
 

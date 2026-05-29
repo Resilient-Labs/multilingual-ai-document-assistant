@@ -33,6 +33,7 @@ import type { OCRResult } from '@/types'
 import { chunkText } from '@/lib/chunking'
 import { useLanguagePreference } from '@/hooks/useLanguagePreference'
 import { useErrorPopup } from '@/hooks/useErrorPopup'
+import { detectPii } from '@/lib/guardrails/pii'
 
 const HEIC_BRANDS = [
   'heic',
@@ -184,6 +185,15 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
     try {
       let fullText: string
       let docId: string
+      let ocrResult: OCRResult
+      let createdAt: number
+      let uploadPayload: {
+        filename: string
+        mimeType: string
+        sizeBytes: number
+        createdAt: number
+        ocr: OCRResult
+      } | null = null
 
       if (isImage) {
         // Client-side OCR — image never leaves the browser
@@ -208,9 +218,9 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
 
         fullText = data.text.trim()
         docId = `doc_${crypto.randomUUID()}`
+        createdAt = Date.now()
 
-        const createdAt = Date.now()
-        const ocrResult: OCRResult = {
+        ocrResult = {
           documentId: docId,
           fullText,
           blocks: [
@@ -222,16 +232,6 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
             },
           ],
         }
-
-        await persistOCRToEntityDB({
-          docId,
-          filename: file.name,
-          mimeType: file.type,
-          sizeBytes: file.size,
-          createdAt,
-          ocr: ocrResult,
-          file,
-        })
       } else {
         // Server-side extraction for PDFs / docs
         setOcrProgress('Uploading…')
@@ -247,14 +247,47 @@ export function UploadForm({ mobile = false }: UploadFormProps) {
 
         fullText = payload.ocr.fullText
         docId = payload.docId
-
-        await persistOCRToEntityDB({
-          docId: payload.docId,
+        createdAt = payload.createdAt ?? Date.now()
+        ocrResult = payload.ocr
+        uploadPayload = {
           filename: payload.filename ?? file.name,
           mimeType: payload.mimeType ?? file.type,
           sizeBytes: payload.sizeBytes ?? file.size,
-          createdAt: payload.createdAt ?? Date.now(),
+          createdAt,
           ocr: payload.ocr,
+        }
+      }
+
+      // Check for PII BEFORE any persistence
+      setOcrProgress('Checking document for sensitive information…')
+      const piiMatches = detectPii(fullText)
+      if (piiMatches.length > 0) {
+        const piiTypes = piiMatches.map((m) => m.label).join(', ')
+        showError(
+          'Sensitive Information Detected',
+          `Your document appears to contain: ${piiTypes}. Please remove this information and try again.`
+        )
+        setFile(null)
+        setOcrProgress(null)
+        setIsSubmitting(false)
+        return
+      }
+
+      // Only persist after PII check passes
+      if (isImage) {
+        await persistOCRToEntityDB({
+          docId,
+          filename: file.name,
+          mimeType: file.type,
+          sizeBytes: file.size,
+          createdAt,
+          ocr: ocrResult,
+          file,
+        })
+      } else if (uploadPayload) {
+        await persistOCRToEntityDB({
+          docId,
+          ...uploadPayload,
           file,
         })
       }

@@ -24,6 +24,7 @@ import { DetectTab } from '@/components/features/detect/DetectTab'
 import { useErrorPopup } from '@/hooks/useErrorPopup'
 import { cn } from '@/lib/utils'
 import { getSafetyLang, SAFETY_UI_STRINGS } from '@/lib/safetyI18n'
+import { detectPii } from '@/lib/guardrails/pii'
 import { getEntityDB } from '@/lib/entitydb'
 import {
   deleteAllVectorsForDocId,
@@ -72,6 +73,7 @@ export default function TranslatePage() {
 
   const [session, setSession] = useState<TranslateSession | null>(null)
   const [sessionMissing, setSessionMissing] = useState(false)
+  const [piiBlocked, setPiiBlocked] = useState(false)
   const [translatedText, setTranslatedText] = useState<string | null>(null)
   const [translateLoading, setTranslateLoading] = useState(false)
   const [translateError, setTranslateError] = useState<string | null>(null)
@@ -113,6 +115,27 @@ export default function TranslatePage() {
         return
       }
     }
+    try {
+      const parsed: TranslateSession = JSON.parse(raw)
+
+      // Check for PII before proceeding (backup defense)
+      const piiMatches = detectPii(parsed.fullText)
+      if (piiMatches.length > 0) {
+        sessionStorage.removeItem(`translate-${id}`)
+        sessionStorage.removeItem('current-doc-id')
+        setPiiBlocked(true)
+        const piiTypes = piiMatches.map((m) => m.label).join(', ')
+        showError(
+          'Sensitive Information Detected',
+          `This document contains sensitive information (${piiTypes}) and cannot be processed. Please upload a different document.`,
+          '/'
+        )
+        return
+      }
+
+      setSession(parsed)
+    } catch {
+      setSessionMissing(true)
 
     let cancelled = false
     void (async () => {
@@ -134,7 +157,7 @@ export default function TranslatePage() {
     return () => {
       cancelled = true
     }
-  }, [id])
+  }, [id, showError])
 
   useEffect(() => {
     if (!session || !id) return
@@ -210,15 +233,17 @@ export default function TranslatePage() {
     if (!sessionMissing) return
     showError(
       'Session expired',
-      'No document data found. Please upload your document again.'
+      'No document data found. Please upload your document again.',
+      '/'
     )
   }, [sessionMissing, showError])
 
   useEffect(() => {
     if (!translateError) return
-    showError('Translation failed', translateError)
+    showError('Translation failed', translateError, '/')
   }, [showError, translateError])
 
+  if (sessionMissing || piiBlocked) {
   const deleteDocumentFromDevice = useCallback(async () => {
     if (!id) return
     setDeleteBusy(true)
